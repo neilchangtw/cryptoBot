@@ -1,7 +1,3 @@
-import datetime
+from telegram_notify import send_telegram_message
 
-def greet():
-    now = datetime.datetime.now()
-    print(f"Hello, Neil! 👋 現在時間是：{now.strftime('%Y-%m-%d %H:%M:%S')}")
-
-greet()
+send_telegram_message("👋 CryptoBot 測試訊息成功送達！")
