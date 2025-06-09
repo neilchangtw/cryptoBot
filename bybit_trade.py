@@ -3,7 +3,7 @@ import time
 from openpyxl import Workbook, load_workbook
 from dotenv import load_dotenv
 from datetime import datetime, date
-from bybit import HTTP
+from pybit.unified_trading import HTTP
 from telegram_notify import send_telegram_message
 
 # === 載入 .env 配置 ===
@@ -12,7 +12,6 @@ load_dotenv()
 # === API 與風控全域參數 ===
 api_key = os.getenv("BYBIT_API_KEY")
 api_secret = os.getenv("BYBIT_API_SECRET")
-testnet = os.getenv("BYBIT_BASE_URL", "").startswith("https://api-testnet")
 usd_amount = float(os.getenv("ORDER_USD_AMOUNT", "100"))
 
 # --- 風控參數全部從 .env 讀取 ---
@@ -30,19 +29,21 @@ pnl_today = 0
 last_pnl_date = None
 trade_halted_today = False # 單日最大虧損暫停交易
 
-# === 建立 Bybit session ===
+# === 建立 Bybit session (主網 DEMO) ===
 def new_session():
     return HTTP(
         api_key=api_key,
         api_secret=api_secret,
-        testnet=testnet,
+        testnet=False,   # 主網
+        demo=True,       # DEMO 子帳戶
         recv_window=10000
     )
 
 session = new_session()
 
-# === 查詢該幣種 tick size（避免掛價異常）===
+# === 查詢該幣種 tick size（價格跳動單位）===
 def get_tick_size(symbol):
+    global session
     try:
         response = session.get_instruments_info(category="linear", symbol=symbol)
         info = response["result"]["list"][0]
@@ -51,15 +52,40 @@ def get_tick_size(symbol):
     except Exception as e:
         print("❌ 查詢 tick size 失敗，預設 0.01：", e)
         send_telegram_message(message=f"❗查詢 {symbol} tick size 失敗: {e}")
+        session = new_session()
         return tick_size_default
+
+# === 查詢合約最小下單量（最小/步進單位）===
+def get_lot_size(symbol):
+    global session
+    try:
+        response = session.get_instruments_info(category="linear", symbol=symbol)
+        info = response["result"]["list"][0]
+        min_qty = float(info.get("lotSizeFilter", {}).get("minOrderQty", 0.01))
+        qty_step = float(info.get("lotSizeFilter", {}).get("qtyStep", 0.01))
+        return min_qty, qty_step
+    except Exception as e:
+        print("❌ 查詢 lot size 失敗，預設 0.01：", e)
+        send_telegram_message(message=f"❗查詢 {symbol} lot size 失敗: {e}")
+        session = new_session()
+        return 0.01, 0.01
 
 # === 將價格四捨五入至合約 tick 單位 ===
 def round_to_tick(price, symbol):
     tick = get_tick_size(symbol)
     return round(round(price / tick) * tick, 8)
 
+# === 將下單量四捨五入到最小下單量與步進單位 ===
+def round_to_lot(qty, symbol):
+    min_qty, qty_step = get_lot_size(symbol)
+    rounded_qty = round(round(qty / qty_step) * qty_step, 8)
+    if rounded_qty < min_qty:
+        rounded_qty = min_qty
+    return rounded_qty
+
 # === 查詢目前倉位（多空皆支援）===
 def get_current_position(symbol: str):
+    global session
     try:
         response = session.get_positions(category="linear", symbol=symbol)
         pos_list = response["result"]["list"]
@@ -73,20 +99,19 @@ def get_current_position(symbol: str):
     except Exception as e:
         print("❌ 查詢倉位失敗：", e)
         send_telegram_message(message=f"❗查詢倉位失敗: {e}")
-        # API異常時自動重連
-        global session
         session = new_session()
         return []
 
 # === 強制平倉邏輯（多空雙向，依現有倉位數量）===
 def close_position(symbol: str, side: str, size: float):
+    global session
     try:
         print(f"🔁 嘗試平倉 {side}，數量：{size}")
         session.place_order(
             category="linear",
             symbol=symbol,
             side="Buy" if side == "Sell" else "Sell",
-            orderType="Market",   # 強制用市價單
+            orderType="Market",
             qty=str(size),
             timeInForce="IOC",
             reduceOnly=True
@@ -95,11 +120,11 @@ def close_position(symbol: str, side: str, size: float):
     except Exception as e:
         print("❌ 平倉失敗：", e)
         send_telegram_message(message=f"❗平倉失敗：{e}")
-        global session
         session = new_session()
 
 # === 查詢最近平倉損益 ===
 def get_latest_closed_pnl(symbol: str):
+    global session
     try:
         result = session.get_closed_pnl(category="linear", symbol=symbol, limit=1)
         pnl = float(result["result"]["list"][0]["closedPnl"])
@@ -107,6 +132,7 @@ def get_latest_closed_pnl(symbol: str):
     except Exception as e:
         print("❌ 無法查詢平倉 PnL：", e)
         send_telegram_message(message=f"❗查詢平倉 PnL 失敗：{e}")
+        session = new_session()
         return None
 
 # === 平倉/反手紀錄損益到 Excel ===
@@ -130,11 +156,16 @@ def log_pnl_to_xlsx(symbol: str, pnl: float, strategy: str = None, interval: str
 
 # === 下單數量與價格合理性檢查 ===
 def check_price_qty_valid(price, qty, symbol):
+    min_qty, qty_step = get_lot_size(symbol)
     if price <= 0 or qty <= 0:
         return False, "價格或數量異常"
     if qty > max_qty_per_order:
         return False, f"下單數量過大：{qty}>{max_qty_per_order}"
-    # 可進一步加入合理價格波動防爆判斷
+    if qty < min_qty:
+        return False, f"下單數量太小：{qty} < min {min_qty}"
+    # 判斷是否為 qty_step 的倍數
+    if abs(round(qty / qty_step) * qty_step - qty) > 1e-8:
+        return False, f"下單數量必須是 {qty_step} 的整數倍"
     return True, None
 
 # === 主下單邏輯 ===
@@ -171,8 +202,10 @@ def place_order(symbol: str, side: str, price: float,
     stopLoss_price = round_to_tick(float(stop_loss) if stop_loss else (price * 0.95 if side.upper() == "BUY" else price * 1.05), symbol)
     takeProfit_price = round_to_tick(float(take_profit) if take_profit else (price * 1.03 if side.upper() == "BUY" else price * 0.97), symbol)
 
-    # === 下單數量計算（限制最大單量）===
-    qty = round(usd_amount / price, 3)
+    # === 下單數量計算並自動四捨五入到合約單位 ===
+    qty = round(usd_amount / price, 8)
+    qty = round_to_lot(qty, symbol)
+
     is_valid, reason = check_price_qty_valid(price, qty, symbol)
     if not is_valid:
         send_telegram_message(message=f"❌ 不下單：{reason}")
@@ -232,3 +265,14 @@ def place_order(symbol: str, side: str, price: float,
     # 三次皆失敗
     send_telegram_message(message=f"❌ {symbol} {side} 連續3次下單失敗，請檢查系統狀態")
 
+# === 新增 EXIT 快訊（全部市價平倉功能）===
+def close_all_position(symbol: str):
+    global session
+    positions = get_current_position(symbol)
+    for pos in positions:
+        pos_side = pos['side']
+        pos_size = float(pos['size'])
+        if pos_size > 0:
+            close_position(symbol, pos_side, pos_size)
+            send_telegram_message(message=f"⏹️ {symbol} {pos_side} 市價全平 {pos_size}")
+            time.sleep(1)

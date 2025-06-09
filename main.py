@@ -1,40 +1,38 @@
-import os
-from email.policy import HTTP
+from bybit_trade import place_order, close_all_position
 
-from dotenv import load_dotenv
-
-# 載入 .env 檔案中的 API 金鑰
-load_dotenv()
-api_key = os.getenv("BYBIT_API_KEY")
-api_secret = os.getenv("BYBIT_API_SECRET")
-
-print(f"🔐 api_key: {api_key}")
-print(f"🔐 api_secret: {api_secret}")
-
-# 建立 session（使用主網模擬交易帳戶）
-session = HTTP(
-    testnet=False,
-    demo=True,
-    api_key=api_key,
-    api_secret=api_secret,
-    recv_window=10000
-)
-
-# 下單函式（ETHUSDT 市價買入 0.05）
-def place_demo_order():
-    try:
-        result = session.place_order(
-            category="linear",
-            symbol="ETHUSDT",
-            side="Buy",
-            orderType="Market",
-            qty="0.05",
-            timeInForce="IOC"
-        )
-        print("✅ 下單成功：", result)
-    except Exception as e:
-        print("❌ 下單失敗：", str(e))
-
-# 執行下單
 if __name__ == "__main__":
-    place_demo_order()
+    # 測試參數
+    symbol = "ETHUSDT"
+    side = "Buy"      # "Buy" or "Sell"
+    price = 2528     # 測試價格，可任意填入現價
+    stop_loss = 2500  # 可填入自訂停損，如 63000
+    take_profit = 2600 # 可填入自訂停利，如 68000
+    strategy = "ManualTest"
+    interval = "15"
+
+    print("===== 測試市價開倉功能 =====")
+    place_order(
+        symbol=symbol,
+        side=side,
+        price=price,
+        stop_loss=stop_loss,
+        take_profit=take_profit,
+        strategy=strategy,
+        interval=interval
+    )
+
+    # # 如需測試 SELL 可取消下列註解
+    # print("===== 測試市價開空 =====")
+    # place_order(
+    #     symbol=symbol,
+    #     side="Sell",
+    #     price=price,
+    #     stop_loss=stop_loss,
+    #     take_profit=take_profit,
+    #     strategy=strategy,
+    #     interval=interval
+    # )
+
+    # # 如需測試 EXIT 全部市價平倉可取消下列註解
+    # print("===== 測試 EXIT 全平功能 =====")
+    # close_all_position(symbol)
