@@ -37,9 +37,12 @@ ORDER_USD_AMOUNT=100    # 每筆下單 USDT 數量
 -最後根據新訊號進行 市價單下單（含 10% 止損）。
 
 3.Bybit 下單邏輯 (bybit_trade.py)
--使用 pybit SDK 接至 Bybit 主網模擬交易（demo）環境。
--每次下單金額固定為 ORDER_USD_AMOUNT（預設 100 USDT，來自 .env）。
--自動偵測持倉並進行反手下單與止損設定。
+-讀參數/風控
+-檢查冷卻/最大單/價格/數量
+-如需反手，先平倉、記錄損益
+-市價單下單（帶SL/TP）
+-失敗自動重連3次
+-成功/失敗都推播Telegram
 
 4.Telegram 快訊通知 (telegram_notify.py)
 -所有下單、略過條件、錯誤、平倉 PnL 都會透過 Telegram 通知。

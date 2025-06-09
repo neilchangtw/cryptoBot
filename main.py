@@ -1,5 +1,6 @@
-from pybit.unified_trading import HTTP
 import os
+from email.policy import HTTP
+
 from dotenv import load_dotenv
 
 # 載入 .env 檔案中的 API 金鑰
