@@ -1,6 +1,6 @@
 from pybit.unified_trading import HTTP
 import os
-import csv
+from openpyxl import Workbook, load_workbook
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -64,25 +64,33 @@ def get_latest_closed_pnl(symbol: str):
         print("❌ 無法查詢平倉 PnL：", e)
         return None
 
-# === 寫入 CSV ===
-def log_pnl_to_csv(symbol: str, pnl: float):
+# === 寫入 XLSX ===
+def log_pnl_to_xlsx(symbol: str, pnl: float):
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    filename = "trade_pnl_log.csv"
+    filename = "trade_pnl_log.xlsx"
+
     try:
-        with open(filename, mode='a', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow([now, symbol, pnl])
-        print(f"📅 PnL 日誌記錄完成: {pnl}")
+        if os.path.exists(filename):
+            wb = load_workbook(filename)
+            ws = wb.active
+        else:
+            wb = Workbook()
+            ws = wb.active
+            ws.append(["時間", "幣種", "損益"])
+
+        ws.append([now, symbol, pnl])
+        wb.save(filename)
+        print(f"📗 PnL 記錄寫入 XLSX 成功: {pnl}")
     except Exception as e:
-        print("❌ 寫入 PnL CSV 失敗：", e)
+        print("❌ 寫入 XLSX 失敗：", e)
 
 # === 下單邏輯（自動平倉 & 反手） ===
 def place_order(symbol: str, side: str, price: float):
     usd_amount = float(os.getenv("ORDER_USD_AMOUNT", "100"))
     qty = round(usd_amount / price, 3)
 
-# 🧠 動態止損價格
-    stop_loss_price = round(price * 0.95, 2) if side.upper() == "BUY" else round(price * 0.95, 2)
+    # 🧐 動態止捛價格
+    stop_loss_price = round(price * 0.95, 2) if side.upper() == "BUY" else round(price * 1.05, 2)
 
     current_side, position_size = get_current_position(symbol)
     print(f"📊 當前倉位: {current_side}, 量: {position_size}")
@@ -105,7 +113,7 @@ def place_order(symbol: str, side: str, price: float):
 
             pnl = get_latest_closed_pnl(symbol)
             if pnl is not None:
-                log_pnl_to_csv(symbol, pnl)
+                log_pnl_to_xlsx(symbol, pnl)
         except Exception as e:
             print("❌ 反手下單失敗：", str(e))
             return
@@ -125,4 +133,3 @@ def place_order(symbol: str, side: str, price: float):
             print("✅ 下單成功：", result)
         except Exception as e:
             print("❌ 下單失敗：", str(e))
-
