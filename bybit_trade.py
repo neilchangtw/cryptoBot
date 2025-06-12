@@ -5,31 +5,24 @@ from dotenv import load_dotenv
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from pybit.unified_trading import HTTP
-
 from telegram_notify import send_telegram_message
 
-# === 載入 .env 配置 ===
+# === 讀取 .env 環境變數 ===
 load_dotenv()
 
-# === API 與風控全域參數 ===
+# === API Key 配置 ===
 api_key = os.getenv("BYBIT_API_KEY")
 api_secret = os.getenv("BYBIT_API_SECRET")
-usd_amount = float(os.getenv("ORDER_USD_AMOUNT", "100"))
 
-# --- 風控參數 ---
-max_loss_per_order = float(os.getenv("MAX_LOSS_PER_ORDER", "30"))
-max_loss_per_day   = float(os.getenv("MAX_LOSS_PER_DAY", "100"))
-max_qty_per_order  = float(os.getenv("MAX_QTY_PER_ORDER", "0.5"))
-tick_size_default  = 0.01
+# === 倉位模型配置 ===
+fixed_amount = float(os.getenv("FIXED_AMOUNT", 100))  # 固定部分
+percent_amount = float(os.getenv("PERCENT_AMOUNT", 0.3))  # 浮動百分比
+max_order_amount = float(os.getenv("MAX_ORDER_AMOUNT", 300))  # 單次安全上限
 
-# --- 冷卻與狀態記錄 ---
-cooldown_seconds = 600
-last_trade_time = {}
-last_trade_price = {}
-last_trade_side = {}
-trade_halted_today = False
+# === 風控參數 ===
+cooldown_seconds = 600  # 反手冷卻時間
 
-# === 建立 Bybit session (主網 DEMO) ===
+# === 建立 Bybit Session ===
 def new_session():
     return HTTP(
         api_key=api_key,
@@ -41,187 +34,107 @@ def new_session():
 
 session = new_session()
 
-# === 查詢 tick size ===
-def get_tick_size(symbol):
+# === 記錄最近交易狀態 (冷卻用) ===
+last_trade_time = {}
+
+# === 查詢帳戶餘額 (USDT 可用餘額) ===
+def get_available_balance():
     global session
     try:
-        response = session.get_instruments_info(category="linear", symbol=symbol)
-        info = response["result"]["list"][0]
-        tick_size = float(info.get("priceFilter", {}).get("tickSize", tick_size_default))
-        return tick_size
+        result = session.get_wallet_balance(accountType="UNIFIED")
+        usdt_balance = float(result["result"]["list"][0]["totalEquity"])
+        return usdt_balance
     except Exception as e:
-        print("❌ 查詢 tick size 失敗，預設 0.01：", e)
-        send_telegram_message(message=f"❗查詢 {symbol} tick size 失敗: {e}")
+        print("❌ 查詢帳戶餘額失敗:", e)
+        send_telegram_message(f"❗查詢帳戶餘額失敗: {e}")
         session = new_session()
-        return tick_size_default
+        return 0.0
 
-# === 查詢 lot size ===
-def get_lot_size(symbol):
+# === 查詢交易規格（tick size, qty step 等）===
+def get_symbol_info(symbol):
     global session
     try:
-        response = session.get_instruments_info(category="linear", symbol=symbol)
-        info = response["result"]["list"][0]
-        min_qty = float(info.get("lotSizeFilter", {}).get("minOrderQty", 0.01))
-        qty_step = float(info.get("lotSizeFilter", {}).get("qtyStep", 0.01))
-        return min_qty, qty_step
+        res = session.get_instruments_info(category="linear", symbol=symbol)
+        info = res["result"]["list"][0]
+        tick_size = float(info["priceFilter"]["tickSize"])
+        qty_step = float(info["lotSizeFilter"]["qtyStep"])
+        min_qty = float(info["lotSizeFilter"]["minOrderQty"])
+        return tick_size, qty_step, min_qty
     except Exception as e:
-        print("❌ 查詢 lot size 失敗，預設 0.01：", e)
-        send_telegram_message(message=f"❗查詢 {symbol} lot size 失敗: {e}")
+        print("❌ 查詢交易規格失敗:", e)
+        send_telegram_message(f"❗查詢交易規格失敗: {e}")
         session = new_session()
-        return 0.01, 0.01
+        return 0.01, 0.001, 0.001
 
-# === 價格與數量四捨五入 ===
-def round_to_tick(price, symbol):
-    tick = get_tick_size(symbol)
-    return round(round(price / tick) * tick, 8)
+# === 四捨五入價格與數量 ===
+def round_to_tick(price, tick_size):
+    return round(round(price / tick_size) * tick_size, 8)
 
-def round_to_lot(qty, symbol):
-    min_qty, qty_step = get_lot_size(symbol)
-    rounded_qty = round(round(qty / qty_step) * qty_step, 8)
-    if rounded_qty < min_qty:
-        rounded_qty = min_qty
-    return rounded_qty
+def round_to_lot(qty, qty_step, min_qty):
+    qty = round(round(qty / qty_step) * qty_step, 8)
+    return max(qty, min_qty)
 
-# === 查詢目前倉位 ===
-def get_current_position(symbol: str):
-    global session
-    try:
-        response = session.get_positions(category="linear", symbol=symbol)
-        pos_list = response["result"]["list"]
-        positions = []
-        for pos in pos_list:
-            side = pos["side"]
-            size = float(pos["size"])
-            if size > 0:
-                positions.append({"side": side, "size": size})
-        return positions
-    except Exception as e:
-        print("❌ 查詢倉位失敗：", e)
-        send_telegram_message(message=f"❗查詢倉位失敗: {e}")
-        session = new_session()
-        return []
-
-# === 強制平倉 ===
-def close_position(symbol: str, side: str, size: float):
-    global session
-    try:
-        print(f"🔁 嘗試平倉 {side}，數量：{size}")
-        session.place_order(
-            category="linear",
-            symbol=symbol,
-            side="Buy" if side == "Sell" else "Sell",
-            orderType="Market",
-            qty=str(size),
-            timeInForce="IOC",
-            reduceOnly=True
-        )
-        print("✅ 平倉成功")
-    except Exception as e:
-        print("❌ 平倉失敗：", e)
-        send_telegram_message(message=f"❗平倉失敗：{e}")
-        session = new_session()
-
-# === EXIT: 全部平倉 ===
-def close_all_position(symbol: str):
-    global session
-    positions = get_current_position(symbol)
-    for pos in positions:
-        pos_side = pos['side']
-        pos_size = float(pos['size'])
-        if pos_size > 0:
-            close_position(symbol, pos_side, pos_size)
-            send_telegram_message(message=f"⏹️ {symbol} {pos_side} 市價全平 {pos_size}")
-            time.sleep(1)
-
-# === 下單 ===
-def place_order(symbol: str, side: str, price: float,
-                stop_loss: float = None, take_profit: float = None,
-                strategy: str = None, interval: str = None):
-    global session, last_trade_time, last_trade_price, last_trade_side
-    global trade_halted_today
+# === 下單核心邏輯 ===
+def place_order(symbol, side, price, strategy=None):
+    global session, last_trade_time
 
     now = time.time()
+    tick_size, qty_step, min_qty = get_symbol_info(symbol)
 
-    if trade_halted_today:
-        send_telegram_message(message="⚠️ 今日已達最大虧損，暫停交易")
-        print("🚨 交易已暫停")
-        return
-
+    # 反手冷卻邏輯
     if symbol in last_trade_time and now - last_trade_time[symbol] < cooldown_seconds:
-        send_telegram_message(message=f"⏳ {symbol} 反手冷卻中，請勿頻繁下單！")
-        print(f"⏳ {symbol} 冷卻未過")
+        print("⏳ 冷卻中，避免過度頻繁下單")
         return
 
-    price = round_to_tick(price, symbol)
-    stopLoss_price = round_to_tick(float(stop_loss) if stop_loss else (price * 0.95 if side.upper() == "BUY" else price * 1.05), symbol)
-    takeProfit_price = round_to_tick(float(take_profit) if take_profit else (price * 1.03 if side.upper() == "BUY" else price * 0.97), symbol)
+    price = round_to_tick(price, tick_size)
 
-    qty = round(usd_amount / price, 8)
-    qty = round_to_lot(qty, symbol)
+    # === 倉位計算邏輯 ===
+    balance = get_available_balance()
+    dynamic_amount = fixed_amount + (max(balance - fixed_amount, 0) * percent_amount)
+    total_usd = min(dynamic_amount, max_order_amount)  # 安全上限
 
-    min_qty, qty_step = get_lot_size(symbol)
-    if qty > max_qty_per_order or qty < min_qty:
-        send_telegram_message(message=f"❌ 不下單：數量不合法 qty={qty}")
+    qty = total_usd / price
+    qty = round_to_lot(qty, qty_step, min_qty)
+
+    if qty < min_qty:
+        send_telegram_message(f"❌ 下單失敗：數量 {qty} 低於最小下單量 {min_qty}")
         return
 
-    positions = get_current_position(symbol)
-    for pos in positions:
-        pos_side = pos['side']
-        pos_size = float(pos['size'])
-        if pos_side.lower() != side.lower():
-            close_position(symbol, pos_side, pos_size)
-            time.sleep(1)
+    try:
+        res = session.place_order(
+            category="linear",
+            symbol=symbol,
+            side=side.capitalize(),
+            orderType="Market",
+            qty=str(qty),
+            timeInForce="IOC"
+        )
+        print(f"✅ {side} 成功下單: {res}")
+        send_telegram_message(f"✅ 已市價 {side} {symbol} qty={qty} (總倉位約: {total_usd} USDT)")
+        last_trade_time[symbol] = now
 
-    retry = 3
-    for i in range(retry):
-        try:
-            result = session.place_order(
-                category="linear",
-                symbol=symbol,
-                side=side.capitalize(),
-                orderType="Market",
-                qty=str(qty),
-                stopLoss=str(stopLoss_price),
-                takeProfit=str(takeProfit_price),
-                timeInForce="IOC",
-                reduceOnly=False
-            )
-            print(f"✅ 第{i+1}次嘗試下單成功：{result}")
-            send_telegram_message(
-                message=f"✅ 已於 Bybit {side.upper()} {symbol}\n市價成交\nqty:{qty}\nSL:{stopLoss_price}\nTP:{takeProfit_price}\n策略:{strategy}\n週期:{interval}"
-            )
-            last_trade_time[symbol] = now
-            last_trade_price[symbol] = price
-            last_trade_side[symbol] = side
-            return
-        except Exception as e:
-            print(f"❌ 第{i+1}次下單失敗：{e}")
-            send_telegram_message(message=f"❌ 第{i+1}次下單失敗: {e}")
-            session = new_session()
-            time.sleep(2)
+        # 執行後續紀錄損益
+        record_trade(symbol)
 
-    send_telegram_message(message=f"❌ {symbol} {side} 連續3次下單失敗，請檢查系統狀態")
+    except Exception as e:
+        print("❌ 下單失敗:", e)
+        send_telegram_message(f"❌ 下單失敗: {e}")
+        session = new_session()
 
-# === Excel 寫入 ===
+# === 交易紀錄寫入 Excel ===
 def log_pnl_to_xlsx_trade_record(records: list):
     filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trade_pnl_log.xlsx")
     headers = ["交易對", "工具", "平倉價格", "訂單數量", "交易類型", "已結盈虧", "成交時間"]
 
     try:
         file_exists = os.path.exists(filename)
-
         if not file_exists:
             wb = Workbook()
             ws = wb.active
             ws.append(headers)
         else:
-            try:
-                wb = load_workbook(filename)
-                ws = wb.active
-            except InvalidFileException:
-                wb = Workbook()
-                ws = wb.active
-                ws.append(headers)
+            wb = load_workbook(filename)
+            ws = wb.active
 
         for record in records:
             ws.append([
@@ -237,12 +150,13 @@ def log_pnl_to_xlsx_trade_record(records: list):
         wb.save(filename)
         wb.close()
         print(f"📗 交易紀錄成功寫入 {len(records)} 筆")
+
     except Exception as e:
         print("❌ 寫入 XLSX 失敗：", e)
-        send_telegram_message(message=f"❗寫入交易紀錄 XLSX 失敗：{e}")
+        send_telegram_message(f"❗寫入交易紀錄 XLSX 失敗：{e}")
 
-
-def get_pnl_last_1_hour(symbol: str):
+# === 損益撈取邏輯 (下單後寫入最近1小時平倉單) ===
+def record_trade(symbol):
     global session
     try:
         now_ts = int(datetime.utcnow().timestamp() * 1000)
@@ -277,14 +191,21 @@ def get_pnl_last_1_hour(symbol: str):
                 "close_time": close_time
             })
 
-        total_pnl = sum([r["pnl"] for r in trade_records])
-        print(f"📊 {symbol} 最近1小時總損益: {total_pnl}")
-        log_pnl_to_xlsx_trade_record(trade_records)
-        send_telegram_message(f"📊 {symbol} 最近1小時總損益：{total_pnl} USDT")
-        return total_pnl
+        if trade_records:
+            log_pnl_to_xlsx_trade_record(trade_records)
 
     except Exception as e:
-        print("❌ 查詢1小時損益失敗：", e)
-        send_telegram_message(message=f"❗查詢1小時損益失敗：{e}")
+        print("❌ 撈取平倉紀錄失敗：", e)
+        send_telegram_message(f"❗平倉紀錄失敗: {e}")
         session = new_session()
-        return 0.0
+
+# === Webhook 觸發入口 (供 TradingView 使用) ===
+def webhook_execute(data):
+    try:
+        symbol = data["symbol"]
+        action = data["action"]
+        price = float(data["price"])
+        place_order(symbol, action, price)
+    except Exception as e:
+        print("❌ webhook 處理失敗:", e)
+        send_telegram_message(f"❗webhook 錯誤: {e}")
