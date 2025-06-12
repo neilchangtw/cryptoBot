@@ -3,8 +3,10 @@ import requests
 from dotenv import load_dotenv
 from datetime import datetime
 
+# 載入 .env 設定檔
 load_dotenv()
 
+# === 發送 Telegram 訊息主函式 ===
 def send_telegram_message(
         message=None,
         signal=None,
@@ -20,10 +22,10 @@ def send_telegram_message(
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
     if not token or not chat_id:
-        print("❌ 請確認 .env 已正確設定 BOT_TOKEN 與 CHAT_ID")
+        print("❌ 請確認 .env 已正確設定 TELEGRAM_BOT_TOKEN 與 TELEGRAM_CHAT_ID")
         return
 
-    # 若未給定完整訊息，自動組裝
+    # 當未提供完整 message 內容時，嘗試自動組裝訊號格式
     if not message and signal and symbol and price:
         color_emoji = "🟢" if signal.upper() == "BUY" else "🔴"
         msg_lines = [
@@ -36,11 +38,11 @@ def send_telegram_message(
         if interval:   msg_lines.append(f"⏰ 週期：{interval}")
         if stop_loss:  msg_lines.append(f"🛑 停損：{stop_loss}")
         if take_profit:msg_lines.append(f"🎯 停利：{take_profit}")
-        # 使用傳入時間，否則用本地時間
         msg_lines.append(f"📅 時間：{timestamp or datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         message = "\n".join(msg_lines)
+
     elif not message:
-        print("❌ 無訊息可發送（未提供 message 或必要欄位）")
+        print("❌ 無訊息內容，未發送通知")
         return
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -53,6 +55,6 @@ def send_telegram_message(
     try:
         response = requests.post(url, data=data)
         response.raise_for_status()
-        print("✅ 成功發送 Telegram 通知")
+        print("✅ Telegram 通知已發送")
     except Exception as e:
-        print(f"❌ 發送失敗: {e}")
+        print(f"❌ 發送 Telegram 通知失敗：{e}")

@@ -1,5 +1,4 @@
 from datetime import datetime
-
 from flask import Flask, request, jsonify
 
 from bybit_trade import place_order
@@ -23,6 +22,8 @@ def webhook():
         action   = data.get('action', 'UNKNOWN')
         symbol   = data.get('symbol', 'UNKNOWN')
         price    = float(data.get('price', '0'))
+        stop_loss = float(data.get('stop_loss', '0'))
+        take_profit = float(data.get('take_profit', '0'))
         strategy = data.get('strategy', 'UNKNOWN')
         interval = data.get('interval', 'UNKNOWN')
 
@@ -33,11 +34,11 @@ def webhook():
             remaining = cooldown_seconds - int((now - last_trade_time).total_seconds())
             cooldown_msg = (
                 f"⏳ *跳過下單（冷卻中）*\n"
-                f"{'🟢' if action.upper() == 'BUY' else '🔴'} *動作：{action.upper()}*\n"
-                f"📈 幣種：{symbol}\n"
-                f"📊 策略：{strategy}\n"
-                f"⏰ 時間框架：{interval}\n"
-                f"🕒 剩餘冷卻秒數：{remaining}"
+                f"{'🟢' if action.upper() == 'BUY' else '🔴'} 動作：{action.upper()}\n"
+                f"幣種：{symbol}\n"
+                f"策略：{strategy}\n"
+                f"週期：{interval}\n"
+                f"剩餘冷卻秒數：{remaining}"
             )
             print(cooldown_msg)
             send_telegram_message(message=cooldown_msg)
@@ -65,6 +66,8 @@ def webhook():
             f"{'🟢' if action.upper() == 'BUY' else '🔴'} 動作: {action.upper()}",
             f"幣種: {symbol}",
             f"價格: {price}",
+            f"止損: {stop_loss}",
+            f"止盈: {take_profit}",
             f"策略: {strategy}",
             f"週期: {interval}",
             f"時間: {timestamp}"
@@ -72,8 +75,8 @@ def webhook():
         send_telegram_message(message="\n".join(msg_lines))
         print("✅ 收到訊號並執行下單")
 
-        # === 執行下單 (V6 Pro版 place_order已自帶倉位計算) ===
-        place_order(symbol=symbol, side=action, price=price)
+        # === 執行下單，傳入止盈止損參數 ===
+        place_order(symbol=symbol, side=action, price=price, stop_loss=stop_loss, take_profit=take_profit, strategy=strategy, interval=interval)
 
         return jsonify({"status": "order_sent"}), 200
 
