@@ -130,7 +130,6 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None):
         session = new_session()
 
 # Excel 紀錄部分（完全照你原本的保留）
-
 def log_pnl_to_xlsx_trade_record(records: list):
     filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trade_pnl_log.xlsx")
     headers = ["交易對", "工具", "平倉價格", "訂單數量", "交易類型", "已結盈虧", "成交時間"]
@@ -175,7 +174,10 @@ def log_pnl_to_xlsx_trade_record(records: list):
 
         wb.save(filename)
         wb.close()
-        print(f"📗 交易紀錄成功寫入 {insert_count} 筆 (跳過重複筆數: {len(records) - insert_count})")
+
+        msg = f"📗 交易紀錄成功寫入 {insert_count} 筆，跳過重複 {len(records) - insert_count} 筆"
+        print(msg)
+        send_telegram_message(msg)
 
     except Exception as e:
         print("❌ 寫入 XLSX 失敗：", e)
@@ -214,6 +216,10 @@ def record_trade(symbol):
 
         if trade_records:
             log_pnl_to_xlsx_trade_record(trade_records)
+        else:
+            msg = f"⚠️ 無平倉紀錄：{symbol} 最近 1 小時內無平倉資料"
+            print(msg)
+            send_telegram_message(msg)
 
     except Exception as e:
         print("❌ 撈取平倉紀錄失敗：", e)
