@@ -29,15 +29,19 @@ def send_telegram_message(
     if not message and signal and symbol and price:
         color_emoji = "🟢" if signal.upper() == "BUY" else "🔴"
         msg_lines = [
-            f"🚨 *交易訊號通知*",
-            f"{color_emoji} *動作：{signal.upper()}*",
+            f"🚨 <b>交易訊號通知</b>",
+            f"{color_emoji} <b>動作：{signal.upper()}</b>",
             f"📈 幣種：{symbol}",
             f"💰 價格：{price}",
         ]
-        if strategy:   msg_lines.append(f"📊 策略：{strategy}")
-        if interval:   msg_lines.append(f"⏰ 週期：{interval}")
-        if stop_loss:  msg_lines.append(f"🛑 停損：{stop_loss}")
-        if take_profit:msg_lines.append(f"🎯 停利：{take_profit}")
+        if strategy:
+            msg_lines.append(f"📊 策略：{strategy}")
+        if interval:
+            msg_lines.append(f"⏰ 週期：{interval}")
+        if stop_loss is not None:
+            msg_lines.append(f"🛑 停損：{stop_loss}")
+        if take_profit is not None:
+            msg_lines.append(f"🎯 停利：{take_profit}")
         msg_lines.append(f"📅 時間：{timestamp or datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         message = "\n".join(msg_lines)
 
@@ -49,12 +53,15 @@ def send_telegram_message(
     data = {
         "chat_id": chat_id,
         "text": message,
-        "parse_mode": "Markdown"
+        "parse_mode": "HTML"  # 使用 HTML 解析模式，更穩定
     }
 
     try:
         response = requests.post(url, data=data)
-        response.raise_for_status()
-        print("✅ Telegram 通知已發送")
+        if response.status_code == 200:
+            print("✅ Telegram 通知已發送")
+        else:
+            print(f"⚠️ Telegram 傳送失敗，狀態碼: {response.status_code}, 回應: {response.text}")
+
     except Exception as e:
         print(f"❌ 發送 Telegram 通知失敗：{e}")
