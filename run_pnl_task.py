@@ -7,7 +7,7 @@ from bybit_trade import record_trade
 load_dotenv()
 
 # 你要統計的幣種列表（可擴充）
-SYMBOL_LIST = ["ETHUSDT"]
+SYMBOL_LIST = ["ETHUSDT","BTCUSDT"]
 
 def main():
     for symbol in SYMBOL_LIST:

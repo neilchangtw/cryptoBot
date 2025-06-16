@@ -80,13 +80,6 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None):
         print("⏳ 冷卻中，避免頻繁下單")
         return
 
-    # 設定槓桿（下單前確保設置正確）
-    try:
-        session.set_leverage(category="linear", symbol=symbol, buyLeverage=leverage, sellLeverage=leverage)
-    except Exception as e:
-        print("⚠️ 設定槓桿失敗:", e)
-        send_telegram_message(f"⚠️ 設定槓桿失敗: {e}")
-
     price = round_to_tick(price, tick_size)
     balance = get_available_balance()
 

@@ -1,6 +1,5 @@
 from datetime import datetime
 from flask import Flask, request, jsonify
-
 from bybit_trade import place_order
 from telegram_notify import send_telegram_message
 
@@ -9,10 +8,10 @@ app = Flask(__name__)
 # === 記錄最近下單資訊 ===
 last_trade_price = None
 last_trade_time = None
-min_price_diff = 10      # 最小價格差異（單位 USDT）
-cooldown_seconds = 600   # 冷卻時間：10 分鐘
+min_price_diff = 10  # 最小價格差異 (USDT)
+cooldown_seconds = 600  # 冷卻時間 (秒)
 
-# === 通用安全轉型函式 ===
+# 安全轉 float
 def safe_float(val):
     try:
         f = float(val)
@@ -25,86 +24,71 @@ def webhook():
     global last_trade_price, last_trade_time
 
     try:
-        # 解析 TradingView Webhook 傳入的資料
         data = request.get_json()
-        action   = data.get('action', 'UNKNOWN').upper()
-        symbol   = data.get('symbol', 'UNKNOWN')
-        price    = safe_float(data.get('price'))
-
+        action = data.get('action', 'UNKNOWN').upper()
+        symbol = data.get('symbol', 'UNKNOWN')
+        price = safe_float(data.get('price'))
         stop_loss = safe_float(data.get('sl'))
         take_profit = safe_float(data.get('tp'))
-
         strategy = data.get('strategy', 'UNKNOWN')
         interval = data.get('interval', 'UNKNOWN')
 
-        # 檢查 action 合法性
+        # 基本驗證
         if action not in ["BUY", "SELL"]:
-            err_msg = f"❌ 不支援的下單方向: {action}"
-            print(err_msg)
-            send_telegram_message(err_msg)
+            msg = f"❌ 不支援的下單方向: {action}"
+            print(msg)
+            send_telegram_message(msg)
             return jsonify({"error": "invalid_action"}), 400
 
-        # 檢查價格合法性
         if price is None or price <= 0:
-            err_msg = f"❌ 價格數據異常: {price}"
-            print(err_msg)
-            send_telegram_message(err_msg)
+            msg = f"❌ 價格錯誤: {price}"
+            print(msg)
+            send_telegram_message(msg)
             return jsonify({"error": "invalid_price"}), 400
 
         now = datetime.now()
 
-        # === 冷卻判斷 ===
+        # 冷卻時間判斷
         if last_trade_time and (now - last_trade_time).total_seconds() < cooldown_seconds:
             remaining = cooldown_seconds - int((now - last_trade_time).total_seconds())
             cooldown_msg = (
-                f"⏳ 跳過下單（冷卻中）\n"
-                f"{'🟢' if action == 'BUY' else '🔴'} 動作：{action}\n"
-                f"幣種：{symbol}\n"
-                f"策略：{strategy}\n"
-                f"週期：{interval}\n"
-                f"剩餘冷卻秒數：{remaining}"
+                f"⏳ 冷卻中，跳過下單\n"
+                f"{'🟢' if action == 'BUY' else '🔴'} {symbol}\n"
+                f"剩餘: {remaining} 秒"
             )
             print(cooldown_msg)
             send_telegram_message(cooldown_msg)
             return jsonify({"status": "cooldown_skipped"}), 200
 
-        # === 價格變動過濾 ===
+        # 價差過濾
         if last_trade_price and abs(price - last_trade_price) < min_price_diff:
             diff = abs(price - last_trade_price)
-            skip_msg = (
-                f"⚠️ 跳過下單（價格變化不足）\n"
-                f"變化：{diff:.2f} USDT < 門檻 {min_price_diff} USDT"
-            )
+            skip_msg = f"⚠️ 跳過下單（價格變化 {diff:.2f} < {min_price_diff})"
             print(skip_msg)
             send_telegram_message(skip_msg)
             return jsonify({"status": "price_skipped"}), 200
 
-        # 更新交易紀錄
+        # 更新下單紀錄
         last_trade_price = price
         last_trade_time = now
 
-        # 發送通知
+        # 發送 Telegram 紀錄
         timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
         msg_lines = [
             f"🚨 交易訊號通知",
-            f"{'🟢' if action == 'BUY' else '🔴'} 動作: {action}",
+            f"{'🟢' if action == 'BUY' else '🔴'} {action}",
             f"幣種: {symbol}",
             f"價格: {price}",
-        ]
-        if stop_loss is not None:
-            msg_lines.append(f"止損: {stop_loss}")
-        if take_profit is not None:
-            msg_lines.append(f"止盈: {take_profit}")
-        msg_lines += [
+            f"止損: {stop_loss or '無'}",
+            f"止盈: {take_profit or '無'}",
             f"策略: {strategy}",
             f"週期: {interval}",
             f"時間: {timestamp}"
         ]
-        message_text = "\n".join(msg_lines)
-        send_telegram_message(message_text)
+        send_telegram_message("\n".join(msg_lines))
         print("✅ 收到訊號並執行下單")
 
-        # === 執行下單 ===
+        # 執行下單
         place_order(
             symbol=symbol,
             side=action,
