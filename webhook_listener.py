@@ -11,11 +11,11 @@ last_trade_time = None
 min_price_diff = 10  # 最小價格差異 (USDT)
 cooldown_seconds = 600  # 冷卻時間 (秒)
 
-# 安全轉 float
+# 安全轉 float 並四捨五入為整數
 def safe_float(val):
     try:
         f = float(val)
-        return f if f > 0 else None
+        return round(f) if f > 0 else None
     except:
         return None
 
