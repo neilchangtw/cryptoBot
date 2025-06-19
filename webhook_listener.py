@@ -5,13 +5,10 @@ from telegram_notify import send_telegram_message
 
 app = Flask(__name__)
 
-# === 記錄最近下單資訊 ===
-last_trade_price = None
-last_trade_time = None
+# 只記錄相同策略＋幣種的最後價格
+last_trade_price = {}
 min_price_diff = 10  # 最小價格差異 (USDT)
-cooldown_seconds = 600  # 冷卻時間 (秒)
 
-# 安全轉 float 並四捨五入為整數
 def safe_float(val):
     try:
         f = float(val)
@@ -21,7 +18,7 @@ def safe_float(val):
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    global last_trade_price, last_trade_time
+    global last_trade_price
 
     try:
         data = request.get_json()
@@ -30,10 +27,9 @@ def webhook():
         price = safe_float(data.get('price'))
         stop_loss = safe_float(data.get('sl'))
         take_profit = safe_float(data.get('tp'))
-        strategy = data.get('strategy', 'UNKNOWN')
+        strategy = data.get('strategy', 'default')
         interval = data.get('interval', 'UNKNOWN')
 
-        # 基本驗證
         if action not in ["BUY", "SELL"]:
             msg = f"❌ 不支援的下單方向: {action}"
             print(msg)
@@ -46,34 +42,18 @@ def webhook():
             send_telegram_message(msg)
             return jsonify({"error": "invalid_price"}), 400
 
-        now = datetime.now()
-
-        # 冷卻時間判斷
-        if last_trade_time and (now - last_trade_time).total_seconds() < cooldown_seconds:
-            remaining = cooldown_seconds - int((now - last_trade_time).total_seconds())
-            cooldown_msg = (
-                f"⏳ 冷卻中，跳過下單\n"
-                f"{'🟢' if action == 'BUY' else '🔴'} {symbol}\n"
-                f"剩餘: {remaining} 秒"
-            )
-            print(cooldown_msg)
-            send_telegram_message(cooldown_msg)
-            return jsonify({"status": "cooldown_skipped"}), 200
-
-        # 價差過濾
-        if last_trade_price and abs(price - last_trade_price) < min_price_diff:
-            diff = abs(price - last_trade_price)
-            skip_msg = f"⚠️ 跳過下單（價格變化 {diff:.2f} < {min_price_diff})"
+        # ✅ 僅針對相同策略+幣種執行價格跳動過濾
+        last_key = (strategy, symbol)
+        if last_key in last_trade_price and abs(price - last_trade_price[last_key]) < min_price_diff:
+            diff = abs(price - last_trade_price[last_key])
+            skip_msg = f"⚠️ 跳過下單（價格變化 {diff:.2f} < {min_price_diff}）"
             print(skip_msg)
             send_telegram_message(skip_msg)
             return jsonify({"status": "price_skipped"}), 200
 
-        # 更新下單紀錄
-        last_trade_price = price
-        last_trade_time = now
+        last_trade_price[last_key] = price  # 更新策略+幣種的價格
 
-        # 發送 Telegram 紀錄
-        timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         msg_lines = [
             f"🚨 交易訊號通知",
             f"{'🟢' if action == 'BUY' else '🔴'} {action}",
@@ -88,13 +68,14 @@ def webhook():
         send_telegram_message("\n".join(msg_lines))
         print("✅ 收到訊號並執行下單")
 
-        # 執行下單
+        # ✅ 傳入策略 ID，冷卻與價差都依策略＋幣種
         place_order(
             symbol=symbol,
             side=action,
             price=price,
             stop_loss=stop_loss,
-            take_profit=take_profit
+            take_profit=take_profit,
+            strategy_id=strategy
         )
 
         return jsonify({"status": "order_sent"}), 200

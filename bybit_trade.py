@@ -70,20 +70,20 @@ def round_to_lot(qty, qty_step, min_qty):
     return max(qty, min_qty)
 
 # ✅ 核心下單：市價單 + 止盈止損 + 正確倉位 + 槓桿
-def place_order(symbol, side, price, stop_loss=None, take_profit=None):
+def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_id="default"):
     global session, last_trade_time
 
     now = time.time()
     tick_size, qty_step, min_qty = get_symbol_info(symbol)
 
-    if symbol in last_trade_time and now - last_trade_time[symbol] < cooldown_seconds:
-        print("⏳ 冷卻中，避免頻繁下單")
+    cooldown_key = (strategy_id, symbol)
+    if cooldown_key in last_trade_time and now - last_trade_time[cooldown_key] < cooldown_seconds:
+        print(f"⏳ 冷卻中（策略: {strategy_id}, 幣種: {symbol}），避免頻繁下單")
         return
 
     price = round_to_tick(price, tick_size)
     balance = get_available_balance()
 
-    # 倉位計算 (支援 max_order_amount 0 為不限制)
     if max_order_amount > 0:
         total_usd = min(fixed_amount * leverage, max_order_amount)
     else:
@@ -119,7 +119,7 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None):
         send_telegram_message(
             f"✅ 已市價 {side} {symbol}\n數量: {qty}\n價格: {price}\n止損: {sl_price}\n止盈: {tp_price}\n總倉位: {total_usd} USDT"
         )
-        last_trade_time[symbol] = now
+        last_trade_time[cooldown_key] = now
         record_trade(symbol)
 
     except Exception as e:
@@ -172,13 +172,36 @@ def log_pnl_to_xlsx_trade_record(records: list):
 
         wb.save(filename)
         wb.close()
-        msg = f"📗 交易紀錄成功寫入 {insert_count} 筆，跳過重複 {len(records) - insert_count} 筆"
-        print(msg)
-        send_telegram_message(msg)
+
+        if insert_count > 0:
+            # 重新讀取並統計每個幣種的總結盈虧
+            wb = load_workbook(filename)
+            ws = wb.active
+            pnl_summary = {}
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                symbol = row[0]
+                pnl = float(row[5]) if row[5] is not None else 0.0
+                pnl_summary[symbol] = pnl_summary.get(symbol, 0.0) + pnl
+            wb.close()
+
+            summary_lines = [f"📊 累計已結盈虧："]
+            for sym, total_pnl in pnl_summary.items():
+                emoji = "💰" if total_pnl >= 0 else "🔻"
+                summary_lines.append(f"{emoji} {sym}: {total_pnl:.2f} USDT")
+
+            summary_msg = (
+                    f"📗 新交易紀錄寫入 {insert_count} 筆\n"
+                    + "\n".join(summary_lines)
+            )
+            print(summary_msg)
+            send_telegram_message(summary_msg)
+        else:
+            print("📗 無新交易紀錄，跳過通知")
 
     except Exception as e:
         print("❌ 寫入 XLSX 失敗：", e)
         send_telegram_message(f"❗寫入交易紀錄失敗：{e}")
+
 
 def record_trade(symbol):
     global session
