@@ -238,7 +238,7 @@ def record_trade(symbol):
         else:
             msg = f"⚠️ 無平倉紀錄：{symbol} 最近 1 小時內無平倉資料"
             print(msg)
-            send_telegram_message(msg)
+            # send_telegram_message(msg)
 
     except Exception as e:
         print("❌ 撈取平倉紀錄失敗：", e)
