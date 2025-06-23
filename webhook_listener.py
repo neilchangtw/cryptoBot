@@ -13,6 +13,7 @@ app = Flask(__name__)
 last_trade_price = {}
 min_price_diff = 10  # 最小價格差異 (USDT)
 
+
 def safe_float(val):
     try:
         f = float(val)
@@ -20,11 +21,14 @@ def safe_float(val):
     except:
         return None
 
+
 def get_bool_env(key, default=False):
     val = os.getenv(key, str(default))
     return val.lower() in ("1", "true", "yes", "on")
 
+
 STRICT_RAISE_ON_DIRECTION_ERROR = get_bool_env("STRICT_RAISE_ON_DIRECTION_ERROR", False)
+
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -54,30 +58,35 @@ def webhook():
 
         # ======= 方向防呆，行為可用 .env 控制 =======
         if action == "BUY":
-            if take_profit is not None and take_profit <= price:
-                msg = f"❌ 多單止盈({take_profit}) 不高於開倉價({price})"
+            # 多單止盈應大於開倉價
+            if take_profit is not None and take_profit < price:
+                msg = f"❌ 多單止盈價格({take_profit}) 必須大於開倉價({price})，請檢查策略設定！"
                 print(msg)
                 send_telegram_message(msg)
                 if STRICT_RAISE_ON_DIRECTION_ERROR:
                     return jsonify({"error": msg}), 400
                 take_profit = None
-            if stop_loss is not None and stop_loss >= price:
-                msg = f"❌ 多單止損({stop_loss}) 不低於開倉價({price})"
+            # 多單止損應小於開倉價
+            if stop_loss is not None and stop_loss > price:
+                msg = f"❌ 多單止損價格({stop_loss}) 必須小於開倉價({price})，請檢查策略設定！"
                 print(msg)
                 send_telegram_message(msg)
                 if STRICT_RAISE_ON_DIRECTION_ERROR:
                     return jsonify({"error": msg}), 400
                 stop_loss = None
+
         elif action == "SELL":
-            if take_profit is not None and take_profit >= price:
-                msg = f"❌ 空單止盈({take_profit}) 不低於開倉價({price})"
+            # 空單止盈應小於開倉價
+            if take_profit is not None and take_profit > price:
+                msg = f"❌ 空單止盈價格({take_profit}) 必須小於開倉價({price})，請檢查策略設定！"
                 print(msg)
                 send_telegram_message(msg)
                 if STRICT_RAISE_ON_DIRECTION_ERROR:
                     return jsonify({"error": msg}), 400
                 take_profit = None
-            if stop_loss is not None and stop_loss <= price:
-                msg = f"❌ 空單止損({stop_loss}) 不高於開倉價({price})"
+            # 空單止損應大於開倉價
+            if stop_loss is not None and stop_loss < price:
+                msg = f"❌ 空單止損價格({stop_loss}) 必須大於開倉價({price})，請檢查策略設定！"
                 print(msg)
                 send_telegram_message(msg)
                 if STRICT_RAISE_ON_DIRECTION_ERROR:
@@ -129,6 +138,7 @@ def webhook():
         except:
             pass
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
