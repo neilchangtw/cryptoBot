@@ -44,6 +44,16 @@ def webhook():
         strategy = data.get('strategy', 'default')
         interval = data.get('interval', 'UNKNOWN')
 
+        # === 新增支援 CLOSE 指令 ===
+        if action == "CLOSE":
+            msg = f"🔚 收到平倉指令: {symbol}"
+            print(msg)
+            send_telegram_message(msg)
+
+            # 呼叫 place_order 支援平倉
+            place_order(symbol=symbol, side="CLOSE", price=price, strategy_id=strategy)
+            return jsonify({"status": "close_sent"}), 200
+
         if action not in ["BUY", "SELL"]:
             msg = f"❌ 不支援的下單方向: {action}"
             print(msg)

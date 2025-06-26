@@ -69,12 +69,45 @@ def round_to_lot(qty, qty_step, min_qty):
     qty = round(round(qty / qty_step) * qty_step, 8)
     return max(qty, min_qty)
 
-# ✅ 核心下單：市價單 + 止盈止損 + 正確倉位 + 槓桿
+# ✅ 核心下單：市價單 + 止盡止盛 + 正確倉位 + 槽杆
 def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_id="default"):
     global session, last_trade_time
 
     now = time.time()
     tick_size, qty_step, min_qty = get_symbol_info(symbol)
+
+    # 支援 CLOSE 指令
+    if side.upper() == "CLOSE":
+        try:
+            pos_info = session.get_positions(category="linear", symbol=symbol)["result"]["list"][0]
+            side_pos = pos_info["side"]
+            qty = float(pos_info["size"])
+
+            if qty <= 0:
+                send_telegram_message(f"⚠️ 無需平倉：{symbol} 無未平倉部位")
+                return
+
+            opposite_side = "Sell" if side_pos == "Buy" else "Buy"
+
+            res = session.place_order(
+                category="linear",
+                symbol=symbol,
+                side=opposite_side,
+                orderType="Market",
+                qty=str(qty),
+                timeInForce="IOC"
+            )
+
+            send_telegram_message(f"📤 已平倉 {symbol}，方向: {opposite_side}，數量: {qty}")
+            print(f"✅ 平倉成功: {res}")
+            last_trade_time[(strategy_id, symbol)] = now
+            record_trade(symbol)
+
+        except Exception as e:
+            print("❌ 平倉失敗:", e)
+            send_telegram_message(f"❌ 平倉失敗: {e}")
+            session = new_session()
+        return
 
     cooldown_key = (strategy_id, symbol)
     if cooldown_key in last_trade_time and now - last_trade_time[cooldown_key] < cooldown_seconds:
@@ -117,7 +150,7 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_
 
         print(f"✅ {side} 成功下單: {res}")
         send_telegram_message(
-            f"✅ 已市價 {side} {symbol}\n數量: {qty}\n價格: {price}\n止損: {sl_price}\n止盈: {tp_price}\n總倉位: {total_usd} USDT"
+            f"✅ 已市價 {side} {symbol}\n數量: {qty}\n價格: {price}\n止損: {sl_price}\n止盛: {tp_price}\n總倉位: {total_usd} USDT"
         )
         last_trade_time[cooldown_key] = now
         record_trade(symbol)
