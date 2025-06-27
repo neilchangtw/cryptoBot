@@ -69,14 +69,47 @@ def round_to_lot(qty, qty_step, min_qty):
     qty = round(round(qty / qty_step) * qty_step, 8)
     return max(qty, min_qty)
 
-# ✅ 核心下單：市價單 + 止盡止盛 + 正確倉位 + 槽杆
 def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_id="default"):
     global session, last_trade_time
 
     now = time.time()
     tick_size, qty_step, min_qty = get_symbol_info(symbol)
 
-    # 支援 CLOSE 指令
+    # === 模擬平倉邏輯（直接反向市價單平倉） ===
+    if side.upper() in ["BUY", "SELL"] and stop_loss is None and take_profit is None:
+        try:
+            pos_info = session.get_positions(category="linear", symbol=symbol)["result"]["list"][0]
+            current_side = pos_info["side"]
+            qty = float(pos_info["size"])
+
+            if qty <= 0 or (
+                    (side.upper() == "BUY" and current_side != "Sell") or
+                    (side.upper() == "SELL" and current_side != "Buy")
+            ):
+                send_telegram_message(f"⚠️ 無需模擬平倉：{symbol} 當前倉位不符或已無部位")
+                return
+
+            res = session.place_order(
+                category="linear",
+                symbol=symbol,
+                side=side.capitalize(),
+                orderType="Market",
+                qty=str(qty),
+                timeInForce="IOC"
+            )
+
+            send_telegram_message(f"📤 模擬平倉成功: {symbol}，方向: {side.upper()}，數量: {qty}")
+            print(f"✅ 模擬平倉成功: {res}")
+            last_trade_time[(strategy_id, symbol)] = now
+            record_trade(symbol)
+
+        except Exception as e:
+            print("❌ 模擬平倉失敗:", e)
+            send_telegram_message(f"❌ 模擬平倉失敗: {e}")
+            session = new_session()
+        return
+
+    # 真實平倉 CLOSE 支援
     if side.upper() == "CLOSE":
         try:
             pos_info = session.get_positions(category="linear", symbol=symbol)["result"]["list"][0]
@@ -117,10 +150,7 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_
     price = round_to_tick(price, tick_size)
     balance = get_available_balance()
 
-    if max_order_amount > 0:
-        total_usd = min(fixed_amount * leverage, max_order_amount)
-    else:
-        total_usd = fixed_amount * leverage
+    total_usd = min(fixed_amount * leverage, max_order_amount) if max_order_amount > 0 else fixed_amount * leverage
 
     qty = total_usd / price
     qty = round_to_lot(qty, qty_step, min_qty)
@@ -150,7 +180,7 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_
 
         print(f"✅ {side} 成功下單: {res}")
         send_telegram_message(
-            f"✅ 已市價 {side} {symbol}\n數量: {qty}\n價格: {price}\n止損: {sl_price}\n止盛: {tp_price}\n總倉位: {total_usd} USDT"
+            f"✅ 已市價 {side} {symbol}\n數量: {qty}\n價格: {price}\n止損: {sl_price}\n止盈: {tp_price}\n總倉位: {total_usd} USDT"
         )
         last_trade_time[cooldown_key] = now
         record_trade(symbol)

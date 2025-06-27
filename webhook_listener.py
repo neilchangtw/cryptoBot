@@ -13,7 +13,6 @@ app = Flask(__name__)
 last_trade_price = {}
 min_price_diff = 10  # 最小價格差異 (USDT)
 
-
 def safe_float(val):
     try:
         f = float(val)
@@ -21,14 +20,11 @@ def safe_float(val):
     except:
         return None
 
-
 def get_bool_env(key, default=False):
     val = os.getenv(key, str(default))
     return val.lower() in ("1", "true", "yes", "on")
 
-
 STRICT_RAISE_ON_DIRECTION_ERROR = get_bool_env("STRICT_RAISE_ON_DIRECTION_ERROR", False)
-
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -43,6 +39,17 @@ def webhook():
         take_profit = safe_float(data.get('tp'))
         strategy = data.get('strategy', 'default')
         interval = data.get('interval', 'UNKNOWN')
+        note = data.get('note', '').lower()
+
+        # === 處理模擬平倉邏輯 ===
+        if "模擬平" in note:
+            msg = f"🔚 模擬平倉訊號接收: {symbol} ({action})"
+            print(msg)
+            send_telegram_message(msg)
+
+            # 根據 action 平倉對應方向的倉位
+            place_order(symbol=symbol, side=action, price=price, strategy_id=strategy, close_request=True)
+            return jsonify({"status": "simulated_exit_sent", "symbol": symbol, "side": action}), 200
 
         # === 新增支援 CLOSE 指令 ===
         if action == "CLOSE":
@@ -94,7 +101,6 @@ def webhook():
                 if STRICT_RAISE_ON_DIRECTION_ERROR:
                     return jsonify({"error": msg}), 400
                 take_profit = None
-            # 空單止損應大於開倉價
             if stop_loss is not None and stop_loss < price:
                 msg = f"❌ 空單止損價格({stop_loss}) 必須大於開倉價({price})，請檢查策略設定！"
                 print(msg)
@@ -129,7 +135,6 @@ def webhook():
         send_telegram_message("\n".join(msg_lines))
         print("✅ 收到訊號並執行下單")
 
-        # 下單
         place_order(
             symbol=symbol,
             side=action,
@@ -148,7 +153,6 @@ def webhook():
         except:
             pass
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
