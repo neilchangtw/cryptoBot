@@ -4,7 +4,7 @@ from bybit_trade import place_order
 from telegram_notify import send_telegram_message
 import os
 from dotenv import load_dotenv
-
+import json
 # 讀取.env檔案
 load_dotenv()
 
@@ -29,9 +29,17 @@ STRICT_RAISE_ON_DIRECTION_ERROR = get_bool_env("STRICT_RAISE_ON_DIRECTION_ERROR"
 @app.route('/webhook', methods=['POST'])
 def webhook():
     global last_trade_price
-
     try:
-        data = request.get_json()
+        # 支援 text/plain 或 application/json
+        data = request.get_json(silent=True)
+        if data is None:
+            try:
+                data = json.loads(request.data.decode('utf-8'))
+            except Exception as e:
+                print("❌ JSON decode failed:", e)
+                data = {}
+        print("Webhook Received:", data)
+
         action = data.get('action', 'UNKNOWN').upper()
         symbol = data.get('symbol', 'UNKNOWN')
         price = safe_float(data.get('price'))
@@ -41,25 +49,14 @@ def webhook():
         interval = data.get('interval', 'UNKNOWN')
         note = data.get('note', '').lower()
 
-        # === 處理模擬平倉邏輯 ===
-        if "模擬平" in note:
+        # === 處理exit平倉邏輯 ===
+        if "模擬平" in note or "exit" in note or "close" in note:
             msg = f"🔚 模擬平倉訊號接收: {symbol} ({action})"
             print(msg)
             send_telegram_message(msg)
-
-            # 根據 action 平倉對應方向的倉位
-            place_order(symbol=symbol, side=action, price=price, strategy_id=strategy, close_request=True)
+            # **移除 close_request 參數**
+            place_order(symbol=symbol, side=action, price=price, strategy_id=strategy)
             return jsonify({"status": "simulated_exit_sent", "symbol": symbol, "side": action}), 200
-
-        # === 新增支援 CLOSE 指令 ===
-        if action == "CLOSE":
-            msg = f"🔚 收到平倉指令: {symbol}"
-            print(msg)
-            send_telegram_message(msg)
-
-            # 呼叫 place_order 支援平倉
-            place_order(symbol=symbol, side="CLOSE", price=price, strategy_id=strategy)
-            return jsonify({"status": "close_sent"}), 200
 
         if action not in ["BUY", "SELL"]:
             msg = f"❌ 不支援的下單方向: {action}"

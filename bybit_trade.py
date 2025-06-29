@@ -86,7 +86,7 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_
                     (side.upper() == "BUY" and current_side != "Sell") or
                     (side.upper() == "SELL" and current_side != "Buy")
             ):
-                send_telegram_message(f"⚠️ 無需模擬平倉：{symbol} 當前倉位不符或已無部位")
+                send_telegram_message(f"⚠️ 無需Exit平倉：{symbol} 當前倉位不符或已無部位")
                 return
 
             res = session.place_order(
@@ -98,14 +98,14 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_
                 timeInForce="IOC"
             )
 
-            send_telegram_message(f"📤 模擬平倉成功: {symbol}，方向: {side.upper()}，數量: {qty}")
-            print(f"✅ 模擬平倉成功: {res}")
+            send_telegram_message(f"📤 Exit平倉成功: {symbol}，原持倉: {current_side}，平倉方向: {side.upper()}，數量: {qty}")
+            print(f"✅ Exit平倉成功: {res}")
             last_trade_time[(strategy_id, symbol)] = now
             record_trade(symbol)
 
         except Exception as e:
-            print("❌ 模擬平倉失敗:", e)
-            send_telegram_message(f"❌ 模擬平倉失敗: {e}")
+            print("❌ Exit平倉失敗:", e)
+            send_telegram_message(f"❌ Exit平倉失敗: {e}")
             session = new_session()
         return
 
