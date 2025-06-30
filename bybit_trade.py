@@ -114,7 +114,7 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_
             print("❌ Exit平倉失敗:", e)
             send_telegram_message(f"❌ Exit平倉失敗: {e}")
             session = new_session()
-    return
+        return   # <-- 這裡有 return，是正確的
 
     # 真實平倉 CLOSE 支援
     if side.upper() == "CLOSE":
