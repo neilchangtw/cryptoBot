@@ -97,8 +97,15 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_
                 qty=str(qty),
                 timeInForce="IOC"
             )
+            # 嘗試抓回傳成交價（以 bybit v5 unified_trading 套件為例）
+            try:
+                exec_price = res["result"]["avgPrice"] if "avgPrice" in res["result"] else res["result"].get("orderPrice")
+            except Exception:
+                exec_price = None
 
-            send_telegram_message(f"📤 Exit平倉成功: {symbol}，原持倉: {current_side}，平倉方向: {side.upper()}，數量: {qty}")
+            send_telegram_message(
+                f"📤 Exit平倉成功: {symbol}，原持倉: {current_side}，平倉方向: {side.upper()}，數量: {qty}\n平倉價格: {exec_price}"
+            )
             print(f"✅ Exit平倉成功: {res}")
             last_trade_time[(strategy_id, symbol)] = now
             record_trade(symbol)
@@ -107,7 +114,7 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_
             print("❌ Exit平倉失敗:", e)
             send_telegram_message(f"❌ Exit平倉失敗: {e}")
             session = new_session()
-        return
+    return
 
     # 真實平倉 CLOSE 支援
     if side.upper() == "CLOSE":
