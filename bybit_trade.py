@@ -239,20 +239,34 @@ def log_pnl_to_xlsx_trade_record(records: list):
         wb.close()
 
         if insert_count > 0:
-            # 重新讀取並統計每個幣種的總結盈虧
+            # 重新讀取並統計每個幣種的總結盈虧，並計算總勝率
             wb = load_workbook(filename)
             ws = wb.active
             pnl_summary = {}
+            win_count = 0
+            lose_count = 0
+            total_count = 0
             for row in ws.iter_rows(min_row=2, values_only=True):
                 symbol = row[0]
                 pnl = float(row[5]) if row[5] is not None else 0.0
                 pnl_summary[symbol] = pnl_summary.get(symbol, 0.0) + pnl
+                # 勝率統計
+                if pnl > 0:
+                    win_count += 1
+                else:
+                    lose_count += 1
+                total_count += 1
             wb.close()
+
+            win_rate = (win_count / total_count * 100) if total_count > 0 else 0.0
 
             summary_lines = [f"📊 累計已結盈虧："]
             for sym, total_pnl in pnl_summary.items():
                 emoji = "💰" if total_pnl >= 0 else "🔻"
                 summary_lines.append(f"{emoji} {sym}: {total_pnl:.2f} USDT")
+
+            summary_lines.append(f"\n🏆 勝率統計：")
+            summary_lines.append(f"✔️ 勝: {win_count}  ❌ 敗: {lose_count}  🎯 勝率: {win_rate:.2f}%")
 
             summary_msg = (
                     f"📗 新交易紀錄寫入 {insert_count} 筆\n"
