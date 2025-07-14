@@ -63,10 +63,12 @@ def get_symbol_info(symbol):
         return 0.01, 0.001, 0.001
 
 def round_to_tick(price, tick_size):
-    return round(round(price / tick_size) * tick_size, 8)
+    decimals = abs(str(tick_size)[::-1].find('.'))
+    return round(round(price / tick_size) * tick_size, decimals)
 
 def round_to_lot(qty, qty_step, min_qty):
-    qty = round(round(qty / qty_step) * qty_step, 8)
+    decimals = abs(str(qty_step)[::-1].find('.'))
+    qty = round(round(qty / qty_step) * qty_step, decimals)
     return max(qty, min_qty)
 
 def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_id="default"):
@@ -178,6 +180,7 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_
         if tp_price:
             params["takeProfit"] = str(tp_price)
 
+        print(f"下單參數: {params}")  # 新增debug
         res = session.place_order(**params)
 
         print(f"✅ {side} 成功下單: {res}")
@@ -188,8 +191,8 @@ def place_order(symbol, side, price, stop_loss=None, take_profit=None, strategy_
         record_trade(symbol)
 
     except Exception as e:
-        print("❌ 下單失敗:", e)
-        send_telegram_message(f"❌ 下單失敗: {e}")
+        print(f"❌ 下單失敗: {e}, params: {params}")   # print params
+        send_telegram_message(f"❌ 下單失敗: {e}\nparams: {params}")
         session = new_session()
 
 # Excel 紀錄部分
@@ -280,7 +283,6 @@ def log_pnl_to_xlsx_trade_record(records: list):
     except Exception as e:
         print("❌ 寫入 XLSX 失敗：", e)
         send_telegram_message(f"❗寫入交易紀錄失敗：{e}")
-
 
 def record_trade(symbol):
     global session

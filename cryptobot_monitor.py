@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from pybit.unified_trading import HTTP
 from telegram_notify import send_telegram_message
 
-SYMBOLS = ["ETHUSDT", "BTCUSDT", "SOLUSDT"]
+SYMBOLS = ["ETHUSDT"]
 STATE_FILE = "trailing_state.pkl"
 ATR_LENGTH = 14
 ATR_MULTIPLIER_STOP = 1.5    # 保本止損移動距離倍數
@@ -79,6 +79,13 @@ def get_tp_sl_from_open_orders(symbol, side, entry_price):
         print(f"抓委託單TP/SL時異常: {e}")
     return tp_price, sl_price
 
+def is_bad_request_exception(e):
+    # pybit HTTPException 內容有 response，如果是 requests 物件也有 status_code
+    if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+        return e.response.status_code == 400
+    msg = str(e)
+    return "400" in msg or "Bad request" in msg
+
 def monitor_positions():
     try:
         # send_telegram_message("✅ 監控腳本排程已啟動，心跳測試通知")
@@ -90,6 +97,9 @@ def monitor_positions():
                 poslist = result.get("result", {}).get("list", [])
                 all_positions += [p for p in poslist if float(p.get("size", 0)) != 0]
             except Exception as sub_e:
+                if is_bad_request_exception(sub_e):
+                    print(f"⚠️ 略過 {symbol}：持倉查詢400 Bad Request（無此倉位或Demo站bug）")
+                    continue
                 send_telegram_message(f"⚠️ 查詢 {symbol} 持倉異常: {sub_e}")
 
         for pos in all_positions:
@@ -130,7 +140,7 @@ def monitor_positions():
 
             atr = get_atr(symbol)
 
-            # 保本觸發：最大浮盈>40U，止損移到進場價+1.5ATR（多單）且不得高於TP；空單反向
+            # 保本觸發：最大浮盈>THRESHOLD_PROFIT_STOP，止損移到進場價+1.5ATR（多單）且不得高於TP；空單反向
             if not st["保本"] and st["max_profit"] > THRESHOLD_PROFIT_STOP:
                 if side == "Buy":
                     new_sl = entry_price + ATR_MULTIPLIER_STOP * atr
@@ -152,7 +162,7 @@ def monitor_positions():
                 send_telegram_message(msg)
                 st["保本"] = True
 
-            # 浮盈>60U啟動trailing stop，距離1.5ATR
+            # 浮盈>THRESHOLD_PROFIT_TRAIL啟動trailing stop，距離1.5ATR
             if st["保本"] and not st["trailing"] and st["max_profit"] > THRESHOLD_PROFIT_TRAIL:
                 ts_dist = ATR_MULTIPLIER_TRAIL * atr
                 session.set_trading_stop(
