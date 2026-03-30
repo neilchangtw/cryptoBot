@@ -9,12 +9,20 @@ venv/
 # Secrets
 .env
 
+# Data / Cache
+data/
+*.pkl
+*.xlsx
+
+# IDE
+.idea/
+
 # Logs
 logs/
 
-#excel
-*.xlsx
+# Runtime state
+monitor_state.json
+trade_journal.csv
 
-*.xml
-
-*.pkl
+# OS artifacts
+*.stackdump

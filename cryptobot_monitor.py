@@ -1,190 +1,424 @@
-import os
-import pickle
-import requests
-from dotenv import load_dotenv
-from pybit.unified_trading import HTTP
-from telegram_notify import send_telegram_message
+"""
+v4 持倉監控 — Binance Futures
+每 5 分鐘檢查持倉，管理 TP1 部分平倉 + 自適應移動止損。
 
-SYMBOLS = ["ETHUSDT"]
-STATE_FILE = "trailing_state.pkl"
-ATR_LENGTH = 14
-ATR_MULTIPLIER_STOP = 1.5    # 保本止損移動距離倍數
-ATR_MULTIPLIER_TRAIL = 1.5   # trailing stop 距離倍數
-THRESHOLD_PROFIT_STOP = 30   # 浮盈多少U移保本
-THRESHOLD_PROFIT_TRAIL = 60  # 浮盈多少U啟用trailing stop
+出場邏輯：
+  Phase 1：浮盈 >= 1×ATR → 平 10% + SL 移至保本
+  Phase 2：自適應 ATR+RSI 移動止損
+    - base_mult = 1.0 + (atr_pctile/100) × 1.5
+    - RSI 加速：做多 RSI>65 / 做空 RSI<35 → ×0.6 收緊
+    - trail_sl = trail_extreme ± ATR × mult（最低保本）
+"""
+import os
+import sys
+import json
+import time
+import traceback
+from datetime import datetime
+from dotenv import load_dotenv
+
+import pandas as pd
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "backtest"))
+
+from data_fetcher import fetch_latest_klines
+from binance_trade import (
+    get_positions, place_order, update_stop_loss, cancel_all_orders,
+    get_symbol_info, get_available_balance, round_to_lot, round_to_tick,
+    new_session, SYMBOL,
+)
+from telegram_notify import send_telegram_message
+from trade_journal import (
+    log_tp1 as journal_log_tp1,
+    log_exit as journal_log_exit,
+    find_trade_id_by_position,
+)
 
 load_dotenv()
-api_key = os.getenv("BYBIT_API_KEY")
-api_secret = os.getenv("BYBIT_API_SECRET")
-session = HTTP(api_key=api_key, api_secret=api_secret, testnet=False, demo=True)
 
-try:
-    with open(STATE_FILE, "rb") as f:
-        state = pickle.load(f)
-except:
-    state = {}
+CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", 300))
+TP1_PCT = 0.10           # TP1 平倉比例 10%
+TP1_ATR_MULT = 1.0       # TP1 觸發距離
 
-def save_state():
-    with open(STATE_FILE, "wb") as f:
-        pickle.dump(state, f)
+STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "monitor_state.json")
 
-def get_atr(symbol, interval="60", length=ATR_LENGTH):
-    url = f"https://api.bybit.com/v5/market/kline"
-    params = {
-        "category": "linear",
-        "symbol": symbol,
-        "interval": interval,
-        "limit": length + 1
-    }
-    resp = requests.get(url, params=params)
-    data = resp.json()
-    if not data.get("result", {}).get("list"):
-        return 10  # fallback
-    klines = data["result"]["list"]
-    klines = [list(map(float, k)) for k in klines][::-1]
-    trs = []
-    for i in range(1, len(klines)):
-        high = klines[i][2]
-        low = klines[i][3]
-        prev_close = klines[i-1][4]
-        tr = max(
-            high - low,
-            abs(high - prev_close),
-            abs(low - prev_close)
+# 定時摘要
+_summary_last = 0
+SUMMARY_INTERVAL = 3600  # 每小時推送一次持倉摘要
+
+
+# ══════════════════════════════════════════════════════════════
+#  持倉狀態管理（JSON 持久化）
+# ══════════════════════════════════════════════════════════════
+
+def load_state():
+    try:
+        with open(STATE_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_state(state):
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f, indent=2)
+
+
+# ══════════════════════════════════════════════════════════════
+#  5m 指標（v4：ATR, RSI, ATR Percentile）
+# ══════════════════════════════════════════════════════════════
+
+def get_5m_indicators(symbol):
+    """取最新 5m ATR(14), RSI(14), ATR Percentile"""
+    try:
+        df = fetch_latest_klines(symbol, "5m", limit=200)
+
+        # ATR(14)
+        hl = df["high"] - df["low"]
+        hc = (df["high"] - df["close"].shift(1)).abs()
+        lc = (df["low"] - df["close"].shift(1)).abs()
+        tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
+        df["atr"] = tr.rolling(14).mean()
+
+        # RSI(14) — Wilder's smoothing
+        d = df["close"].diff()
+        g = d.clip(lower=0).ewm(alpha=1 / 14, min_periods=14).mean()
+        l_s = (-d.clip(upper=0)).ewm(alpha=1 / 14, min_periods=14).mean()
+        df["rsi"] = 100 - 100 / (1 + g / l_s)
+
+        # ATR Percentile（最近 100 根 K 線）
+        df["atr_pctile"] = df["atr"].rolling(100).apply(
+            lambda x: (x.iloc[-1] - x.min()) / (x.max() - x.min()) * 100
+            if x.max() != x.min() else 50, raw=False
         )
-        trs.append(tr)
-    return sum(trs) / len(trs) if trs else 10
 
-def get_tp_sl_from_open_orders(symbol, side, entry_price):
-    """自動從 open orders 抓TP/SL價格（同一倉位僅抓最遠的）"""
-    tp_price, sl_price = None, None
-    try:
-        open_orders = session.get_open_orders(category="linear", symbol=symbol)
-        order_list = open_orders.get("result", {}).get("list", [])
-        for order in order_list:
-            if not order.get("reduceOnly", False):
-                continue
-            price = float(order["price"])
-            if side == "Buy":
-                if price > entry_price and (tp_price is None or price > tp_price):
-                    tp_price = price
-                if price < entry_price and (sl_price is None or price < sl_price):
-                    sl_price = price
-            else:
-                if price < entry_price and (tp_price is None or price < tp_price):
-                    tp_price = price
-                if price > entry_price and (sl_price is None or price > sl_price):
-                    sl_price = price
+        latest = df.iloc[-1]
+        return {
+            "atr": float(latest["atr"]) if not pd.isna(latest["atr"]) else None,
+            "rsi": float(latest["rsi"]) if not pd.isna(latest["rsi"]) else None,
+            "atr_pctile": float(latest["atr_pctile"]) if not pd.isna(latest["atr_pctile"]) else 50.0,
+        }
     except Exception as e:
-        print(f"抓委託單TP/SL時異常: {e}")
-    return tp_price, sl_price
+        print(f"get_5m_indicators error: {e}")
+        return None
 
-def is_bad_request_exception(e):
-    # pybit HTTPException 內容有 response，如果是 requests 物件也有 status_code
-    if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
-        return e.response.status_code == 400
-    msg = str(e)
-    return "400" in msg or "Bad request" in msg
 
-def monitor_positions():
+# ══════════════════════════════════════════════════════════════
+#  自適應移動止損計算
+# ══════════════════════════════════════════════════════════════
+
+def calc_adaptive_trail_sl(side, trail_extreme, entry, atr, rsi, atr_pctile):
+    """
+    自適應 ATR+RSI 移動止損：
+    base_mult = 1.0 + (atr_pctile/100) × 1.5
+      低波動(0): 1.0x（收緊） → 高波動(100): 2.5x（放鬆）
+    RSI 加速：做多 RSI>65 → ×0.6 / 做空 RSI<35 → ×0.6
+    最低為保本（entry price）
+    """
+    base_mult = 1.0 + (atr_pctile / 100) * 1.5
+
+    if side == "long":
+        mult = base_mult * 0.6 if rsi > 65 else base_mult
+        trail_sl = trail_extreme - atr * mult
+        return max(trail_sl, entry)  # 不低於保本
+    else:
+        mult = base_mult * 0.6 if rsi < 35 else base_mult
+        trail_sl = trail_extreme + atr * mult
+        return min(trail_sl, entry)  # 不高於保本
+
+
+# ══════════════════════════════════════════════════════════════
+#  持倉監控邏輯
+# ══════════════════════════════════════════════════════════════
+
+def monitor_position(pos, state, symbol):
+    """
+    監控單一持倉：Phase 1 (TP1) → Phase 2 (自適應 Trail)
+    """
+    side = pos["side"]
+    entry = pos["entry_price"]
+    mark = pos["mark_price"]
+    size = pos["size"]
+    pos_key = f"{symbol}_{side}"
+
+    # 取 5m 指標
+    indicators = get_5m_indicators(symbol)
+    if indicators is None or indicators["atr"] is None:
+        print(f"  [{pos_key}] Cannot get 5m indicators, skip")
+        return
+
+    atr = indicators["atr"]
+    rsi = indicators["rsi"] if indicators["rsi"] is not None else 50.0
+    atr_pctile = indicators["atr_pctile"]
+
+    # 初始化狀態（首次偵測到持倉時）
+    if "phase" not in state:
+        state["phase"] = 1
+        if side == "long":
+            state["tp1_target"] = entry + TP1_ATR_MULT * atr
+        else:
+            state["tp1_target"] = entry - TP1_ATR_MULT * atr
+        state["trail_hi"] = mark
+        state["trail_lo"] = mark
+        state["initial_atr"] = atr
+        state["entry_price"] = entry
+        # 從日誌找到對應的 trade_id
+        state["trade_id"] = find_trade_id_by_position(side, entry) or ""
+        print(f"  [{pos_key}] Init state: TP1={state['tp1_target']:.2f} ATR={atr:.2f} "
+              f"trade_id={state['trade_id']}")
+
+    # 更新極值與最新 mark price
+    state["last_mark"] = mark
+    if mark > state["trail_hi"]:
+        state["trail_hi"] = mark
+    if mark < state["trail_lo"]:
+        state["trail_lo"] = mark
+
+    d = 1 if side == "long" else -1
+    unrealized = d * (mark - entry) * size
+
+    print(f"  [{pos_key}] entry={entry:.2f} mark={mark:.2f} size={size} "
+          f"unrealized={unrealized:.2f} phase={state['phase']} "
+          f"RSI={rsi:.1f} ATR_pctile={atr_pctile:.0f}")
+
+    # ── Phase 1：TP1 觸發 ────────────────────────────────────
+    if state["phase"] == 1:
+        tp1_target = state["tp1_target"]
+
+        if side == "long":
+            tp1_hit = mark >= tp1_target
+        else:
+            tp1_hit = mark <= tp1_target
+
+        if tp1_hit:
+            tick_size, qty_step, min_qty = get_symbol_info(symbol)
+            tp1_qty = round_to_lot(size * TP1_PCT, qty_step, min_qty)
+            close_side = "SELL" if side == "long" else "BUY"
+
+            direction = "LONG" if side == "long" else "SHORT"
+            profit_pct = d * (mark - entry) / entry * 100
+
+            msg = (f"<b>[TP1] {direction} {symbol}</b>\n"
+                   f"進場: {entry:.2f} → 現價: {mark:.2f} ({profit_pct:+.2f}%)\n"
+                   f"平倉 {TP1_PCT * 100:.0f}%: {close_side} {tp1_qty}\n"
+                   f"SL 移至保本: {entry:.2f}\n"
+                   f"切換 Phase 2: 自適應 ATR+RSI Trail")
+            print(f"  {msg}")
+            send_telegram_message(msg)
+
+            # 平 10%
+            place_order(symbol, close_side, qty=tp1_qty, reduce_only=True,
+                        strategy_id="v4_tp1")
+
+            # SL 移到進場價（保本）
+            update_stop_loss(symbol, entry, side)
+
+            state["phase"] = 2
+            state["trail_hi"] = max(state["trail_hi"], mark)
+            state["trail_lo"] = min(state["trail_lo"], mark)
+
+            # 日誌記錄 TP1
+            if state.get("trade_id"):
+                try:
+                    journal_log_tp1(state["trade_id"], mark)
+                except Exception as e:
+                    print(f"  Journal TP1 error: {e}")
+        else:
+            pct_to_tp1 = abs(tp1_target - mark) / entry * 100
+            print(f"    TP1 target: {tp1_target:.2f} "
+                  f"(差 {abs(tp1_target - mark):.2f} / {pct_to_tp1:.2f}%)")
+        return
+
+    # ── Phase 2：自適應移動止損 ──────────────────────────────
+    tick_size, _, _ = get_symbol_info(symbol)
+
+    if side == "long":
+        trail_sl = calc_adaptive_trail_sl(
+            "long", state["trail_hi"], entry, atr, rsi, atr_pctile
+        )
+        trail_sl = round_to_tick(trail_sl, tick_size)
+
+        base_mult = 1.0 + (atr_pctile / 100) * 1.5
+        mult_used = base_mult * 0.6 if rsi > 65 else base_mult
+
+        if trail_sl > entry:
+            print(f"    Adaptive Trail: hi={state['trail_hi']:.2f} "
+                  f"trail_sl={trail_sl:.2f} (mult={mult_used:.2f} ATR={atr:.2f})")
+            update_stop_loss(symbol, trail_sl, side)
+        else:
+            print(f"    Trail SL={trail_sl:.2f} <= entry={entry:.2f}, keeping breakeven")
+
+    else:  # short
+        trail_sl = calc_adaptive_trail_sl(
+            "short", state["trail_lo"], entry, atr, rsi, atr_pctile
+        )
+        trail_sl = round_to_tick(trail_sl, tick_size)
+
+        base_mult = 1.0 + (atr_pctile / 100) * 1.5
+        mult_used = base_mult * 0.6 if rsi < 35 else base_mult
+
+        if trail_sl < entry:
+            print(f"    Adaptive Trail: lo={state['trail_lo']:.2f} "
+                  f"trail_sl={trail_sl:.2f} (mult={mult_used:.2f} ATR={atr:.2f})")
+            update_stop_loss(symbol, trail_sl, side)
+        else:
+            print(f"    Trail SL={trail_sl:.2f} >= entry={entry:.2f}, keeping breakeven")
+
+
+def _log_position_exit(old_state, pos_key):
+    """持倉消失時記錄出場到日誌"""
+    trade_id = old_state.get("trade_id")
+    if not trade_id:
+        return
+
+    entry = old_state.get("entry_price", 0)
+    last_mark = old_state.get("last_mark", entry)
+    phase = old_state.get("phase", 1)
+    side = pos_key.split("_")[-1]  # e.g., "BTCUSDT_long" → "long"
+
+    # 判斷出場原因
+    if phase == 1:
+        exit_reason = "sl_hit"
+    else:
+        exit_reason = "adaptive_trail"
+
+    # 計算 PnL（近似值，用最後看到的 mark price）
+    d = 1 if side == "long" else -1
+    # 出場價用最後的 mark price 近似
+    exit_price = last_mark
+    pnl_pct = d * (exit_price - entry) / entry * 100 if entry > 0 else 0
+
+    # 取最新指標（可能為 None）
+    rsi_exit = None
+    atr_pctile_exit = None
     try:
-        # send_telegram_message("✅ 監控腳本排程已啟動，心跳測試通知")
+        indicators = get_5m_indicators(SYMBOL)
+        if indicators:
+            rsi_exit = indicators.get("rsi")
+            atr_pctile_exit = indicators.get("atr_pctile")
+    except Exception:
+        pass
 
-        all_positions = []
-        for symbol in SYMBOLS:
-            try:
-                result = session.get_positions(category="linear", symbol=symbol)
-                poslist = result.get("result", {}).get("list", [])
-                all_positions += [p for p in poslist if float(p.get("size", 0)) != 0]
-            except Exception as sub_e:
-                if is_bad_request_exception(sub_e):
-                    print(f"⚠️ 略過 {symbol}：持倉查詢400 Bad Request（無此倉位或Demo站bug）")
-                    continue
-                send_telegram_message(f"⚠️ 查詢 {symbol} 持倉異常: {sub_e}")
+    try:
+        journal_log_exit(
+            trade_id=trade_id,
+            exit_price=exit_price,
+            exit_reason=exit_reason,
+            realized_pnl=0,  # 實際 PnL 由交易所記錄，這裡用 0 佔位
+            pnl_pct=pnl_pct,
+            rsi_exit=rsi_exit,
+            atr_pctile_exit=atr_pctile_exit,
+        )
 
-        for pos in all_positions:
-            symbol = pos.get("symbol")
-            size = float(pos.get("size", 0))
-            if size == 0:
-                continue
-            # 必要欄位檢查
-            if "avgEntryPrice" not in pos or "markPrice" not in pos or "side" not in pos:
-                continue
-
-            side = pos["side"]
-            entry_price = float(pos["avgEntryPrice"])
-            mark_price = float(pos["markPrice"])
-            pos_key = f"{symbol}_{side}"
-
-            # 抓 open order 的 TP/SL
-            tp_price, sl_price = get_tp_sl_from_open_orders(symbol, side, entry_price)
-
-            # 讀取/初始化倉位狀態與最大浮盈
-            st = state.get(
-                pos_key,
-                {
-                    "保本": False,
-                    "trailing": False,
-                    "max_profit": 0
-                }
-            )
-
-            # 每分鐘用mark_price更新最大浮盈
-            if side == "Buy":
-                cur_profit = (mark_price - entry_price) * size
-            else:
-                cur_profit = (entry_price - mark_price) * size
-
-            if cur_profit > st.get("max_profit", 0):
-                st["max_profit"] = cur_profit
-
-            atr = get_atr(symbol)
-
-            # 保本觸發：最大浮盈>THRESHOLD_PROFIT_STOP，止損移到進場價+1.5ATR（多單）且不得高於TP；空單反向
-            if not st["保本"] and st["max_profit"] > THRESHOLD_PROFIT_STOP:
-                if side == "Buy":
-                    new_sl = entry_price + ATR_MULTIPLIER_STOP * atr
-                    if tp_price is not None:
-                        new_sl = min(new_sl, tp_price)
-                else:
-                    new_sl = entry_price - ATR_MULTIPLIER_STOP * atr
-                    if tp_price is not None:
-                        new_sl = max(new_sl, tp_price)
-                session.set_trading_stop(category="linear", symbol=symbol, stopLoss=str(new_sl))
-                # 保本觸發通知
-                msg = (f"🔔 {symbol} {side} 保本止損觸發\n"
-                       f"進場價: {entry_price}\n"
-                       f"現價: {mark_price}\n"
-                       f"最大浮盈: {st['max_profit']:.2f} U\n"
-                       f"新止損: {new_sl}\n"
-                       f"TP(委託): {tp_price}\n"
-                       f"ATR: {atr:.2f}")
-                send_telegram_message(msg)
-                st["保本"] = True
-
-            # 浮盈>THRESHOLD_PROFIT_TRAIL啟動trailing stop，距離1.5ATR
-            if st["保本"] and not st["trailing"] and st["max_profit"] > THRESHOLD_PROFIT_TRAIL:
-                ts_dist = ATR_MULTIPLIER_TRAIL * atr
-                session.set_trading_stop(
-                    category="linear", symbol=symbol, trailingStop=str(ts_dist),
-                    triggerDirection=1 if side == "Buy" else 2
-                )
-                # trailing stop 觸發通知
-                msg = (f"🔁 {symbol} {side} 啟動Trailing Stop\n"
-                       f"進場價: {entry_price}\n"
-                       f"現價: {mark_price}\n"
-                       f"最大浮盈: {st['max_profit']:.2f} U\n"
-                       f"Trailing距離: {ts_dist:.2f}\n"
-                       f"TP(委託): {tp_price}\n"
-                       f"ATR: {atr:.2f}")
-                send_telegram_message(msg)
-                st["trailing"] = True
-
-            state[pos_key] = st
-
-        save_state()
+        direction = "LONG" if side == "long" else "SHORT"
+        msg = (f"<b>[出場] {direction} {SYMBOL}</b>\n"
+               f"原因: {exit_reason}\n"
+               f"進場: {entry:.2f} → 出場: {exit_price:.2f} ({pnl_pct:+.2f}%)\n"
+               f"Phase: {phase}")
+        send_telegram_message(msg)
     except Exception as e:
-        send_telegram_message(f"❌ 監控腳本異常：{e}")
+        print(f"  Journal exit log error: {e}")
+
+
+def send_position_summary(symbol, positions, state):
+    """每小時印持倉摘要"""
+    global _summary_last
+    now = time.time()
+    if now - _summary_last < SUMMARY_INTERVAL:
+        return
+    if not positions:
+        return
+    _summary_last = now
+
+    try:
+        balance = get_available_balance()
+        total_pnl = sum(p["unrealized_pnl"] for p in positions)
+
+        print(f"\n--- Position Summary ---")
+        print(f"  Balance: {balance:.2f} USDT  Unrealized: {total_pnl:+.2f}")
+        for p in positions:
+            d = "L" if p["side"] == "long" else "S"
+            pos_key = f"{symbol}_{p['side']}"
+            st = state.get(pos_key, {})
+            phase = st.get("phase", "?")
+            print(f"  {d} {p['size']} @ {p['entry_price']:.2f} "
+                  f"PnL {p['unrealized_pnl']:+.2f} [Phase {phase}]")
+    except Exception as e:
+        print(f"summary error: {e}")
+
+
+def monitor_all():
+    """主監控函式：檢查所有持倉"""
+    symbol = SYMBOL
+    state = load_state()
+
+    try:
+        positions = get_positions(symbol)
+
+        if not positions:
+            print(f"  [{symbol}] No open positions")
+            # 偵測已平倉 → 記錄出場
+            keys_to_remove = [k for k in state if k.startswith(f"{symbol}_")]
+            for k in keys_to_remove:
+                _log_position_exit(state[k], k)
+                del state[k]
+            save_state(state)
+            return
+
+        print(f"  [{symbol}] {len(positions)} position(s)")
+
+        # 偵測已不存在的持倉 → 記錄出場
+        active_keys = {f"{symbol}_{p['side']}" for p in positions}
+        keys_to_remove = [k for k in state if k.startswith(f"{symbol}_") and k not in active_keys]
+        for k in keys_to_remove:
+            _log_position_exit(state[k], k)
+            print(f"  Removing stale state: {k}")
+            del state[k]
+
+        for pos in positions:
+            pos_key = f"{symbol}_{pos['side']}"
+            pos_state = state.get(pos_key, {})
+            monitor_position(pos, pos_state, symbol)
+            state[pos_key] = pos_state
+
+        save_state(state)
+
+        # 定時推送摘要
+        send_position_summary(symbol, positions, state)
+
+    except Exception as e:
+        err_msg = f"monitor error: {e}\n{traceback.format_exc()}"
+        print(err_msg)
+        send_telegram_message(f"<b>[Monitor 異常]</b>\n{e}")
+
+
+# ══════════════════════════════════════════════════════════════
+#  主程式
+# ══════════════════════════════════════════════════════════════
+
+def main():
+    env = os.getenv("BINANCE_TESTNET", "true").lower()
+    mode = "TESTNET" if env == "true" else "PRODUCTION"
+
+    print("=" * 60)
+    print(f"  v4 Position Monitor (Adaptive ATR+RSI Trail)")
+    print(f"  Mode: {mode}  Symbol: {SYMBOL}")
+    print(f"  Check Interval: {CHECK_INTERVAL}s")
+    print(f"  TP1: {TP1_PCT * 100:.0f}% at {TP1_ATR_MULT}x ATR → Phase 2")
+    print(f"  Trail: Adaptive ATR(pctile) + RSI Acceleration")
+    print("=" * 60)
+
+    balance = get_available_balance()
+    print(f"  Balance: {balance:.2f} USDT")
+
+    while True:
+        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Checking positions...")
+        monitor_all()
+        print(f"  Next check in {CHECK_INTERVAL}s...")
+        time.sleep(CHECK_INTERVAL)
+
 
 if __name__ == "__main__":
-    monitor_positions()
+    main()

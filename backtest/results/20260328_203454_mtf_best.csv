@@ -1,0 +1,2 @@
+long_entry,long_exit,short_entry,short_exit,total_pnl,long_pnl,short_pnl,trades,long_trades,short_trades,win_rate,profit_factor,max_drawdown
+m5_rsi_recover,fixed_2atr,m5_ema9_cross,atr_trail,629.45,-119.24,748.69,392,155,237,55.9,1.22,-460.3

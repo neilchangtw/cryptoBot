@@ -1,0 +1,2 @@
+total_pnl,trades,win_rate,profit_factor,max_drawdown,avg_duration_bars,long_trades,short_trades,long_pnl,short_pnl,real_sl_count,real_sl_pnl,breakeven_sl_count,breakeven_sl_pnl
+-753.0,295,56.3,0.66,-880.93,5.2,123,172,-693.73,-59.27,112,-2189.32,41,19.53
