@@ -99,10 +99,25 @@ def fetch_klines(
     return df
 
 
+# ── 記憶體快取（同一個 5 分鐘週期內不重複抓）──────────────────
+_kline_cache = {}  # key: (symbol, interval) → {"time": timestamp, "df": DataFrame}
+_CACHE_TTL = 60    # 快取有效期 60 秒（同一個 5m cycle 內 runner + monitor 共用）
+
+
 def fetch_latest_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 200) -> pd.DataFrame:
     """
-    抓最新 N 根 K線（給即時交易用，不快取）。
+    抓最新 N 根 K線（給即時交易用）。
+    同一分鐘內重複呼叫會回傳快取，避免重複 API 呼叫。
     """
+    cache_key = (symbol, interval)
+    now = time.time()
+
+    # 快取命中
+    if cache_key in _kline_cache:
+        cached = _kline_cache[cache_key]
+        if now - cached["time"] < _CACHE_TTL:
+            return cached["df"].copy()
+
     params = {"symbol": symbol, "interval": interval, "limit": limit}
     resp = requests.get(KLINES_URL, params=params, timeout=15)
     resp.raise_for_status()
@@ -118,7 +133,10 @@ def fetch_latest_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: in
     df.set_index("open_time", inplace=True)
     for col in ["open", "high", "low", "close", "volume"]:
         df[col] = df[col].astype(float)
-    return df[["open", "high", "low", "close", "volume"]]
+    df = df[["open", "high", "low", "close", "volume"]]
+
+    _kline_cache[cache_key] = {"time": now, "df": df}
+    return df.copy()
 
 
 if __name__ == "__main__":

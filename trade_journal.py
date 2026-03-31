@@ -11,9 +11,13 @@ CSV 格式：
 """
 import os
 import csv
+import threading
 from datetime import datetime
 
 JOURNAL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trade_journal.csv")
+
+# 檔案鎖：防止 runner + monitor 兩個 thread 同時讀寫 CSV
+_file_lock = threading.Lock()
 
 COLUMNS = [
     "trade_id",
@@ -48,7 +52,8 @@ def log_entry(trade_id, side, entry_price, qty, margin,
               rsi, atr, atr_pctile, bb_lower, bb_upper,
               structural_sl, tp1_target, swing_level):
     """開倉時記錄進場資訊"""
-    _ensure_header()
+    with _file_lock:
+        _ensure_header()
     row = {
         "trade_id": trade_id,
         "entry_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -65,9 +70,10 @@ def log_entry(trade_id, side, entry_price, qty, margin,
         "tp1_target": f"{tp1_target:.2f}",
         "swing_level": f"{swing_level:.2f}",
     }
-    with open(JOURNAL_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=COLUMNS)
-        writer.writerow(row)
+    with _file_lock:
+        with open(JOURNAL_FILE, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=COLUMNS)
+            writer.writerow(row)
     print(f"  [Journal] Entry logged: {trade_id}")
 
 
@@ -115,27 +121,28 @@ def log_exit(trade_id, exit_price, exit_reason, realized_pnl, pnl_pct,
 
 
 def _update_row(trade_id, updates):
-    """更新指定 trade_id 的行"""
+    """更新指定 trade_id 的行（thread-safe）"""
     if not os.path.exists(JOURNAL_FILE):
         return
 
-    rows = []
-    found = False
-    with open(JOURNAL_FILE, "r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row.get("trade_id") == trade_id:
-                row.update(updates)
-                found = True
-            rows.append(row)
+    with _file_lock:
+        rows = []
+        found = False
+        with open(JOURNAL_FILE, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get("trade_id") == trade_id:
+                    row.update(updates)
+                    found = True
+                rows.append(row)
 
-    if not found:
-        return
+        if not found:
+            return
 
-    with open(JOURNAL_FILE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+        with open(JOURNAL_FILE, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=COLUMNS)
+            writer.writeheader()
+            writer.writerows(rows)
 
 
 def get_trade(trade_id):

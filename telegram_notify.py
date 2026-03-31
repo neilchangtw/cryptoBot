@@ -54,12 +54,19 @@ def send_telegram_message(
         "parse_mode": "HTML"  # 使用 HTML 解析模式，更穩定
     }
 
-    try:
-        response = requests.post(url, data=data)
-        if response.status_code == 200:
-            print("[TG] sent OK")
-        else:
+    for attempt in range(3):
+        try:
+            response = requests.post(url, data=data, timeout=10)
+            if response.status_code == 200:
+                return
+            # 429 = rate limit，等一下再試
+            if response.status_code == 429:
+                import time; time.sleep(2)
+                continue
             print(f"[TG] failed: {response.status_code} {response.text}")
-
-    except Exception as e:
-        print(f"[TG] error: {e}")
+            return
+        except Exception as e:
+            if attempt < 2:
+                import time; time.sleep(1)
+            else:
+                print(f"[TG] error after 3 attempts: {e}")

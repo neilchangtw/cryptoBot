@@ -70,6 +70,16 @@ def new_session():
 
 client = new_session()
 last_trade_time = {}
+_session_created_at = time.time()
+_SESSION_MAX_AGE = 1800  # 每 30 分鐘重建 session（防止連線過期）
+
+
+def _ensure_session():
+    """確保 session 有效，過期則重建"""
+    global client, _session_created_at
+    if time.time() - _session_created_at > _SESSION_MAX_AGE:
+        client = new_session()
+        _session_created_at = time.time()
 
 # ── 快取商品規格 ─────────────────────────────────────────────
 _symbol_info_cache = {}
@@ -111,6 +121,7 @@ def get_symbol_info(symbol=None):
 def get_available_balance():
     """查詢 USDT 可用餘額"""
     global client
+    _ensure_session()
     try:
         account = client.account()
         for asset in account["assets"]:
@@ -128,6 +139,7 @@ def get_positions(symbol=None):
     """查詢當前持倉"""
     symbol = symbol or SYMBOL
     global client
+    _ensure_session()
     try:
         positions = client.get_position_risk(symbol=symbol)
         result = []
@@ -199,14 +211,18 @@ def place_order(symbol, side, qty=None, stop_loss=None, take_profit=None,
             print(f"Cooldown active for {strategy_id}/{symbol}")
             return None
 
-    # 自動計算數量
+    # 自動計算數量（含重試）
     if qty is None:
-        try:
-            mark_price = float(client.mark_price(symbol=symbol)["markPrice"])
-        except Exception:
-            mark_price = 0
+        mark_price = 0
+        for _attempt in range(3):
+            try:
+                mark_price = float(client.mark_price(symbol=symbol)["markPrice"])
+                if mark_price > 0:
+                    break
+            except Exception:
+                time.sleep(1)
         if mark_price <= 0:
-            print("Cannot get mark price")
+            print("Cannot get mark price after 3 attempts")
             return None
         notional = MARGIN_PER_TRADE * LEVERAGE
         qty = notional / mark_price

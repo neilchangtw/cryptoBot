@@ -267,3 +267,98 @@ CHECK_INTERVAL=300
 - `trade_journal.csv` 記錄所有交易進出場，可用 pandas 分析與回測對比
 - 實盤預估回測績效打 3~5 折
 - Binance Algo Order API 變更（2025/12）：止損單需用 `/fapi/v1/algoOrder` 端點
+
+---
+
+## 2026/03/31 Code Review 修復紀錄
+
+### 修復 1（嚴重）：Max 3 持倉限制與回測不一致
+
+**問題**：`strategy_runner.py` 用 `_entry_count` 計數器追蹤開倉數量，但只在「所有同方向持倉全部消失」時才重置。如果持有 3 多單、平了 1 單剩 2 單，計數器仍為 3，導致無法再開新多單。回測中是用「目前持倉數 < 3」判斷，邏輯不同。
+
+**修復**：移除 `_entry_count` 計數器，改為每次用 `get_positions()` 查詢實際持倉數量，與回測行為完全一致。
+
+**影響檔案**：`strategy_runner.py` — `check_signals()`, `execute_signal()`, `send_heartbeat()`
+
+### 修復 2（嚴重）：TP1 後 SL 保本更新無重試
+
+**問題**：`cryptobot_monitor.py` 在 TP1 觸發後呼叫 `update_stop_loss()` 將 SL 移到進場價（保本），但若 API 呼叫失敗（網路中斷等），SL 不會更新，剩餘 90% 倉位暴露在原始止損下，可能導致比預期更大的虧損。
+
+**修復**：新增重試機制（最多 3 次，間隔 1 秒），失敗時發送 Telegram 警報提醒手動檢查。
+
+**影響檔案**：`cryptobot_monitor.py` — `monitor_position()` Phase 1 段
+
+### 修復 3（中等）：Phase 2 Trail SL 只升不降
+
+**問題**：原本的 trail SL 每次都會呼叫 `update_stop_loss()`，即使新的 trail SL 比上次更差（多單更低、空單更高）。這會導致不必要的 API 呼叫，且理論上 trail SL 應該只往有利方向移動。
+
+**修復**：在 state 中記錄 `last_trail_sl`，只在新的 trail SL 更優（多單更高、空單更低）時才更新。同時加入 try/except 防止 API 錯誤中斷整個監控流程。
+
+**影響檔案**：`cryptobot_monitor.py` — `monitor_position()` Phase 2 段
+
+### 修復 4（輕微）：bad import practice
+
+**問題**：`strategy_runner.py` 在函數內部 `import time as _t`，不規範。
+
+**修復**：移除，直接使用頂部已匯入的 `time` 模組。
+
+### 修復 5（嚴重）：同方向多倉的 monitor state 互相覆蓋
+
+**問題**：`cryptobot_monitor.py` 用 `{symbol}_{side}`（如 `BTCUSDT_long`）作為 state key。但 Max 3 允許同方向開 3 單，3 個多單共用同一個 key，TP1 target、trail_hi、entry_price 全被最後一單覆蓋，前面的單子失去追蹤。
+
+**修復**：state key 改為 `{symbol}_{side}_{entry_price}`（如 `BTCUSDT_long_83500.00`），每個倉位獨立追蹤。同步修改了 stale state 偵測和 exit log 的 side 解析。
+
+**影響檔案**：`cryptobot_monitor.py` — `monitor_all()`, `_log_position_exit()`
+
+### 修復 6（中等）：Monitor 用未收盤 bar 的指標
+
+**問題**：`get_5m_indicators()` 用 `iloc[-1]`（當前正在發展的 bar），而 `strategy_runner` 用 `iloc[-2]`（已收盤 bar）。兩者不一致，且 monitor 的 RSI/ATR 會在 5 分鐘內不斷變化。
+
+**修復**：改為 `iloc[-2]`，與 runner 一致，確保用的是已確認的指標值。
+
+**影響檔案**：`cryptobot_monitor.py` — `get_5m_indicators()`
+
+### 修復 7（輕微）：mark_price 取得失敗無重試
+
+**問題**：`place_order()` 取 mark_price 計算倉位大小時，API 失敗直接 return None，交易被跳過。
+
+**修復**：加 3 次重試機制。
+
+**影響檔案**：`binance_trade.py` — `place_order()`
+
+### 優化 1：K 線快取（減少 API 呼叫）
+
+**問題**：Runner 和 Monitor 每 5 分鐘各自抓一次 200 根 5m K 線，資料完全相同。
+
+**優化**：在 `data_fetcher.py` 加入 60 秒記憶體快取，同一分鐘內第二次呼叫直接回傳快取。API 呼叫量減半。
+
+### 優化 2：Telegram 通知加重試
+
+**問題**：TG 發送失敗就靜默丟棄，重要的 SL 警報可能遺失。
+
+**優化**：加入 3 次重試 + rate limit (429) 處理。
+
+### 優化 3：trade_journal 加 thread lock
+
+**問題**：Runner 和 Monitor 是兩個 thread，同時讀寫 CSV 會資料損壞。
+
+**優化**：加 `threading.Lock()`，所有 CSV 讀寫都在鎖內完成。
+
+### 優化 4：啟動時偵測孤兒持倉
+
+**問題**：程式崩潰重啟後，已開的倉位不會被通知。
+
+**優化**：`strategy_runner.main()` 啟動時查詢既有持倉，發送 TG 通知。Monitor 的 `load_state()` 已能自動恢復 Phase 追蹤。
+
+### 優化 5：Binance session 自動重建
+
+**問題**：長時間運行後 session 可能過期，API 呼叫失敗才重建。
+
+**優化**：每 30 分鐘自動重建 session + 重新同步時間。
+
+### 已知限制（待後續改善）
+
+- **無每日最大虧損停機**：如果策略連續虧損，不會自動停止交易
+- **PnL 記錄用 mark_price**：journal 的 exit_price 用最後一次檢查的 mark price，非實際成交價
+- **手續費差異**：回測假設 0.04% maker，但 market order 實際是 taker 費率（可能 0.04%~0.05%）
+- **同方向多倉共用 SL**：Binance `closePosition=true` 只允許同 symbol 同方向一個 SL，3 個多單共用最新那個 trail SL，可能不適合較早進場的倉位。需要改成每個倉位用固定數量的 SL 才能獨立管理

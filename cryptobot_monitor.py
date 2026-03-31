@@ -94,7 +94,8 @@ def get_5m_indicators(symbol):
             if x.max() != x.min() else 50, raw=False
         )
 
-        latest = df.iloc[-1]
+        # 使用 iloc[-2]（最近一根已收盤的 bar），與 strategy_runner 一致
+        latest = df.iloc[-2]
         return {
             "atr": float(latest["atr"]) if not pd.isna(latest["atr"]) else None,
             "rsi": float(latest["rsi"]) if not pd.isna(latest["rsi"]) else None,
@@ -212,8 +213,23 @@ def monitor_position(pos, state, symbol):
             place_order(symbol, close_side, qty=tp1_qty, reduce_only=True,
                         strategy_id="v4_tp1")
 
-            # SL 移到進場價（保本）
-            update_stop_loss(symbol, entry, side)
+            # SL 移到進場價（保本）— 重試 3 次確保成功
+            sl_updated = False
+            for attempt in range(3):
+                try:
+                    update_stop_loss(symbol, entry, side)
+                    sl_updated = True
+                    break
+                except Exception as e:
+                    print(f"  SL update attempt {attempt+1} failed: {e}")
+                    import time as _t; _t.sleep(1)
+
+            if not sl_updated:
+                err_msg = (f"<b>[WARNING] SL 保本更新失敗!</b>\n"
+                           f"{pos_key} 進場價 {entry:.2f}\n"
+                           f"請手動檢查止損位置")
+                print(f"  {err_msg}")
+                send_telegram_message(err_msg)
 
             state["phase"] = 2
             state["trail_hi"] = max(state["trail_hi"], mark)
@@ -234,37 +250,49 @@ def monitor_position(pos, state, symbol):
     # ── Phase 2：自適應移動止損 ──────────────────────────────
     tick_size, _, _ = get_symbol_info(symbol)
 
+    base_mult = 1.0 + (atr_pctile / 100) * 1.5
+
     if side == "long":
         trail_sl = calc_adaptive_trail_sl(
             "long", state["trail_hi"], entry, atr, rsi, atr_pctile
         )
         trail_sl = round_to_tick(trail_sl, tick_size)
-
-        base_mult = 1.0 + (atr_pctile / 100) * 1.5
         mult_used = base_mult * 0.6 if rsi > 65 else base_mult
+        last_sl = state.get("last_trail_sl", entry)
 
-        if trail_sl > entry:
+        # 只在新 SL 比上次更高（更好）且高於保本時才更新
+        if trail_sl > entry and trail_sl > last_sl:
             print(f"    Adaptive Trail: hi={state['trail_hi']:.2f} "
                   f"trail_sl={trail_sl:.2f} (mult={mult_used:.2f} ATR={atr:.2f})")
-            update_stop_loss(symbol, trail_sl, side)
+            try:
+                update_stop_loss(symbol, trail_sl, side)
+                state["last_trail_sl"] = trail_sl
+            except Exception as e:
+                print(f"    SL update error: {e}")
         else:
-            print(f"    Trail SL={trail_sl:.2f} <= entry={entry:.2f}, keeping breakeven")
+            reason = "<=entry" if trail_sl <= entry else "<=last_sl"
+            print(f"    Trail SL={trail_sl:.2f} {reason}, no update (last={last_sl:.2f})")
 
     else:  # short
         trail_sl = calc_adaptive_trail_sl(
             "short", state["trail_lo"], entry, atr, rsi, atr_pctile
         )
         trail_sl = round_to_tick(trail_sl, tick_size)
-
-        base_mult = 1.0 + (atr_pctile / 100) * 1.5
         mult_used = base_mult * 0.6 if rsi < 35 else base_mult
+        last_sl = state.get("last_trail_sl", entry)
 
-        if trail_sl < entry:
+        # 只在新 SL 比上次更低（更好）且低於保本時才更新
+        if trail_sl < entry and trail_sl < last_sl:
             print(f"    Adaptive Trail: lo={state['trail_lo']:.2f} "
                   f"trail_sl={trail_sl:.2f} (mult={mult_used:.2f} ATR={atr:.2f})")
-            update_stop_loss(symbol, trail_sl, side)
+            try:
+                update_stop_loss(symbol, trail_sl, side)
+                state["last_trail_sl"] = trail_sl
+            except Exception as e:
+                print(f"    SL update error: {e}")
         else:
-            print(f"    Trail SL={trail_sl:.2f} >= entry={entry:.2f}, keeping breakeven")
+            reason = ">=entry" if trail_sl >= entry else ">=last_sl"
+            print(f"    Trail SL={trail_sl:.2f} {reason}, no update (last={last_sl:.2f})")
 
 
 def _log_position_exit(old_state, pos_key):
@@ -276,7 +304,9 @@ def _log_position_exit(old_state, pos_key):
     entry = old_state.get("entry_price", 0)
     last_mark = old_state.get("last_mark", entry)
     phase = old_state.get("phase", 1)
-    side = pos_key.split("_")[-1]  # e.g., "BTCUSDT_long" → "long"
+    # pos_key 格式: "BTCUSDT_long_12345.00" → 取 side
+    parts = pos_key.split("_")
+    side = parts[1] if len(parts) >= 2 else "long"
 
     # 判斷出場原因
     if phase == 1:
@@ -370,7 +400,7 @@ def monitor_all():
         print(f"  [{symbol}] {len(positions)} position(s)")
 
         # 偵測已不存在的持倉 → 記錄出場
-        active_keys = {f"{symbol}_{p['side']}" for p in positions}
+        active_keys = {f"{symbol}_{p['side']}_{p['entry_price']:.2f}" for p in positions}
         keys_to_remove = [k for k in state if k.startswith(f"{symbol}_") and k not in active_keys]
         for k in keys_to_remove:
             _log_position_exit(state[k], k)
@@ -378,7 +408,9 @@ def monitor_all():
             del state[k]
 
         for pos in positions:
-            pos_key = f"{symbol}_{pos['side']}"
+            # 用 side + entry_price 組合 key，支援同方向多倉
+            ep_tag = f"{pos['entry_price']:.2f}"
+            pos_key = f"{symbol}_{pos['side']}_{ep_tag}"
             pos_state = state.get(pos_key, {})
             monitor_position(pos, pos_state, symbol)
             state[pos_key] = pos_state

@@ -48,8 +48,7 @@ TP1_PCT = 0.10  # TP1 平 10% 倉位
 
 # 紀錄上次信號的 5m bar 時間，避免同根 K 線重複觸發
 _last_signal_time = {"long": None, "short": None}
-# 追蹤同方向進場次數（持倉消失時重置）
-_entry_count = {"long": 0, "short": 0}
+# (已移除 _entry_count 計數器，改用 get_positions 即時查詢持倉數量，與回測一致)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -166,8 +165,6 @@ def check_signals(df_5m, symbol):
     使用 iloc[-2]（最近完成的 bar），避免使用未完成的當前 bar。
     回傳 list of signal dicts
     """
-    global _entry_count
-
     if len(df_5m) < 3:
         return []
 
@@ -179,22 +176,16 @@ def check_signals(df_5m, symbol):
     if atr is None or np.isnan(atr):
         return []
 
-    # 查詢現有持倉
+    # 查詢現有持倉，用實際持倉數量判斷（不用計數器，與回測一致）
     positions = get_positions(symbol)
-    has_long = any(p["side"] == "long" for p in positions)
-    has_short = any(p["side"] == "short" for p in positions)
-
-    # 持倉消失時重置計數
-    if not has_long:
-        _entry_count["long"] = 0
-    if not has_short:
-        _entry_count["short"] = 0
+    long_count = sum(1 for p in positions if p["side"] == "long")
+    short_count = sum(1 for p in positions if p["side"] == "short")
 
     signals = []
     tick_size, _, _ = get_symbol_info(symbol)
 
     # ── 做多檢查 ────────────────────────────────────────────
-    if _entry_count["long"] < MAX_SAME_DIRECTION:
+    if long_count < MAX_SAME_DIRECTION:
         if _last_signal_time["long"] != curr_time:
             if check_entry_signal(curr, "long"):
                 sl = calc_structural_sl(curr, "long")
@@ -218,7 +209,7 @@ def check_signals(df_5m, symbol):
                     _last_signal_time["long"] = curr_time
 
     # ── 做空檢查 ────────────────────────────────────────────
-    if _entry_count["short"] < MAX_SAME_DIRECTION:
+    if short_count < MAX_SAME_DIRECTION:
         if _last_signal_time["short"] != curr_time:
             if check_entry_signal(curr, "short"):
                 sl = calc_structural_sl(curr, "short")
@@ -295,12 +286,10 @@ def execute_signal(signal, symbol):
 
     if res:
         _signal_count += 1
-        _entry_count[signal["side"]] += 1
         print(f"  Order placed successfully: {res.get('orderId', '?')}")
 
         # 查詢實際成交資訊（Testnet 的 avgPrice/executedQty 可能為 0）
-        import time as _t
-        _t.sleep(0.5)
+        time.sleep(0.5)
         try:
             pos_list = get_positions(symbol)
             matched = [p for p in pos_list if p["side"] == signal["side"]]
@@ -363,7 +352,7 @@ def send_heartbeat(symbol):
         print(f"  Balance: {balance:.2f} USDT")
         print(f"  Positions: {len(long_pos)}L / {len(short_pos)}S  PnL: {total_pnl:+.2f}")
         print(f"  Scans: {_scan_count}  Signals: {_signal_count}")
-        print(f"  Entry counts: L={_entry_count['long']} S={_entry_count['short']}")
+        print(f"  Positions: L={len(long_pos)}/{MAX_SAME_DIRECTION} S={len(short_pos)}/{MAX_SAME_DIRECTION}")
     except Exception as e:
         print(f"heartbeat error: {e}")
 
@@ -436,6 +425,16 @@ def main():
 
     print(f"  Balance: {balance:.2f} USDT")
     print(f"  Positions: {long_n}L / {short_n}S")
+
+    # 啟動時檢查孤兒持倉（程式重啟後恢復追蹤）
+    positions = get_positions(symbol)
+    if positions:
+        long_n = sum(1 for p in positions if p["side"] == "long")
+        short_n = sum(1 for p in positions if p["side"] == "short")
+        msg = (f"<b>[啟動偵測]</b> 發現 {len(positions)} 個既有持倉 "
+               f"({long_n}L/{short_n}S)，Monitor 會自動接管管理")
+        print(msg)
+        send_telegram_message(msg)
 
     while True:
         run_once(symbol)
