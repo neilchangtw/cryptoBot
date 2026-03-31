@@ -9,6 +9,8 @@ import time
 from datetime import datetime, timezone
 
 KLINES_URL = "https://api.binance.com/api/v3/klines"
+FUTURES_KLINES_URL = "https://fapi.binance.com/fapi/v1/klines"
+FUTURES_TESTNET_KLINES_URL = "https://testnet.binancefuture.com/fapi/v1/klines"
 # data/ 放在專案根目錄（backtest/ 的上一層）
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 
@@ -104,12 +106,14 @@ _kline_cache = {}  # key: (symbol, interval) → {"time": timestamp, "df": DataF
 _CACHE_TTL = 60    # 快取有效期 60 秒（同一個 5m cycle 內 runner + monitor 共用）
 
 
-def fetch_latest_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 200) -> pd.DataFrame:
+def fetch_latest_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 200,
+                        use_futures: bool = False) -> pd.DataFrame:
     """
     抓最新 N 根 K線（給即時交易用）。
+    use_futures=True 時使用合約 API（價格與合約交易一致）。
     同一分鐘內重複呼叫會回傳快取，避免重複 API 呼叫。
     """
-    cache_key = (symbol, interval)
+    cache_key = (symbol, interval, use_futures)
     now = time.time()
 
     # 快取命中
@@ -118,8 +122,15 @@ def fetch_latest_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: in
         if now - cached["time"] < _CACHE_TTL:
             return cached["df"].copy()
 
+    # 選擇 API 端點
+    if use_futures:
+        is_testnet = os.environ.get("BINANCE_TESTNET", "true").lower() == "true"
+        url = FUTURES_TESTNET_KLINES_URL if is_testnet else FUTURES_KLINES_URL
+    else:
+        url = KLINES_URL
+
     params = {"symbol": symbol, "interval": interval, "limit": limit}
-    resp = requests.get(KLINES_URL, params=params, timeout=15)
+    resp = requests.get(url, params=params, timeout=15)
     resp.raise_for_status()
     data = resp.json()
 

@@ -14,7 +14,7 @@ import cryptobot_monitor
 
 def main():
     print("=" * 60)
-    print("  v4 CryptoBot (Strategy H: RSI+BB Mean Reversion)")
+    print("  v4CryptoBot (Strategy H: RSI+BB Mean Reversion)")
     print("  Strategy Runner + Position Monitor")
     print("=" * 60)
 

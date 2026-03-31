@@ -23,6 +23,7 @@ logs/
 # Runtime state
 monitor_state.json
 trade_journal.csv
+trade_journal.db
 
 # OS artifacts
 *.stackdump

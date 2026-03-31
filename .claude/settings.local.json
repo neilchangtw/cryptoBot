@@ -43,7 +43,16 @@
       "Bash(ls -la /c/Users/wei/IdeaProjects/cryptoBot/*.md)",
       "WebSearch",
       "WebFetch(domain:developers.binance.com)",
-      "Bash(find . -type d -name __pycache__ -exec rm -rf {} +)"
+      "Bash(find . -type d -name __pycache__ -exec rm -rf {} +)",
+      "Bash(.venv/Scripts/python backtest/backtest.py 2>&1)",
+      "Bash(.venv/Scripts/python -c \"import py_compile; py_compile.compile\\(''strategy_runner.py'', doraise=True\\); print\\(''strategy_runner OK''\\)\")",
+      "Bash(.venv/Scripts/python -c \"import py_compile; py_compile.compile\\(''cryptobot_monitor.py'', doraise=True\\); print\\(''monitor OK''\\)\")",
+      "Bash(.venv/Scripts/python -c \"import py_compile; py_compile.compile\\(''binance_trade.py'', doraise=True\\); print\\(''binance_trade OK''\\)\")",
+      "Bash(.venv/Scripts/python -c \"import py_compile; py_compile.compile\\(''backtest/data_fetcher.py'', doraise=True\\); print\\(''data_fetcher OK''\\)\")",
+      "Bash(.venv/Scripts/python -c \"import py_compile; py_compile.compile\\(''backtest/backtest.py'', doraise=True\\); print\\(''backtest OK''\\)\")",
+      "Bash(.venv/Scripts/python -c \"\nfrom trade_journal import get_stats, get_open_trades, get_all_trades\n\nstats = get_stats\\(\\)\nprint\\(f'Total trades: {stats[\\\\\"total\\\\\"]}'\\)\nprint\\(f'Closed: {stats[\\\\\"closed\\\\\"]}'\\)\nprint\\(f'Wins: {stats[\\\\\"wins\\\\\"]}  Losses: {stats[\\\\\"losses\\\\\"]}'\\)\nprint\\(f'Avg PnL%: {stats[\\\\\"avg_pnl_pct\\\\\"]:.2f}%' if stats['avg_pnl_pct'] else 'N/A'\\)\nprint\\(f'Avg duration: {stats[\\\\\"avg_duration\\\\\"]:.1f} min' if stats['avg_duration'] else 'N/A'\\)\n\nopen_t = get_open_trades\\(\\)\nprint\\(f'\\\\nOpen trades: {len\\(open_t\\)}'\\)\nfor t in open_t:\n    print\\(f'  {t[\\\\\"trade_id\\\\\"]} {t[\\\\\"side\\\\\"]} @ {t[\\\\\"entry_price\\\\\"]}'\\)\n\")",
+      "Bash(.venv/Scripts/python -c \"\nfrom trade_journal import log_entry, log_tp1, log_exit, get_trade, get_open_trades, find_trade_id_by_position, get_stats\nprint\\('All imports OK'\\)\nprint\\('Functions:', [f.__name__ for f in [log_entry, log_tp1, log_exit, get_trade, get_open_trades, find_trade_id_by_position, get_stats]]\\)\n\")",
+      "Bash(.venv/Scripts/python backtest/research_v4.py 2>&1)"
     ]
   }
 }

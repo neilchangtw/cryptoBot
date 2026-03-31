@@ -27,7 +27,7 @@ from binance_trade import (
     get_available_balance, round_to_tick, SYMBOL, LEVERAGE, MARGIN_PER_TRADE
 )
 from telegram_notify import send_telegram_message
-from trade_journal import log_entry as journal_log_entry
+from trade_journal import log_entry as journal_log_entry, get_open_trades
 
 load_dotenv()
 
@@ -40,6 +40,7 @@ _signal_count = 0
 # ── 策略參數（v4 Strategy H: 5m 雙重確認均值回歸）───────────────
 TP1_ATR_MULT = 1.0       # TP1 = entry ± 1.0×ATR(5m)
 SL_BUFFER_MULT = 0.3     # 結構止損緩衝 = 0.3×ATR
+SL_FALLBACK_ATR = 1.5    # SL 方向錯誤時 fallback = entry ± 1.5×ATR
 SWING_WINDOW = 5         # Swing High/Low 確認窗口
 
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", 300))   # 5 分鐘
@@ -153,8 +154,8 @@ def calc_structural_sl(row, side):
 # ══════════════════════════════════════════════════════════════
 
 def fetch_and_prepare_data(symbol):
-    """抓取最新 5m K 線並計算所有指標"""
-    df_5m = fetch_latest_klines(symbol, "5m", limit=200)
+    """抓取最新 5m K 線並計算所有指標（使用合約 API）"""
+    df_5m = fetch_latest_klines(symbol, "5m", limit=200, use_futures=True)
     df_5m = compute_5m_indicators(df_5m)
     return df_5m
 
@@ -176,10 +177,9 @@ def check_signals(df_5m, symbol):
     if atr is None or np.isnan(atr):
         return []
 
-    # 查詢現有持倉，用實際持倉數量判斷（不用計數器，與回測一致）
-    positions = get_positions(symbol)
-    long_count = sum(1 for p in positions if p["side"] == "long")
-    short_count = sum(1 for p in positions if p["side"] == "short")
+    # 用 journal 的 open trade 數量判斷（Binance 合併同方向持倉，get_positions 永遠 0 或 1）
+    long_count = len(get_open_trades(side="long"))
+    short_count = len(get_open_trades(side="short"))
 
     signals = []
     tick_size, _, _ = get_symbol_info(symbol)
@@ -191,6 +191,11 @@ def check_signals(df_5m, symbol):
                 sl = calc_structural_sl(curr, "long")
                 if sl is not None:
                     entry = curr["close"]
+                    # SL 方向驗證：做多 SL 必須 < 進場價
+                    if sl >= entry:
+                        sl = entry - SL_FALLBACK_ATR * atr
+                        print(f"  [SL fallback] Long structural SL above entry, "
+                              f"using {SL_FALLBACK_ATR}×ATR: {sl:.2f}")
                     tp1 = entry + TP1_ATR_MULT * atr
                     sl = round_to_tick(sl, tick_size)
                     signals.append({
@@ -215,6 +220,11 @@ def check_signals(df_5m, symbol):
                 sl = calc_structural_sl(curr, "short")
                 if sl is not None:
                     entry = curr["close"]
+                    # SL 方向驗證：做空 SL 必須 > 進場價
+                    if sl <= entry:
+                        sl = entry + SL_FALLBACK_ATR * atr
+                        print(f"  [SL fallback] Short structural SL below entry, "
+                              f"using {SL_FALLBACK_ATR}×ATR: {sl:.2f}")
                     tp1 = entry - TP1_ATR_MULT * atr
                     sl = round_to_tick(sl, tick_size)
                     signals.append({
@@ -303,7 +313,30 @@ def execute_signal(signal, symbol):
             avg_price = float(res.get("avgPrice", 0)) or entry
             qty = float(res.get("executedQty", 0)) or (MARGIN_PER_TRADE * LEVERAGE / entry)
 
-        # 寫入交易日誌
+        # 用實際進場價重算 SL 和 TP1（信號 bar close ≠ 實際成交價）
+        actual_sl = sl  # 已經過方向驗證的 SL
+        if signal["side"] == "long":
+            actual_tp1 = avg_price + TP1_ATR_MULT * atr
+            # 再次驗證：實際進場價可能改變 SL 方向
+            if actual_sl >= avg_price:
+                actual_sl = avg_price - SL_FALLBACK_ATR * atr
+        else:
+            actual_tp1 = avg_price - TP1_ATR_MULT * atr
+            if actual_sl <= avg_price:
+                actual_sl = avg_price + SL_FALLBACK_ATR * atr
+
+        # 更新交易所 SL（用實際進場價修正後的值）
+        tick_size, _, _ = get_symbol_info(symbol)
+        actual_sl = round_to_tick(actual_sl, tick_size)
+        if actual_sl != sl:
+            try:
+                from binance_trade import update_stop_loss
+                update_stop_loss(symbol, actual_sl, signal["side"])
+                print(f"  SL updated to actual entry-based: {actual_sl:.2f}")
+            except Exception as e:
+                print(f"  SL update for actual entry failed: {e}")
+
+        # 寫入交易日誌（用實際進場價算的 SL/TP1）
         trade_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{signal['side']}"
         try:
             journal_log_entry(
@@ -317,8 +350,8 @@ def execute_signal(signal, symbol):
                 atr_pctile=signal.get("atr_pctile", 50),
                 bb_lower=signal.get("bb_lower", 0),
                 bb_upper=signal.get("bb_upper", 0),
-                structural_sl=signal["sl"],
-                tp1_target=signal["tp1"],
+                structural_sl=actual_sl,
+                tp1_target=actual_tp1,
                 swing_level=signal.get("swing_level", 0),
             )
         except Exception as e:
@@ -344,15 +377,16 @@ def send_heartbeat(symbol):
     try:
         balance = get_available_balance()
         positions = get_positions(symbol)
-        long_pos = [p for p in positions if p["side"] == "long"]
-        short_pos = [p for p in positions if p["side"] == "short"]
         total_pnl = sum(p["unrealized_pnl"] for p in positions)
+        # 用 journal 計算實際開倉數量（Binance 合併同方向為一個持倉）
+        long_open = len(get_open_trades(side="long"))
+        short_open = len(get_open_trades(side="short"))
 
         print(f"\n--- Heartbeat ---")
         print(f"  Balance: {balance:.2f} USDT")
-        print(f"  Positions: {len(long_pos)}L / {len(short_pos)}S  PnL: {total_pnl:+.2f}")
+        print(f"  Open trades: {long_open}L / {short_open}S  PnL: {total_pnl:+.2f}")
         print(f"  Scans: {_scan_count}  Signals: {_signal_count}")
-        print(f"  Positions: L={len(long_pos)}/{MAX_SAME_DIRECTION} S={len(short_pos)}/{MAX_SAME_DIRECTION}")
+        print(f"  Entries: L={long_open}/{MAX_SAME_DIRECTION} S={short_open}/{MAX_SAME_DIRECTION}")
     except Exception as e:
         print(f"heartbeat error: {e}")
 

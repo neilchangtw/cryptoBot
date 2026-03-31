@@ -1,16 +1,13 @@
 """
 Binance Futures 下單模組 (binance_trade.py)
 - 支援 Testnet / 正式環境切換
-- 市價下單 + 分開掛 SL/TP
+- 市價下單 + Algo Order SL/TP
 - 部分平倉（TP1 10%）
-- Excel 交易紀錄
 """
 import os
 import time
 import math
-from datetime import datetime
 from dotenv import load_dotenv
-from openpyxl import Workbook, load_workbook
 from binance.um_futures import UMFutures
 from telegram_notify import send_telegram_message
 
@@ -365,105 +362,6 @@ def update_stop_loss(symbol, new_sl, side):
         _place_stop_order(symbol, entry_side, 0, new_sl, "STOP_MARKET", tick_size)
     except Exception as e:
         print(f"update_stop_loss error: {e}")
-        client = new_session()
-
-
-# ── Excel 紀錄 ───────────────────────────────────────────────
-def log_pnl_to_xlsx_trade_record(records: list):
-    filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trade_pnl_log.xlsx")
-    headers = ["交易對", "工具", "平倉價格", "訂單數量", "交易類型", "已結盈虧", "成交時間"]
-
-    try:
-        file_exists = os.path.exists(filename)
-        if not file_exists:
-            wb = Workbook()
-            ws = wb.active
-            ws.append(headers)
-            existing_rows = set()
-        else:
-            wb = load_workbook(filename)
-            ws = wb.active
-            existing_rows = set()
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                unique_key = (row[0], row[2], row[3], row[4], row[6])
-                existing_rows.add(unique_key)
-
-        insert_count = 0
-        for record in records:
-            unique_key = (
-                record["symbol"], record["exit_price"],
-                record["qty"], record["side"], record["close_time"]
-            )
-            if unique_key in existing_rows:
-                continue
-            ws.append([
-                record["symbol"], "USDT Perpetual",
-                record["exit_price"], record["qty"],
-                record["side"], record["pnl"], record["close_time"]
-            ])
-            insert_count += 1
-
-        wb.save(filename)
-        wb.close()
-
-        if insert_count > 0:
-            wb = load_workbook(filename)
-            ws = wb.active
-            pnl_summary = {}
-            win_count = lose_count = total_count = 0
-
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                sym = row[0]
-                pnl = float(row[5]) if row[5] is not None else 0.0
-                pnl_summary[sym] = pnl_summary.get(sym, 0.0) + pnl
-                if pnl > 0:
-                    win_count += 1
-                else:
-                    lose_count += 1
-                total_count += 1
-            wb.close()
-
-            win_rate = (win_count / total_count * 100) if total_count > 0 else 0.0
-            summary_lines = [f"累計已結盈虧:"]
-            for sym, total_pnl in pnl_summary.items():
-                summary_lines.append(f"  {sym}: {total_pnl:.2f} USDT")
-            summary_lines.append(f"勝率: {win_count}W {lose_count}L = {win_rate:.1f}%")
-
-            msg = f"新交易紀錄 {insert_count} 筆\n" + "\n".join(summary_lines)
-            print(msg)
-            send_telegram_message(msg)
-
-    except Exception as e:
-        print(f"log_pnl_to_xlsx error: {e}")
-
-
-def record_trade(symbol=None):
-    """從 Binance 撈最近平倉紀錄"""
-    symbol = symbol or SYMBOL
-    global client
-    try:
-        trades = client.get_account_trades(symbol=symbol, limit=50)
-        now_ms = int(time.time() * 1000)
-        one_hour_ago = now_ms - 3600 * 1000
-
-        records = []
-        for t in trades:
-            if int(t["time"]) < one_hour_ago:
-                continue
-            records.append({
-                "symbol": symbol,
-                "exit_price": float(t["price"]),
-                "qty": float(t["qty"]),
-                "side": t["side"],
-                "pnl": float(t.get("realizedPnl", 0)),
-                "close_time": datetime.fromtimestamp(int(t["time"]) / 1000).strftime("%Y-%m-%d %H:%M:%S"),
-            })
-
-        if records:
-            log_pnl_to_xlsx_trade_record(records)
-
-    except Exception as e:
-        print(f"record_trade error: {e}")
         client = new_session()
 
 

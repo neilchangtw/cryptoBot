@@ -73,7 +73,7 @@ def save_state(state):
 def get_5m_indicators(symbol):
     """取最新 5m ATR(14), RSI(14), ATR Percentile"""
     try:
-        df = fetch_latest_klines(symbol, "5m", limit=200)
+        df = fetch_latest_klines(symbol, "5m", limit=200, use_futures=True)
 
         # ATR(14)
         hl = df["high"] - df["low"]
@@ -222,7 +222,7 @@ def monitor_position(pos, state, symbol):
                     break
                 except Exception as e:
                     print(f"  SL update attempt {attempt+1} failed: {e}")
-                    import time as _t; _t.sleep(1)
+                    time.sleep(1)
 
             if not sl_updated:
                 err_msg = (f"<b>[WARNING] SL 保本更新失敗!</b>\n"
@@ -370,7 +370,8 @@ def send_position_summary(symbol, positions, state):
         print(f"  Balance: {balance:.2f} USDT  Unrealized: {total_pnl:+.2f}")
         for p in positions:
             d = "L" if p["side"] == "long" else "S"
-            pos_key = f"{symbol}_{p['side']}"
+            ep_tag = f"{p['entry_price']:.2f}"
+            pos_key = f"{symbol}_{p['side']}_{ep_tag}"
             st = state.get(pos_key, {})
             phase = st.get("phase", "?")
             print(f"  {d} {p['size']} @ {p['entry_price']:.2f} "
