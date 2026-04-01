@@ -46,6 +46,70 @@ python cryptobot_monitor.py
 
 ---
 
+## 系統架構
+
+### 執行緒模型
+
+```
+main.py
+├── Thread "Runner" → strategy_runner.main()   # 信號偵測 + 開倉
+└── Thread "Monitor" → cryptobot_monitor.main() # 持倉監控 + 出場
+```
+
+- 兩個 daemon thread，主執行緒 `t1.join()` 等待，Ctrl+C 中斷
+- Runner 和 Monitor **不直接通訊**，透過以下共享資源協作：
+  - `trade_journal.db`（SQLite WAL mode）：Runner 寫入進場，Monitor 讀取匹配 + 寫入出場
+  - `Binance API`（持倉查詢）：Monitor 偵測倉位變化
+  - `monitor_state.json`：Monitor 自己的狀態持久化
+
+### Testnet / 正式環境切換
+
+由 `.env` 的 `BINANCE_TESTNET` 控制（預設 `true`）：
+
+| 模式 | API Base URL | K 線 URL |
+|------|-------------|---------|
+| Testnet | `https://testnet.binancefuture.com` | `https://testnet.binancefuture.com/fapi/v1/klines` |
+| Production | `https://fapi.binance.com` | `https://fapi.binance.com/fapi/v1/klines` |
+
+啟動時 console 會顯示 `MODE: TESTNET` 或 `MODE: PRODUCTION`。
+
+### Session 管理（binance_trade.py）
+
+- Binance API session 每 **30 分鐘自動重建**（`_SESSION_MAX_AGE = 1800`）
+- 每次 API 呼叫前檢查 session 年齡（`_ensure_session()`）
+- 重建時同步 Binance 伺服器時間（`sync_time()`），修正本地時鐘偏移
+- API 錯誤時也會觸發 session 重建（如 `get_symbol_info()`、`get_available_balance()` 等）
+
+### 下單精度處理（binance_trade.py）
+
+- **價格精度**：`round_to_tick(price, tick_size)` — 四捨五入到最近的 tick_size（如 BTCUSDT tick=0.10）
+- **數量精度**：`round_to_lot(qty, qty_step, min_qty)` — 四捨五入到最近的 step_size，確保 ≥ min_qty
+- Symbol info 從 `exchangeInfo` API 取得，快取在 `_symbol_info_cache`
+- Fallback 值（API 失敗時）：tick_size=0.10, qty_step=0.001, min_qty=0.001
+
+### 冷卻機制（binance_trade.py）
+
+- **只對開倉單生效**（`reduce_only=False`）
+- Key：`(strategy_id, symbol)`，如 `("v5", "BTCUSDT")`
+- 同一 key 在 `COOLDOWN_SECONDS`（預設 60s）內不允許重複開倉
+- TP1/TimeStop 平倉單（`reduce_only=True`）不受冷卻限制
+
+### 錯誤處理與重試
+
+| 場景 | 重試策略 | 位置 |
+|------|---------|------|
+| Mark Price 取得 | 3 次，間隔 1s | binance_trade.py |
+| Telegram 發送 | 3 次，429 rate limit 等 2s | telegram_notify.py |
+| API Session 錯誤 | 重建 session 後重試 | binance_trade.py 各函式 |
+| Runner/Monitor 主迴圈異常 | catch all → TG 警報 → 繼續下一輪 | strategy_runner.py, cryptobot_monitor.py |
+
+### 心跳與摘要
+
+- **Runner**：每 3600 秒（1 小時）印出餘額、持倉數、掃描/信號次數
+- **Monitor**：每 3600 秒發送 TG 摘要（餘額、PnL、持倉數、TimeStop 倒數）
+
+---
+
 ## 交易策略 v5（5m RSI+BB 均值回歸 + 3 進場過濾）
 
 > v5 基於 btc-strategy-research 的回測優化（Phase 8），從 v4 改進：
@@ -92,6 +156,24 @@ python cryptobot_monitor.py
 | EMA21 | `close.ewm(span=21).mean()` | 進場過濾 |
 | 1h RSI(14) | 同 RSI 公式，用 1h K 線 | 進場過濾（趨勢方向） |
 
+### 資料來源與指標計算流程
+
+所有技術指標**不是直接從 API 取得**，而是：
+1. 從 Binance API 取得原始 K 線數據（OHLCV）
+2. 在本地用 pandas 計算所有指標
+
+| 資料來源 | API 呼叫 | 本地計算的指標 |
+|---------|---------|--------------|
+| **5m K 線** | `fetch_latest_klines(symbol, "5m", limit=120)` | RSI(14)、BB(20,2)、ATR(14)、ATR 百分位、EMA21、price vs EMA21 |
+| **1h K 線** | `fetch_latest_klines(symbol, "1h", limit=30)` | 1h RSI(14) curr & prev |
+| **Mark Price** | `get_mark_price()` | —（monitor 用來判斷 TP1 / 時間止損） |
+
+**執行順序優化**：
+- 每次掃描先 call 5m API → 本地算 6 個指標 → 檢查條件 1~4
+- **只有 1~4 都通過**才 call 1h API → 算 1h RSI → 檢查條件 5（省不必要的 API 呼叫）
+- K 線有 **60 秒記憶體快取**（`data_fetcher.py`），同一分鐘內重複請求不會重新 call API
+- 所有指標使用 `iloc[-2]`（最後一根已收盤 bar），不使用未收盤的當前 bar
+
 ### 共同設定
 
 | 參數 | 值 |
@@ -113,20 +195,76 @@ python cryptobot_monitor.py
 開倉 → 等待 TP1 或 時間止損 → 出場
 
 TP1（mark_price 達 entry ± 1.5×ATR）：
-  → 全平 100% 倉位（市價單）
+  → 全平 100% 倉位（市價單，reduce_only=True）
+  → 設 closing_initiated = True
   → 記錄出場 exit_reason="tp1"
 
-時間止損（持倉超過 8h）：
-  → 全平 100% 倉位（市價單）
+時間止損（持倉超過 8h / 480 min）：
+  → 全平 100% 倉位（市價單，reduce_only=True）
+  → 設 closing_initiated = True
   → 記錄出場 exit_reason="time_stop"
 
 安全網 SL（交易所 STOP_MARKET ±3%）：
   → 被動觸發（極端行情才會到）
+  → Monitor 偵測倉位消失 + closing_initiated=False → 判定為安全網
   → 記錄出場 exit_reason="safenet"
 
 無 Phase 2：回測證明 Phase 2 Trail 是負價值
   （利潤回吐 > 額外收益，100% 全平在所有距離都更優）
 ```
+
+### 持倉計數機制
+
+- **不使用 Binance API 計數**：Binance 會合併同方向倉位為一筆，`get_positions()` 最多回傳 1 long + 1 short
+- **使用 Journal 計數**：`get_open_trades(side="long/short")` 查詢 `exit_time IS NULL` 的交易筆數
+- Runner 用此計數來限制 `MAX_SAME_DIRECTION`（預設 2）
+
+### 孤兒持倉偵測
+
+- Runner 啟動時呼叫 `get_positions()` 檢查是否有既有持倉
+- 若有，發送 TG 通知「Monitor 會自動接管管理」
+- Monitor 下一輪掃描時自動偵測並建立 state
+
+### monitor_state.json 結構
+
+每個持倉的 state key 格式：`{symbol}_{side}_{entry_price:.2f}`
+
+```json
+{
+  "BTCUSDT_long_68690.78": {
+    "tp1_target": 68840.78,
+    "initial_atr": 100.0,
+    "entry_price": 68690.78,
+    "trade_id": "20260402_001200_long",
+    "closing_initiated": false,
+    "entry_time": "2026-04-02 00:12:00",
+    "qty": 0.0291,
+    "last_mark": 68700.00
+  }
+}
+```
+
+| 欄位 | 用途 |
+|------|------|
+| `tp1_target` | TP1 目標價（entry ± 1.5×ATR） |
+| `initial_atr` | 進場時的 ATR 值 |
+| `entry_price` | 進場價格 |
+| `trade_id` | 對應 journal 的 trade_id |
+| `closing_initiated` | 是否已由 Monitor 主動平倉（防重複記錄） |
+| `entry_time` | 進場時間（用於計算時間止損） |
+| `qty` | 該筆交易數量（用於 reduce_only 平倉） |
+| `last_mark` | 最後一次檢查的 mark price |
+
+State 初始化時從 journal 讀取 trade_id、entry_time、qty（`find_trade_id_by_position`）。
+
+### Trade ID 格式與匹配
+
+- **格式**：`{YYYYMMDD}_{HHMMSS}_{side}`，如 `20260402_001200_long`
+- **匹配邏輯**（`find_trade_id_by_position`）：
+  1. 查詢同 side 且 `exit_time IS NULL` 的交易
+  2. 若只有 1 筆：直接使用
+  3. 若多筆：以 entry_price 最接近的為準
+  4. Fallback：使用最後一筆（最新）
 
 ---
 
@@ -159,6 +297,14 @@ V5 最終版（1.5x ATR / 100% 全平 / 8h TimeStop / Max 2）：
 ## 交易日誌（trade_journal.db — SQLite）
 
 每筆交易從進場到出場記錄完整生命週期，用於與回測數據對比分析。
+
+### SQLite 並行安全
+
+- **WAL 模式**（Write-Ahead Logging）：允許 Runner 和 Monitor 同時讀寫
+- **Connection timeout**：10 秒（`sqlite3.connect(timeout=10)`）
+- **Busy timeout**：5 秒（`PRAGMA busy_timeout=5000`）
+- 每次操作建立新 connection（不用 connection pool），避免跨執行緒鎖死
+- **Schema 遷移**：`_migrate_columns()` 用 `PRAGMA table_info` 檢查 + `ALTER TABLE ADD COLUMN`，向下相容 v4 資料
 
 ### 記錄時機
 
@@ -202,13 +348,34 @@ print(f"出場分布: {live['exit_reason'].value_counts().to_dict()}")
 
 ## Binance API 注意事項
 
-- **Algo Order API**：2025/12 起，Binance 將 STOP_MARKET / TAKE_PROFIT_MARKET 等條件單遷移至 Algo Order API
-  - 下單：`POST /fapi/v1/algoOrder` + `algoType=CONDITIONAL` + `triggerPrice`
-  - 查詢：`GET /fapi/v1/openAlgoOrders`
-  - 取消：`DELETE /fapi/v1/algoOrder` + `algoId`
-  - 舊端點 `/fapi/v1/order` 對這些 order type 回傳 `-4120`
-- **closePosition=true**：安全網 SL 用此參數，會關閉該方向所有倉位
-  - Max 2 時兩個同向倉位共用一個安全網 SL
+### 使用的 API 端點
+
+| 端點 | 模組 | 用途 |
+|------|------|------|
+| `GET /fapi/v1/exchangeInfo` | binance_trade | 取 tick_size / step_size / min_qty |
+| `GET /fapi/v1/account` | binance_trade | 查詢 USDT 可用餘額 |
+| `GET /fapi/v1/positionRisk` | binance_trade | 取得持倉（side, size, entry, mark price） |
+| `POST /fapi/v1/changeInitialLeverage` | binance_trade | 設定槓桿倍數 |
+| `POST /fapi/v1/order` | binance_trade | 市價單（BUY/SELL） |
+| `DELETE /fapi/v1/allOpenOrders` | binance_trade | 取消所有掛單 |
+| `POST /fapi/v1/algoOrder` | binance_trade | 條件單（STOP_MARKET 安全網 SL） |
+| `GET /fapi/v1/openAlgoOrders` | binance_trade | 查詢 Algo 掛單 |
+| `DELETE /fapi/v1/algoOrder` | binance_trade | 取消 Algo 單（by algoId） |
+| `GET /fapi/v1/markPrice` | binance_trade | 取得即時 mark price |
+| `GET /fapi/v1/time` | binance_trade | 伺服器時間同步 |
+| `GET /fapi/v1/klines` | data_fetcher | Futures K 線數據 |
+
+### Algo Order API
+
+- 2025/12 起，Binance 將 STOP_MARKET / TAKE_PROFIT_MARKET 遷移至 Algo Order API
+- 參數：`algoType=CONDITIONAL` + `triggerPrice` + `side` + `symbol`
+- 舊端點 `/fapi/v1/order` 對這些 order type 回傳 `-4120`
+
+### closePosition 行為
+
+- 安全網 SL 用 `closePosition=true`，會關閉該方向**所有**倉位
+- Max 2 時兩個同向倉位共用一個安全網 SL
+- TP1/TimeStop 用 `qty=trade_qty, reduce_only=True`，只平該筆特定數量
 
 ---
 
@@ -216,22 +383,24 @@ print(f"出場分布: {live['exit_reason'].value_counts().to_dict()}")
 
 ```ini
 # Telegram
-TELEGRAM_BOT_TOKEN=<token>
-TELEGRAM_CHAT_ID=<chat_id>
+TELEGRAM_BOT_TOKEN=<token>          # 必填
+TELEGRAM_CHAT_ID=<chat_id>          # 必填
 
 # Binance Futures
-BINANCE_API_KEY=<key>
-BINANCE_API_SECRET=<secret>
-BINANCE_TESTNET=true          # true=testnet, false=正式
+BINANCE_API_KEY=<key>               # 必填
+BINANCE_API_SECRET=<secret>         # 必填
+BINANCE_TESTNET=true                # true=testnet（預設）, false=正式
 
 # 交易參數
-SYMBOL=BTCUSDT
-MARGIN_PER_TRADE=100
-LEVERAGE=20
-MAX_SAME_DIRECTION=2
-COOLDOWN_SECONDS=60
-CHECK_INTERVAL=300
+SYMBOL=BTCUSDT                      # 預設 BTCUSDT
+MARGIN_PER_TRADE=100                # 預設 100 USDT
+LEVERAGE=20                         # 預設 20x
+MAX_SAME_DIRECTION=2                # 預設 2（程式碼 fallback）
+COOLDOWN_SECONDS=60                 # 預設 60 秒
+CHECK_INTERVAL=300                  # 預設 300 秒（5 分鐘）
 ```
+
+所有交易參數都有程式碼內建預設值，`.env` 未設定時使用預設。
 
 ---
 
