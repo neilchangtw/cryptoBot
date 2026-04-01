@@ -1,17 +1,18 @@
 """
-v4 策略信號引擎 — 5m 均值回歸 (Strategy H: RSI + BB 雙重確認)
+v5 策略信號引擎 — 5m 均值回歸 + 3 進場過濾
 每 5 分鐘執行一次，偵測進場信號後呼叫 binance_trade 下單。
 
-驗證結果：
-  做多：RSI<30 + Close<BB_Lower + 結構止損 + 自適應Trail
-  做空：RSI>70 + Close>BB_Upper + 結構止損 + 自適應Trail
-  OOS +$6,841 | WR 87.4% | PF 35.29 | 4/4 WF folds profitable
+v5 改版：
+  進場：RSI<30 + BB_Lower + ATR_pctile≤75 + EMA21偏離<2% + 1h RSI轉向
+  SL：安全網 ±3%（取代結構止損）
+  出場：TP1 全平 100% at 1.5×ATR + 8h 時間止損（由 monitor 管理）
+  OOS +$249 | WR 90.1% | PF 2.03
 """
 import os
 import sys
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 
 import pandas as pd
@@ -37,27 +38,26 @@ HEARTBEAT_INTERVAL = 3600  # 每小時發一次心跳
 _scan_count = 0
 _signal_count = 0
 
-# ── 策略參數（v4 Strategy H: 5m 雙重確認均值回歸）───────────────
-TP1_ATR_MULT = 1.0       # TP1 = entry ± 1.0×ATR(5m)
-SL_BUFFER_MULT = 0.3     # 結構止損緩衝 = 0.3×ATR
-SL_FALLBACK_ATR = 1.5    # SL 方向錯誤時 fallback = entry ± 1.5×ATR
-SWING_WINDOW = 5         # Swing High/Low 確認窗口
+# ── 策略參數（v5: 5m 均值回歸 + 3 進場過濾 + 安全網 SL）────────
+TP1_ATR_MULT = 1.5       # TP1 = entry ± 1.5×ATR(5m)
+SAFENET_PCT = 0.03       # 安全網 SL ±3%
+MAX_ATR_PCTILE = 75      # 進場過濾：ATR 百分位上限
+MAX_EMA21_DEVIATION = 2.0  # 進場過濾：偏離 EMA21 上限 (%)
+TIME_STOP_BARS = 96      # 時間止損 = 96 bars × 5min = 8h
 
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", 300))   # 5 分鐘
-MAX_SAME_DIRECTION = int(os.getenv("MAX_SAME_DIRECTION", 3))
-TP1_PCT = 0.10  # TP1 平 10% 倉位
+MAX_SAME_DIRECTION = int(os.getenv("MAX_SAME_DIRECTION", 2))
 
 # 紀錄上次信號的 5m bar 時間，避免同根 K 線重複觸發
 _last_signal_time = {"long": None, "short": None}
-# (已移除 _entry_count 計數器，改用 get_positions 即時查詢持倉數量，與回測一致)
 
 
 # ══════════════════════════════════════════════════════════════
-#  5m 指標計算（v4：RSI, BB, ATR, Swing, ATR Percentile）
+#  5m 指標計算（v5：RSI, BB, ATR, ATR Percentile, EMA21）
 # ══════════════════════════════════════════════════════════════
 
 def compute_5m_indicators(df):
-    """計算 5m K 線指標：RSI(14), BB(20,2), ATR(14), ATR Pctile, Swing H/L(5)"""
+    """計算 5m K 線指標：RSI(14), BB(20,2), ATR(14), ATR Pctile, EMA21"""
     df = df.copy()
 
     # ATR(14)
@@ -85,34 +85,73 @@ def compute_5m_indicators(df):
         if x.max() != x.min() else 50, raw=False
     )
 
-    # Swing High/Low（window=5，ffill 確保只用已確認的擺點）
-    w = SWING_WINDOW
-    sh = pd.Series(np.nan, index=df.index)
-    sl_s = pd.Series(np.nan, index=df.index)
-    for i in range(w, len(df) - w):
-        seg = df.iloc[i - w:i + w + 1]
-        if df["high"].iloc[i] == seg["high"].max():
-            sh.iloc[i] = df["high"].iloc[i]
-        if df["low"].iloc[i] == seg["low"].min():
-            sl_s.iloc[i] = df["low"].iloc[i]
-    df["swing_high"] = sh.ffill()
-    df["swing_low"] = sl_s.ffill()
+    # EMA21（v5 進場過濾用）
+    df["ema21"] = df["close"].ewm(span=21).mean()
+    df["price_vs_ema21"] = (df["close"] - df["ema21"]) / df["ema21"] * 100
 
     return df
 
 
 # ══════════════════════════════════════════════════════════════
-#  進場信號檢查（v4 均值回歸）
+#  1h RSI 計算（v5 進場過濾：趨勢方向確認）
+# ══════════════════════════════════════════════════════════════
+
+def get_1h_rsi_turn(symbol):
+    """
+    取得 1h RSI 轉向資訊。
+    用 iloc[-2]（最後已收盤 1h bar）和 iloc[-3]（前一根）比較。
+    做多：rsi_1h 不再下降 (curr >= prev)
+    做空：rsi_1h 不再上升 (curr <= prev)
+    回傳 (rsi_1h_curr, rsi_1h_prev, is_long_ok, is_short_ok) 或 None
+    """
+    try:
+        df_1h = fetch_latest_klines(symbol, "1h", limit=30, use_futures=True)
+        if len(df_1h) < 16:
+            return None
+
+        d = df_1h["close"].diff()
+        g = d.clip(lower=0).ewm(alpha=1 / 14, min_periods=14).mean()
+        l_s = (-d.clip(upper=0)).ewm(alpha=1 / 14, min_periods=14).mean()
+        rsi_1h = 100 - 100 / (1 + g / l_s)
+
+        curr = float(rsi_1h.iloc[-2])
+        prev = float(rsi_1h.iloc[-3])
+
+        if pd.isna(curr) or pd.isna(prev):
+            return None
+
+        return (curr, prev, curr >= prev, curr <= prev)
+    except Exception as e:
+        print(f"  get_1h_rsi_turn error: {e}")
+        return None
+
+
+# ══════════════════════════════════════════════════════════════
+#  進場信號檢查（v5: RSI+BB + ATR pctile + EMA21 偏離）
 # ══════════════════════════════════════════════════════════════
 
 def check_entry_signal(row, side):
     """
-    v4 均值回歸進場條件（雙重確認）：
-    做多：RSI(14) < 30 AND Close < BB_Lower(20,2)
-    做空：RSI(14) > 70 AND Close > BB_Upper(20,2)
+    v5 進場條件（5m 指標，不含 1h RSI — 在 check_signals 中獨立檢查）：
+    做多：RSI<30 + Close<BB_Lower + ATR_pctile<=75 + |EMA21偏離|<2%
+    做空：RSI>70 + Close>BB_Upper + ATR_pctile<=75 + |EMA21偏離|<2%
     """
     rsi = row.get("rsi")
     if rsi is None or (isinstance(rsi, float) and np.isnan(rsi)):
+        return False
+
+    atr_pctile = row.get("atr_pctile")
+    if atr_pctile is None or (isinstance(atr_pctile, float) and np.isnan(atr_pctile)):
+        return False
+
+    price_vs_ema21 = row.get("price_vs_ema21")
+    if price_vs_ema21 is None or (isinstance(price_vs_ema21, float) and np.isnan(price_vs_ema21)):
+        return False
+
+    # 共同過濾
+    if atr_pctile > MAX_ATR_PCTILE:
+        return False
+    if abs(price_vs_ema21) >= MAX_EMA21_DEVIATION:
         return False
 
     if side == "long":
@@ -127,26 +166,16 @@ def check_entry_signal(row, side):
         return rsi > 70 and row["close"] > bb_upper
 
 
-def calc_structural_sl(row, side):
+def calc_safenet_sl(entry_price, side):
     """
-    結構止損（± 0.3×ATR 緩衝防掃針）：
-    做多 SL = Swing Low(5) - 0.3 × ATR(14)
-    做空 SL = Swing High(5) + 0.3 × ATR(14)
+    安全網 SL: ±3%，只防極端行情。
+    做多 SL = entry × 0.97
+    做空 SL = entry × 1.03
     """
-    atr = row.get("atr")
-    if atr is None or (isinstance(atr, float) and np.isnan(atr)):
-        return None
-
     if side == "long":
-        swing_low = row.get("swing_low")
-        if swing_low is None or (isinstance(swing_low, float) and np.isnan(swing_low)):
-            return None
-        return swing_low - SL_BUFFER_MULT * atr
+        return entry_price * (1 - SAFENET_PCT)
     else:
-        swing_high = row.get("swing_high")
-        if swing_high is None or (isinstance(swing_high, float) and np.isnan(swing_high)):
-            return None
-        return swing_high + SL_BUFFER_MULT * atr
+        return entry_price * (1 + SAFENET_PCT)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -162,14 +191,12 @@ def fetch_and_prepare_data(symbol):
 
 def check_signals(df_5m, symbol):
     """
-    檢查最近完成的 5m K 線是否觸發進場信號。
+    v5 信號偵測：5m 指標過濾 → 1h RSI 轉向確認 → 安全網 SL。
     使用 iloc[-2]（最近完成的 bar），避免使用未完成的當前 bar。
-    回傳 list of signal dicts
     """
     if len(df_5m) < 3:
         return []
 
-    # 使用最近完成的 bar（倒數第二根）
     curr = df_5m.iloc[-2].to_dict()
     curr_time = df_5m.index[-2]
 
@@ -181,66 +208,77 @@ def check_signals(df_5m, symbol):
     long_count = len(get_open_trades(side="long"))
     short_count = len(get_open_trades(side="short"))
 
+    # 先檢查 5m 基本信號，再決定是否取 1h 資料（避免不必要的 API 呼叫）
+    need_long = (long_count < MAX_SAME_DIRECTION
+                 and _last_signal_time["long"] != curr_time
+                 and check_entry_signal(curr, "long"))
+    need_short = (short_count < MAX_SAME_DIRECTION
+                  and _last_signal_time["short"] != curr_time
+                  and check_entry_signal(curr, "short"))
+
+    if not need_long and not need_short:
+        return []
+
+    # 取 1h RSI 轉向（有 60s 快取，不會重複 API）
+    rsi_1h_data = get_1h_rsi_turn(symbol)
+    if rsi_1h_data is None:
+        print("  [1h RSI] Cannot fetch 1h data, skip signals")
+        return []
+
+    rsi_1h_curr, rsi_1h_prev, is_long_ok, is_short_ok = rsi_1h_data
+
     signals = []
     tick_size, _, _ = get_symbol_info(symbol)
 
     # ── 做多檢查 ────────────────────────────────────────────
-    if long_count < MAX_SAME_DIRECTION:
-        if _last_signal_time["long"] != curr_time:
-            if check_entry_signal(curr, "long"):
-                sl = calc_structural_sl(curr, "long")
-                if sl is not None:
-                    entry = curr["close"]
-                    # SL 方向驗證：做多 SL 必須 < 進場價
-                    if sl >= entry:
-                        sl = entry - SL_FALLBACK_ATR * atr
-                        print(f"  [SL fallback] Long structural SL above entry, "
-                              f"using {SL_FALLBACK_ATR}×ATR: {sl:.2f}")
-                    tp1 = entry + TP1_ATR_MULT * atr
-                    sl = round_to_tick(sl, tick_size)
-                    signals.append({
-                        "side": "long",
-                        "order_side": "BUY",
-                        "entry_price": entry,
-                        "sl": sl,
-                        "tp1": tp1,
-                        "atr": atr,
-                        "rsi": curr["rsi"],
-                        "atr_pctile": curr.get("atr_pctile", 50),
-                        "bb_lower": curr.get("bb_lower", 0),
-                        "bb_upper": curr.get("bb_upper", 0),
-                        "swing_level": curr.get("swing_low", 0),
-                    })
-                    _last_signal_time["long"] = curr_time
+    if need_long and is_long_ok:
+        entry = curr["close"]
+        sl = calc_safenet_sl(entry, "long")
+        tp1 = entry + TP1_ATR_MULT * atr
+        sl = round_to_tick(sl, tick_size)
+        signals.append({
+            "side": "long",
+            "order_side": "BUY",
+            "entry_price": entry,
+            "sl": sl,
+            "tp1": tp1,
+            "atr": atr,
+            "rsi": curr["rsi"],
+            "atr_pctile": curr.get("atr_pctile", 50),
+            "bb_lower": curr.get("bb_lower", 0),
+            "bb_upper": curr.get("bb_upper", 0),
+            "ema21_deviation": curr.get("price_vs_ema21", 0),
+            "rsi_1h": rsi_1h_curr,
+            "rsi_1h_prev": rsi_1h_prev,
+        })
+        _last_signal_time["long"] = curr_time
+    elif need_long and not is_long_ok:
+        print(f"  [1h RSI] Long blocked: 1h RSI {rsi_1h_curr:.1f} < prev {rsi_1h_prev:.1f}")
 
     # ── 做空檢查 ────────────────────────────────────────────
-    if short_count < MAX_SAME_DIRECTION:
-        if _last_signal_time["short"] != curr_time:
-            if check_entry_signal(curr, "short"):
-                sl = calc_structural_sl(curr, "short")
-                if sl is not None:
-                    entry = curr["close"]
-                    # SL 方向驗證：做空 SL 必須 > 進場價
-                    if sl <= entry:
-                        sl = entry + SL_FALLBACK_ATR * atr
-                        print(f"  [SL fallback] Short structural SL below entry, "
-                              f"using {SL_FALLBACK_ATR}×ATR: {sl:.2f}")
-                    tp1 = entry - TP1_ATR_MULT * atr
-                    sl = round_to_tick(sl, tick_size)
-                    signals.append({
-                        "side": "short",
-                        "order_side": "SELL",
-                        "entry_price": entry,
-                        "sl": sl,
-                        "tp1": tp1,
-                        "atr": atr,
-                        "rsi": curr["rsi"],
-                        "atr_pctile": curr.get("atr_pctile", 50),
-                        "bb_lower": curr.get("bb_lower", 0),
-                        "bb_upper": curr.get("bb_upper", 0),
-                        "swing_level": curr.get("swing_high", 0),
-                    })
-                    _last_signal_time["short"] = curr_time
+    if need_short and is_short_ok:
+        entry = curr["close"]
+        sl = calc_safenet_sl(entry, "short")
+        tp1 = entry - TP1_ATR_MULT * atr
+        sl = round_to_tick(sl, tick_size)
+        signals.append({
+            "side": "short",
+            "order_side": "SELL",
+            "entry_price": entry,
+            "sl": sl,
+            "tp1": tp1,
+            "atr": atr,
+            "rsi": curr["rsi"],
+            "atr_pctile": curr.get("atr_pctile", 50),
+            "bb_lower": curr.get("bb_lower", 0),
+            "bb_upper": curr.get("bb_upper", 0),
+            "ema21_deviation": curr.get("price_vs_ema21", 0),
+            "rsi_1h": rsi_1h_curr,
+            "rsi_1h_prev": rsi_1h_prev,
+        })
+        _last_signal_time["short"] = curr_time
+    elif need_short and not is_short_ok:
+        print(f"  [1h RSI] Short blocked: 1h RSI {rsi_1h_curr:.1f} > prev {rsi_1h_prev:.1f}")
 
     return signals
 
@@ -251,8 +289,8 @@ def check_signals(df_5m, symbol):
 
 def execute_signal(signal, symbol):
     """
-    執行進場信號：市價開倉 + SL。
-    TP1 由 monitor 管理（部分平倉 10%），不在交易所掛 TP 單。
+    v5 執行進場：市價開倉 + 安全網 SL。
+    TP1 全平 + 時間止損由 monitor 管理。
     """
     global _signal_count
 
@@ -270,28 +308,30 @@ def execute_signal(signal, symbol):
         send_telegram_message(msg)
         return None
 
-    # 風報比計算
-    risk = abs(entry - sl)
-    reward = abs(tp1 - entry)
-    rr = reward / risk if risk > 0 else 0
+    # 時間止損到期
+    ts_deadline = datetime.now() + timedelta(minutes=TIME_STOP_BARS * 5)
+    ts_deadline_str = ts_deadline.strftime("%Y-%m-%d %H:%M:%S")
 
     direction = "LONG" if signal["side"] == "long" else "SHORT"
-    msg = (f"<b>[v4 {direction}] {symbol}</b>\n"
+    sl_pct = SAFENET_PCT * 100
+    msg = (f"<b>[v5 {direction}] {symbol}</b>\n"
            f"價格: {entry:.2f}  RSI: {signal['rsi']:.1f}\n"
-           f"SL: {sl:.2f} (結構止損, 距 {risk:.2f})\n"
-           f"TP1: {tp1:.2f} (距 {reward:.2f})\n"
-           f"R:R = 1:{rr:.1f}  ATR(5m): {atr:.2f}\n"
-           f"餘額: {balance:.2f} USDT\n"
-           f"Trail: 自適應 ATR+RSI")
+           f"安全網 SL: {sl:.2f} (-{sl_pct:.0f}%)\n"
+           f"TP1: {tp1:.2f} (+{TP1_ATR_MULT}x ATR)\n"
+           f"ATR(5m): {atr:.2f} (pctile: {signal.get('atr_pctile', 50):.0f})\n"
+           f"EMA21 偏離: {signal.get('ema21_deviation', 0):+.1f}%\n"
+           f"1h RSI: {signal.get('rsi_1h', 0):.1f} (prev: {signal.get('rsi_1h_prev', 0):.1f})\n"
+           f"時間止損: {ts_deadline_str}\n"
+           f"餘額: {balance:.2f} USDT")
     print(msg)
     send_telegram_message(msg)
 
-    # 市價開倉 + SL（不掛 TP，由 monitor 管理 TP1 部分平倉）
+    # 市價開倉 + 安全網 SL
     res = place_order(
         symbol=symbol,
         side=side,
         stop_loss=sl,
-        strategy_id="v4",
+        strategy_id="v5",
     )
 
     if res:
@@ -313,19 +353,14 @@ def execute_signal(signal, symbol):
             avg_price = float(res.get("avgPrice", 0)) or entry
             qty = float(res.get("executedQty", 0)) or (MARGIN_PER_TRADE * LEVERAGE / entry)
 
-        # 用實際進場價重算 SL 和 TP1（信號 bar close ≠ 實際成交價）
-        actual_sl = sl  # 已經過方向驗證的 SL
+        # 用實際進場價重算安全網 SL 和 TP1
+        actual_sl = calc_safenet_sl(avg_price, signal["side"])
         if signal["side"] == "long":
             actual_tp1 = avg_price + TP1_ATR_MULT * atr
-            # 再次驗證：實際進場價可能改變 SL 方向
-            if actual_sl >= avg_price:
-                actual_sl = avg_price - SL_FALLBACK_ATR * atr
         else:
             actual_tp1 = avg_price - TP1_ATR_MULT * atr
-            if actual_sl <= avg_price:
-                actual_sl = avg_price + SL_FALLBACK_ATR * atr
 
-        # 更新交易所 SL（用實際進場價修正後的值）
+        # 更新交易所 SL（用實際進場價重算的安全網）
         tick_size, _, _ = get_symbol_info(symbol)
         actual_sl = round_to_tick(actual_sl, tick_size)
         if actual_sl != sl:
@@ -336,7 +371,7 @@ def execute_signal(signal, symbol):
             except Exception as e:
                 print(f"  SL update for actual entry failed: {e}")
 
-        # 寫入交易日誌（用實際進場價算的 SL/TP1）
+        # 寫入交易日誌（v5 欄位）
         trade_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{signal['side']}"
         try:
             journal_log_entry(
@@ -350,9 +385,12 @@ def execute_signal(signal, symbol):
                 atr_pctile=signal.get("atr_pctile", 50),
                 bb_lower=signal.get("bb_lower", 0),
                 bb_upper=signal.get("bb_upper", 0),
-                structural_sl=actual_sl,
+                safenet_sl=actual_sl,
                 tp1_target=actual_tp1,
-                swing_level=signal.get("swing_level", 0),
+                ema21_deviation=signal.get("ema21_deviation", 0),
+                rsi_1h_entry=signal.get("rsi_1h"),
+                rsi_1h_prev=signal.get("rsi_1h_prev"),
+                time_stop_deadline=ts_deadline_str,
             )
         except Exception as e:
             print(f"  Journal log error: {e}")
@@ -405,6 +443,8 @@ def run_once(symbol):
         bb_upper = latest.get("bb_upper", 0)
         bb_lower = latest.get("bb_lower", 0)
         atr = latest.get("atr", 0)
+        atr_pctile = latest.get("atr_pctile", 0)
+        ema21_dev = latest.get("price_vs_ema21", 0)
         close_price = latest["close"]
 
         # 接近進場條件提示
@@ -414,6 +454,7 @@ def run_once(symbol):
         print(f"\n[{datetime.now().strftime('%H:%M:%S')}] #{_scan_count} {symbol} "
               f"Price: {close_price:.2f}  RSI: {rsi:.1f}  "
               f"BB: [{bb_lower:.2f}, {bb_upper:.2f}]  ATR: {atr:.2f}  "
+              f"ATR%: {atr_pctile:.0f}  EMA21: {ema21_dev:+.1f}%  "
               f"Near: {'L!' if long_near else '-'}/{'S!' if short_near else '-'}")
 
         signals = check_signals(df_5m, symbol)
@@ -439,14 +480,16 @@ def main():
     mode = "TESTNET" if env == "true" else "PRODUCTION"
 
     print("=" * 60)
-    print(f"  v4 Strategy Runner (Strategy H: RSI+BB Mean Reversion)")
+    print(f"  v5 Strategy Runner (RSI+BB + 3 Filters + TimeStop)")
     print(f"  Mode: {mode}  Symbol: {symbol}")
     print(f"  Leverage: {LEVERAGE}x  Margin: {MARGIN_PER_TRADE} USDT")
     print(f"  Check Interval: {CHECK_INTERVAL}s")
     print(f"  Max Same Direction: {MAX_SAME_DIRECTION}")
-    print(f"  Entry: Long RSI<30+BB_Lower / Short RSI>70+BB_Upper")
-    print(f"  SL: Structural (Swing ± 0.3×ATR)")
-    print(f"  Exit: TP1 10% at 1.0×ATR + Adaptive ATR+RSI Trail")
+    print(f"  Entry: RSI+BB + ATR_pctile<={MAX_ATR_PCTILE} + "
+          f"EMA21<{MAX_EMA21_DEVIATION}% + 1h_RSI_turn")
+    print(f"  SL: Safety Net ±{SAFENET_PCT*100:.0f}%")
+    print(f"  Exit: TP1 100% at {TP1_ATR_MULT}×ATR + "
+          f"8h TimeStop ({TIME_STOP_BARS} bars)")
     print("=" * 60)
 
     # 設定槓桿

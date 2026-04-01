@@ -1,9 +1,12 @@
 """
-交易日誌 — SQLite 版
+交易日誌 — SQLite 版（v5）
 
 記錄完整交易生命週期，用於與回測數據對比分析。
   進場時 INSERT 一行（出場欄位留 NULL）
   TP1/出場時 UPDATE 該行
+
+v5 新增欄位：safenet_sl, ema21_deviation, rsi_1h_entry, rsi_1h_prev,
+  time_stop_deadline, bars_held（舊 v4 欄位保留相容）
 
 SQLite 優勢（vs CSV）：
   - UPDATE 單行不需讀寫整個檔案
@@ -62,27 +65,58 @@ def _ensure_table():
     conn.close()
 
 
-# 啟動時確保表存在
+# v5 新增欄位（ALTER TABLE 不破壞舊資料）
+_V5_COLUMNS = [
+    ("safenet_sl", "REAL"),
+    ("ema21_deviation", "REAL"),
+    ("rsi_1h_entry", "REAL"),
+    ("rsi_1h_prev", "REAL"),
+    ("time_stop_deadline", "TEXT"),
+    ("bars_held", "REAL"),
+]
+
+
+def _migrate_columns():
+    """v5 schema 遷移：檢查並新增缺少的欄位"""
+    conn = _get_conn()
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(trades)").fetchall()}
+    for col_name, col_type in _V5_COLUMNS:
+        if col_name not in existing:
+            conn.execute(f"ALTER TABLE trades ADD COLUMN {col_name} {col_type}")
+            print(f"  [Journal] Added column: {col_name} ({col_type})")
+    conn.commit()
+    conn.close()
+
+
+# 啟動時確保表存在 + v5 欄位遷移
 _ensure_table()
+_migrate_columns()
 
 
 def log_entry(trade_id, side, entry_price, qty, margin,
               rsi, atr, atr_pctile, bb_lower, bb_upper,
-              structural_sl, tp1_target, swing_level):
-    """開倉時記錄進場資訊"""
+              structural_sl=None, tp1_target=None, swing_level=None,
+              safenet_sl=None, ema21_deviation=None,
+              rsi_1h_entry=None, rsi_1h_prev=None,
+              time_stop_deadline=None):
+    """開倉時記錄進場資訊（v5: 新增 safenet_sl, ema21, 1h RSI, time_stop）"""
     conn = _get_conn()
     conn.execute("""
         INSERT INTO trades (
             trade_id, entry_time, side, entry_price, qty, margin,
             rsi_entry, atr_entry, atr_pctile_entry,
-            bb_lower, bb_upper, structural_sl, tp1_target, swing_level
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            bb_lower, bb_upper, structural_sl, tp1_target, swing_level,
+            safenet_sl, ema21_deviation, rsi_1h_entry, rsi_1h_prev,
+            time_stop_deadline
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         trade_id,
         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         side, entry_price, qty, margin,
         rsi, atr, atr_pctile,
         bb_lower, bb_upper, structural_sl, tp1_target, swing_level,
+        safenet_sl, ema21_deviation, rsi_1h_entry, rsi_1h_prev,
+        time_stop_deadline,
     ))
     conn.commit()
     conn.close()
@@ -102,8 +136,8 @@ def log_tp1(trade_id, tp1_price, rsi=None):
 
 
 def log_exit(trade_id, exit_price, exit_reason, realized_pnl, pnl_pct,
-             rsi_exit=None, atr_pctile_exit=None):
-    """出場時更新記錄（SL / Trail / Manual）"""
+             rsi_exit=None, atr_pctile_exit=None, bars_held=None):
+    """出場時更新記錄（tp1 / time_stop / safenet）"""
     now = datetime.now()
 
     # 計算持倉時間
@@ -121,12 +155,12 @@ def log_exit(trade_id, exit_price, exit_reason, realized_pnl, pnl_pct,
         UPDATE trades SET
             exit_time = ?, exit_price = ?, exit_reason = ?,
             realized_pnl = ?, pnl_pct = ?, duration_min = ?,
-            rsi_exit = ?, atr_pctile_exit = ?
+            rsi_exit = ?, atr_pctile_exit = ?, bars_held = ?
         WHERE trade_id = ?
     """, (
         now.strftime("%Y-%m-%d %H:%M:%S"), exit_price, exit_reason,
         realized_pnl, pnl_pct, duration_min,
-        rsi_exit, atr_pctile_exit,
+        rsi_exit, atr_pctile_exit, bars_held,
         trade_id,
     ))
     conn.commit()

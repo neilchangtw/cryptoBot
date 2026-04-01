@@ -1,9 +1,14 @@
+"""
+Telegram 通知模組（v5）
+
+通知類型：
+  進場信號、TP1 全平、時間止損、安全網觸發、每小時摘要
+"""
 import os
 import requests
 from dotenv import load_dotenv
 from datetime import datetime
 
-# 載入 .env 設定檔
 load_dotenv()
 
 # === 發送 Telegram 訊息主函式 ===
@@ -70,3 +75,63 @@ def send_telegram_message(
                 import time; time.sleep(1)
             else:
                 print(f"[TG] error after 3 attempts: {e}")
+
+
+# ══════════════════════════════════════════════════════════════
+#  v5 通知格式化 helpers
+# ══════════════════════════════════════════════════════════════
+
+def format_v5_entry(direction, symbol, entry, rsi, safenet_sl, tp1,
+                    atr, atr_pctile, ema21_dev, rsi_1h, rsi_1h_prev,
+                    ts_deadline, balance, safenet_pct=3):
+    """v5 進場信號通知"""
+    return (f"<b>[v5 {direction}] {symbol}</b>\n"
+            f"價格: {entry:.2f}  RSI: {rsi:.1f}\n"
+            f"安全網 SL: {safenet_sl:.2f} (-{safenet_pct:.0f}%)\n"
+            f"TP1: {tp1:.2f} (+1.5x ATR)\n"
+            f"ATR(5m): {atr:.2f} (pctile: {atr_pctile:.0f})\n"
+            f"EMA21 偏離: {ema21_dev:+.1f}%\n"
+            f"1h RSI: {rsi_1h:.1f} (prev: {rsi_1h_prev:.1f})\n"
+            f"時間止損: {ts_deadline}\n"
+            f"餘額: {balance:.2f} USDT")
+
+
+def format_v5_tp1(direction, symbol, entry, exit_price, pnl_pct,
+                  atr, duration_min, close_side, close_qty):
+    """v5 TP1 全平通知"""
+    return (f"<b>[TP1 全平] {direction} {symbol}</b>\n"
+            f"進場: {entry:.2f} → 出場: {exit_price:.2f} ({pnl_pct:+.2f}%)\n"
+            f"ATR: {atr:.2f}  持倉: {duration_min:.0f} min\n"
+            f"已全平 100%: {close_side} {close_qty}")
+
+
+def format_v5_time_stop(direction, symbol, entry, exit_price, pnl_pct,
+                        hours, close_side, close_qty):
+    """v5 時間止損通知"""
+    return (f"<b>[時間止損] {direction} {symbol}</b>\n"
+            f"進場: {entry:.2f} → 出場: {exit_price:.2f} ({pnl_pct:+.2f}%)\n"
+            f"持倉超過 {hours}h 未到 TP1，認錯出場\n"
+            f"全平: {close_side} {close_qty}")
+
+
+def format_v5_safenet(direction, symbol, entry, approx_exit, pnl_pct):
+    """v5 安全網觸發通知"""
+    return (f"<b>[安全網觸發] {direction} {symbol}</b>\n"
+            f"進場: {entry:.2f} → SL 觸發 ≈ {approx_exit:.2f} ({pnl_pct:+.2f}%)\n"
+            f"⚠️ 極端行情觸發安全網止損")
+
+
+def format_v5_heartbeat(balance, unrealized, long_count, short_count,
+                        max_pos, oldest_remaining_min=None,
+                        scan_count=0, signal_count=0):
+    """v5 每小時心跳摘要"""
+    ts_text = ""
+    if oldest_remaining_min is not None:
+        h = int(oldest_remaining_min // 60)
+        m = int(oldest_remaining_min % 60)
+        ts_text = f"\n最近 TimeStop: {h}h{m:02d}m"
+    return (f"<b>--- 每小時摘要 ---</b>\n"
+            f"餘額: {balance:.2f} USDT  未實現: {unrealized:+.2f}\n"
+            f"持倉: {long_count}L / {short_count}S (上限 {max_pos}/{max_pos})\n"
+            f"掃描: {scan_count} 次  信號: {signal_count} 次"
+            f"{ts_text}")
