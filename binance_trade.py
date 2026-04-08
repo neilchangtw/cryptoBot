@@ -133,7 +133,7 @@ def get_available_balance():
 
 
 def get_positions(symbol=None):
-    """查詢當前持倉"""
+    """查詢當前持倉（Hedge Mode: LONG/SHORT 分開回傳）"""
     symbol = symbol or SYMBOL
     global client
     _ensure_session()
@@ -146,6 +146,7 @@ def get_positions(symbol=None):
                 result.append({
                     "symbol": p["symbol"],
                     "side": "long" if amt > 0 else "short",
+                    "position_side": p.get("positionSide", "BOTH"),
                     "size": abs(amt),
                     "entry_price": float(p["entryPrice"]),
                     "unrealized_pnl": float(p["unRealizedProfit"]),
@@ -187,14 +188,17 @@ def round_to_lot(qty, qty_step, min_qty):
 
 # ── 下單 ─────────────────────────────────────────────────────
 def place_order(symbol, side, qty=None, stop_loss=None, take_profit=None,
-                reduce_only=False, strategy_id="v3"):
+                reduce_only=False, strategy_id="v3", position_side=None):
     """
-    市價下單。
+    市價下單（Hedge Mode）。
     side: "BUY" or "SELL"
-    qty: 下單數量（BTC），None 則自動計算
+    qty: 下單數量，None 則自動計算
     stop_loss: 止損價格
     take_profit: 止盈價格
     reduce_only: True = 平倉單
+    position_side: "LONG" or "SHORT"（Hedge Mode 必填）
+                   None 時自動推導：BUY 開倉→LONG, SELL 開倉→SHORT,
+                   BUY 平倉→SHORT, SELL 平倉→LONG
     """
     global client, last_trade_time
 
@@ -226,36 +230,48 @@ def place_order(symbol, side, qty=None, stop_loss=None, take_profit=None,
 
     qty = round_to_lot(qty, qty_step, min_qty)
 
+    # Hedge Mode: 自動推導 positionSide
+    if position_side is None:
+        if not reduce_only:
+            position_side = "LONG" if side.upper() == "BUY" else "SHORT"
+        else:
+            position_side = "SHORT" if side.upper() == "BUY" else "LONG"
+
     try:
         params = {
             "symbol": symbol,
             "side": side.upper(),
             "type": "MARKET",
             "quantity": qty,
+            "positionSide": position_side,
         }
-        if reduce_only:
-            params["reduceOnly"] = True
 
         res = client.new_order(**params)
         order_id = res.get("orderId", "?")
         avg_price = float(res.get("avgPrice", 0))
+        exec_qty = float(res.get("executedQty", 0))
+
+        # Testnet 的 MARKET order 可能回傳 status=NEW, avgPrice=0
+        # 需要等成交後再查詢一次
+        if (avg_price == 0 or exec_qty == 0) and order_id != "?":
+            for _poll in range(5):
+                time.sleep(0.5)
+                try:
+                    detail = client.query_order(symbol=symbol, orderId=order_id)
+                    if detail.get("status") == "FILLED":
+                        avg_price = float(detail.get("avgPrice", 0))
+                        exec_qty = float(detail.get("executedQty", 0))
+                        res["avgPrice"] = str(avg_price)
+                        res["executedQty"] = str(exec_qty)
+                        res["status"] = "FILLED"
+                        break
+                except Exception:
+                    pass
 
         if reduce_only:
-            msg = (f"<b>[平倉] {side} {symbol}</b>\n"
-                   f"數量: {qty}  價格: {avg_price:.2f}\n"
-                   f"OrderID: {order_id}")
+            print(f"[平倉] {side} {symbol} qty={qty} @ {avg_price:.2f} id={order_id}")
         else:
-            notional = qty * avg_price if avg_price > 0 else MARGIN_PER_TRADE * LEVERAGE
-            margin_used = notional / LEVERAGE if LEVERAGE > 0 else notional
-            sl_text = f"\nSL: {stop_loss:.2f}" if stop_loss else ""
-            tp_text = f"  TP: {take_profit:.2f}" if take_profit else ""
-            msg = (f"<b>[開倉] {side} {symbol}</b>\n"
-                   f"數量: {qty}  價格: {avg_price:.2f}\n"
-                   f"名義: {notional:.2f} USDT  保證金: {margin_used:.2f} USDT"
-                   f"{sl_text}{tp_text}\n"
-                   f"OrderID: {order_id}")
-        print(msg)
-        send_telegram_message(msg)
+            print(f"[開倉] {side} {symbol} qty={qty} @ {avg_price:.2f} id={order_id}")
 
         if not reduce_only:
             last_trade_time[(strategy_id, symbol)] = now
@@ -263,30 +279,36 @@ def place_order(symbol, side, qty=None, stop_loss=None, take_profit=None,
         # 掛 SL/TP（僅開倉單）
         if not reduce_only:
             if stop_loss:
-                _place_stop_order(symbol, side, qty, stop_loss, "STOP_MARKET", tick_size)
+                _place_stop_order(symbol, side, qty, stop_loss, "STOP_MARKET", tick_size, position_side)
             if take_profit:
-                _place_stop_order(symbol, side, qty, take_profit, "TAKE_PROFIT_MARKET", tick_size)
+                _place_stop_order(symbol, side, qty, take_profit, "TAKE_PROFIT_MARKET", tick_size, position_side)
 
         return res
 
     except Exception as e:
         print(f"place_order error: {e}")
-        send_telegram_message(f"<b>[下單失敗]</b> {side} {symbol}\n{e}")
+        # 通知由 executor.py 統一處理
         client = new_session()
         return None
 
 
-def _place_stop_order(symbol, entry_side, qty, price, order_type, tick_size):
-    """掛止損/止盈單（使用 Algo Order API）"""
+def _place_stop_order(symbol, entry_side, qty, price, order_type, tick_size,
+                      position_side=None):
+    """掛止損/止盈單（Algo Order API + Hedge Mode positionSide）"""
     global client
     close_side = "SELL" if entry_side.upper() == "BUY" else "BUY"
     price = round_to_tick(price, tick_size)
+
+    # Hedge Mode: 推導 positionSide（SL/TP 對應開倉方向）
+    if position_side is None:
+        position_side = "LONG" if entry_side.upper() == "BUY" else "SHORT"
 
     try:
         params = {
             "algoType": "CONDITIONAL",
             "symbol": symbol,
             "side": close_side,
+            "positionSide": position_side,
             "type": order_type,
             "triggerPrice": str(price),
             "closePosition": "true",
@@ -294,7 +316,7 @@ def _place_stop_order(symbol, entry_side, qty, price, order_type, tick_size):
         res = client.sign_request("POST", "/fapi/v1/algoOrder", params)
         label = "SL" if "STOP" in order_type else "TP"
         algo_id = res.get("algoId", "?")
-        print(f"  {label} algo order placed: {close_side} at {price} (algoId={algo_id})")
+        print(f"  {label} algo placed: {close_side} at {price} positionSide={position_side} (algoId={algo_id})")
         return res
     except Exception as e:
         print(f"  Algo stop order error ({order_type}): {e}")
@@ -302,7 +324,7 @@ def _place_stop_order(symbol, entry_side, qty, price, order_type, tick_size):
 
 
 def close_position(symbol=None, side=None):
-    """平倉指定方向的持倉"""
+    """平倉指定方向的持倉（Hedge Mode）"""
     symbol = symbol or SYMBOL
     positions = get_positions(symbol)
 
@@ -310,18 +332,30 @@ def close_position(symbol=None, side=None):
         if side and pos["side"] != side:
             continue
         close_side = "SELL" if pos["side"] == "long" else "BUY"
-        place_order(symbol, close_side, qty=pos["size"], reduce_only=True)
+        ps = pos.get("position_side", "LONG" if pos["side"] == "long" else "SHORT")
+        place_order(symbol, close_side, qty=pos["size"], reduce_only=True, position_side=ps)
 
 
-def cancel_all_orders(symbol=None):
-    """取消所有掛單（含 algo orders）"""
+def cancel_all_orders(symbol=None, position_side=None):
+    """
+    取消掛單（含 algo orders）。
+    position_side: "LONG"/"SHORT" 只取消該方向，None 取消全部。
+    """
     symbol = symbol or SYMBOL
     global client
 
     # 取消一般掛單
     try:
-        client.cancel_open_orders(symbol=symbol)
-        print(f"All open orders cancelled for {symbol}")
+        if position_side:
+            # 只取消特定 positionSide 的掛單
+            open_orders = client.get_orders(symbol=symbol)
+            for order in open_orders:
+                if order.get("positionSide") == position_side and order.get("status") == "NEW":
+                    client.cancel_order(symbol=symbol, orderId=order["orderId"])
+                    print(f"  Cancelled order {order['orderId']} ({position_side})")
+        else:
+            client.cancel_open_orders(symbol=symbol)
+            print(f"All open orders cancelled for {symbol}")
     except Exception as e:
         if "No open orders" not in str(e):
             print(f"cancel_all_orders: {e}")
@@ -333,33 +367,38 @@ def cancel_all_orders(symbol=None):
             "algoType": "CONDITIONAL",
         })
         for order in algo_orders:
+            if position_side and order.get("positionSide") != position_side:
+                continue
             algo_id = order["algoId"]
             client.sign_request("DELETE", "/fapi/v1/algoOrder", {"algoId": algo_id})
-            print(f"  Cancelled algo order {algo_id}")
+            print(f"  Cancelled algo order {algo_id} ({order.get('positionSide')})")
     except Exception as e:
         print(f"cancel algo orders error: {e}")
 
 
 def update_stop_loss(symbol, new_sl, side):
-    """更新止損：取消舊的 algo STOP_MARKET，掛新的"""
+    """更新止損：取消舊的 algo STOP_MARKET，掛新的（Hedge Mode）"""
     global client
     tick_size, _, _ = get_symbol_info(symbol)
+    position_side = "LONG" if side == "long" else "SHORT"
 
     try:
-        # 查詢現有的 algo stop orders
+        # 取消該 positionSide 的現有 algo stop orders
         algo_orders = client.sign_request("GET", "/fapi/v1/openAlgoOrders", {
             "symbol": symbol,
             "algoType": "CONDITIONAL",
         })
         for order in algo_orders:
-            if order.get("orderType") == "STOP_MARKET" and order.get("algoStatus") == "NEW":
+            if (order.get("orderType") == "STOP_MARKET"
+                    and order.get("positionSide") == position_side
+                    and order.get("algoStatus") == "NEW"):
                 algo_id = order["algoId"]
                 client.sign_request("DELETE", "/fapi/v1/algoOrder", {"algoId": algo_id})
                 print(f"  Cancelled old algo SL {algo_id}")
 
         # 掛新的
         entry_side = "BUY" if side == "long" else "SELL"
-        _place_stop_order(symbol, entry_side, 0, new_sl, "STOP_MARKET", tick_size)
+        _place_stop_order(symbol, entry_side, 0, new_sl, "STOP_MARKET", tick_size, position_side)
     except Exception as e:
         print(f"update_stop_loss error: {e}")
         client = new_session()

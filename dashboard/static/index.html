@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoBot 交易儀表板</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <h1>Crypto<span>Bot</span> 交易儀表板</h1>
+    <div class="mode-switch">
+        <button class="mode-btn active" data-mode="paper" onclick="switchMode('paper')">模擬盤 (Paper)</button>
+        <button class="mode-btn" data-mode="live" onclick="switchMode('live')">正式盤 (Live)</button>
+    </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+    <button class="tab-btn active" data-tab="status" onclick="switchTab('status')">即時狀態 (Status)</button>
+    <button class="tab-btn" data-tab="chart" onclick="switchTab('chart')">K 線圖 (Chart)</button>
+    <button class="tab-btn" data-tab="trades" onclick="switchTab('trades')">交易記錄 (Trades)</button>
+    <button class="tab-btn" data-tab="analytics" onclick="switchTab('analytics')">收益分析 (Analytics)</button>
+</div>
+
+<!-- Tab 1: Status -->
+<div id="tab-status" class="tab-content active">
+    <div class="cards" id="status-cards"></div>
+    <div id="gk-section"></div>
+    <div id="health-section"></div>
+</div>
+
+<!-- Tab 2: Chart -->
+<div id="tab-chart" class="tab-content">
+    <div class="chart-container">
+        <div id="main-chart"></div>
+        <div id="gk-chart"></div>
+    </div>
+    <div class="trade-tooltip" id="trade-tooltip"></div>
+</div>
+
+<!-- Tab 3: Trades -->
+<div id="tab-trades" class="tab-content">
+    <div class="filters" id="trade-filters"></div>
+    <div class="table-wrap" id="trades-table-wrap"></div>
+</div>
+
+<!-- Tab 4: Analytics -->
+<div id="tab-analytics" class="tab-content">
+    <div class="cards" id="analytics-cards"></div>
+    <div class="analytics-row">
+        <div class="analytics-panel">
+            <h3>累計收益曲線 (Equity Curve)</h3>
+            <div id="equity-chart"></div>
+        </div>
+        <div class="analytics-panel">
+            <h3>每日損益 (Daily P&amp;L)</h3>
+            <div id="daily-chart"></div>
+        </div>
+    </div>
+    <div class="analytics-row">
+        <div class="analytics-panel">
+            <h3>出場原因分佈 (Exit Reasons)</h3>
+            <div id="exit-dist"></div>
+        </div>
+        <div class="analytics-panel">
+            <h3>策略比較 (L vs S)</h3>
+            <div id="strat-compare"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

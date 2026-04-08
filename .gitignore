@@ -21,9 +21,11 @@ data/
 logs/
 
 # Runtime state
+eth_state.json
+eth_state_live.json
 monitor_state.json
-trade_journal.csv
 trade_journal.db
+data_live/
 
 # OS artifacts
 *.stackdump
