@@ -18,6 +18,7 @@ const S = {
     sortCol: 'entry_ts',
     sortAsc: false,
     filters: { direction: '', sub: '', win: '', exit: '' },
+    priceLines: [],
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -43,6 +44,7 @@ function switchMode(mode) {
     localStorage.setItem('cb_mode', mode);
     document.querySelectorAll('.mode-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.mode === mode));
+    resetCountdown();
     loadCurrentTab();
 }
 
@@ -55,6 +57,7 @@ function switchTab(tab) {
         b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelectorAll('.tab-content').forEach(c =>
         c.classList.toggle('active', c.id === `tab-${tab}`));
+    resetCountdown();
     loadCurrentTab();
 }
 
@@ -212,13 +215,15 @@ function renderHealth(h) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function loadChart() {
     try {
-        const [kd, td] = await Promise.all([
+        const [kd, td, st] = await Promise.all([
             fetch('/api/klines?limit=1500').then(r => r.json()),
             api('/api/trades'),
+            api('/api/status'),
         ]);
         if (!S.chartReady) initCharts();
         S.trades = td.trades || [];
         updateChartData(kd, S.trades);
+        updatePositionLines(st.positions ? st.positions.details : []);
     } catch (e) {
         $('main-chart').innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
     }
@@ -271,6 +276,55 @@ function initCharts() {
     });
     ro.observe(mc);
 
+    // 點擊標記顯示交易詳情
+    S.mainChart.subscribeClick(param => {
+        const tooltip = $('trade-tooltip');
+        if (!param.time || !S.trades.length) { tooltip.classList.remove('show'); return; }
+
+        // 找最接近點擊時間的交易
+        const clickTime = param.time;
+        let best = null, bestDist = Infinity;
+        for (const t of S.trades) {
+            for (const ts of [t.entry_ts, t.exit_ts]) {
+                if (ts > 0 && Math.abs(ts - clickTime) < bestDist) {
+                    bestDist = Math.abs(ts - clickTime);
+                    best = t;
+                }
+            }
+        }
+        // 容差：3 根 bar (3h)
+        if (!best || bestDist > 3600 * 3) { tooltip.classList.remove('show'); return; }
+
+        const t = best;
+        const isLong = (t.direction || '').toUpperCase() === 'LONG';
+        const dirLabel = isLong ? '做多 (Long)' : '做空 (Short)';
+        const dirCls = isLong ? 'pnl-pos' : 'pnl-neg';
+        tooltip.innerHTML = `
+            <div style="margin-bottom:6px"><b class="${dirCls}">${dirLabel}</b> <span style="color:var(--text-dim)">${t.sub_strategy||''}</span></div>
+            <div>進場：${fmtTime(t.entry_time_utc8)} @ $${Number(t.entry_price||0).toFixed(2)}</div>
+            ${t.exit_price ? `<div>出場：${fmtTime(t.exit_time_utc8)} @ $${Number(t.exit_price).toFixed(2)}</div>` : '<div>狀態：持倉中</div>'}
+            ${t.exit_type ? `<div>原因：${t.exit_type}</div>` : ''}
+            ${t.net_pnl_usd != null ? `<div>損益：<span class="${pnlClass(t.net_pnl_usd)}">${pnlStr(t.net_pnl_usd)} (${t.net_pnl_pct!=null?t.net_pnl_pct.toFixed(1)+'%':''})</span></div>` : ''}
+            ${t.hold_bars != null ? `<div>持倉：${t.hold_bars}h</div>` : ''}
+        `;
+        // 定位 tooltip
+        const rect = mc.getBoundingClientRect();
+        let x = param.point.x + rect.left + 12;
+        let y = param.point.y + rect.top - 20;
+        if (x + 220 > window.innerWidth) x = param.point.x + rect.left - 230;
+        if (y + 150 > window.innerHeight) y = window.innerHeight - 160;
+        tooltip.style.left = x + 'px';
+        tooltip.style.top = y + 'px';
+        tooltip.classList.add('show');
+    });
+
+    // 點擊空白處關閉 tooltip
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.chart-container') && !e.target.closest('.trade-tooltip')) {
+            $('trade-tooltip').classList.remove('show');
+        }
+    });
+
     S.chartReady = true;
 }
 
@@ -283,30 +337,28 @@ function updateChartData(kd, trades) {
         color: g.value < 30 ? '#26a69a' : g.value < 50 ? '#f0b90b' : '#5b86e5',
     })));
 
-    // Trade markers
+    // Trade markers — 圓點標記（無文字）
+    // 多單進場: 綠色 | 多單出場: 金色 | 空單進場: 紅色 | 空單出場: 紫色
     const markers = [];
     for (const t of trades) {
-        const pnl = t.net_pnl_usd;
-        const win = pnl != null && pnl > 0;
-        const color = pnl == null ? '#888' : win ? '#26a69a' : '#ef5350';
         const isLong = (t.direction || '').toUpperCase() === 'LONG';
 
         if (t.entry_ts > 0) {
             markers.push({
                 time: t.entry_ts,
                 position: isLong ? 'belowBar' : 'aboveBar',
-                color: color,
-                shape: isLong ? 'arrowUp' : 'arrowDown',
-                text: `${t.sub_strategy||''} 進場`,
+                color: isLong ? '#26a69a' : '#ef5350',
+                shape: 'circle',
+                text: '',
             });
         }
         if (t.exit_ts > 0 && t.exit_type) {
             markers.push({
                 time: t.exit_ts,
                 position: isLong ? 'aboveBar' : 'belowBar',
-                color: color,
-                shape: isLong ? 'arrowDown' : 'arrowUp',
-                text: `${t.exit_type} $${pnlStr(pnl)}`,
+                color: isLong ? '#f0b90b' : '#b39ddb',
+                shape: 'circle',
+                text: '',
             });
         }
     }
@@ -317,6 +369,9 @@ function updateChartData(kd, trades) {
     S.mainChart.timeScale().applyOptions({ rightOffset: 5 });
     S.mainChart.timeScale().scrollToRealTime();
 }
+
+// 持倉水平價格線（已停用，會遮住 K 線）
+function updatePositionLines(positions) {}
 
 function scrollChartTo(ts) {
     switchTab('chart');
@@ -572,6 +627,37 @@ function renderStratCompare(comp) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Auto-refresh + Countdown Timer
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const REFRESH_INTERVAL = 60; // seconds
+let refreshCountdown = REFRESH_INTERVAL;
+
+let lastRefreshTime = null;
+
+function updateTimerDisplay() {
+    const el = $('refresh-timer');
+    if (el) {
+        const timeStr = lastRefreshTime ? lastRefreshTime.toLocaleTimeString('zh-TW', {hour12: false}) : '--:--:--';
+        el.innerHTML = `上次更新 ${timeStr} | 刷新 <span class="timer-sec">${refreshCountdown}s</span>`;
+    }
+}
+
+function resetCountdown() {
+    refreshCountdown = REFRESH_INTERVAL;
+    updateTimerDisplay();
+}
+
+function onRefreshTick() {
+    refreshCountdown--;
+    if (refreshCountdown <= 0) {
+        refreshCountdown = REFRESH_INTERVAL;
+        lastRefreshTime = new Date();
+        loadCurrentTab();
+    }
+    updateTimerDisplay();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Init
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 (function init() {
@@ -579,6 +665,6 @@ function renderStratCompare(comp) {
     document.querySelectorAll('.mode-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.mode === S.mode));
     loadStatus();
-    // Auto-refresh status every 60s
-    setInterval(() => { if (S.tab === 'status') loadStatus(); }, 60000);
+    updateTimerDisplay();
+    setInterval(onRefreshTick, 1000);
 })();

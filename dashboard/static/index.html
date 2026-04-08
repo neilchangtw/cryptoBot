@@ -3,17 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CryptoBot 交易儀表板</title>
+    <title>印鈔機監控台</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
 <!-- Header -->
 <div class="header">
-    <h1>Crypto<span>Bot</span> 交易儀表板</h1>
-    <div class="mode-switch">
-        <button class="mode-btn active" data-mode="paper" onclick="switchMode('paper')">模擬盤 (Paper)</button>
-        <button class="mode-btn" data-mode="live" onclick="switchMode('live')">正式盤 (Live)</button>
+    <h1>印鈔機<span>監控台</span></h1>
+    <div class="header-right">
+        <div class="refresh-timer" id="refresh-timer"></div>
+        <div class="mode-switch">
+            <button class="mode-btn active" data-mode="paper" onclick="switchMode('paper')">模擬盤 (Paper)</button>
+            <button class="mode-btn" data-mode="live" onclick="switchMode('live')">正式盤 (Live)</button>
+        </div>
     </div>
 </div>
 
@@ -37,6 +40,13 @@
     <div class="chart-container">
         <div id="main-chart"></div>
         <div id="gk-chart"></div>
+    </div>
+    <div class="chart-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#26a69a"></span>多單進場 (Long Entry)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#f0b90b"></span>多單出場 (Long Exit)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#ef5350"></span>空單進場 (Short Entry)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#b39ddb"></span>空單出場 (Short Exit)</span>
+        <span class="legend-item"><span class="legend-line" style="background:#f0b90b"></span>EMA20</span>
     </div>
     <div class="trade-tooltip" id="trade-tooltip"></div>
 </div>

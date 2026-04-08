@@ -219,13 +219,12 @@ def main():
     s_count = sum(1 for p in executor.positions.values() if p.get("sub_strategy", "").startswith("S"))
     pos_text = f"L:{l_count} S:{s_count}" if (l_count + s_count) > 0 else "空手待命"
     startup_msg = (
-        f"<b>🚀 ETH 雙策略啟動！（{env}）</b>\n"
+        f"<b>🖨 印鈔機開機！（{env}）</b>\n"
         f"━━━━━━━━━━━━━━━\n"
-        f"L：GK+Skew+RetSign OR, maxSame={strategy.L_MAX_SAME}\n"
-        f"S：CMP-Portfolio x{len(strategy.S_SUBS)}, TP {strategy.CMP_TP_PCT*100:.0f}%\n"
-        f"持倉：{pos_text}\n"
-        f"餘額：${executor.account_balance:.2f}\n"
-        f"已運行：{executor.bar_counter} 根 K 棒"
+        f"🔧 配方：L 做多 + S1-S4 做空\n"
+        f"💼 口袋：${executor.account_balance:.2f}\n"
+        f"📊 持倉：{pos_text}\n"
+        f"⏱ 已印：{executor.bar_counter} 張（K棒）"
     )
     send_telegram_message(startup_msg)
 
@@ -484,12 +483,12 @@ def main():
                     gk_status = "N/A"
 
                 hb_msg = (
-                    f"<b>💓 定時回報（第 {executor.bar_counter} 根）</b>\n"
+                    f"<b>🖨 印鈔機運轉中…（第 {executor.bar_counter} 張）</b>\n"
                     f"━━━━━━━━━━━━━━━\n"
-                    f"ETH：${bar_data['close']:.2f}\n"
-                    f"壓縮指數：{gk_status}\n"
-                    f"持倉：\n{pos_text}\n"
-                    f"餘額：${executor.account_balance:.2f}"
+                    f"💵 ETH：${bar_data['close']:.2f}\n"
+                    f"🔋 壓縮能量：{gk_status}\n"
+                    f"🎰 持倉：\n{pos_text}\n"
+                    f"💰 金庫：${executor.account_balance:.2f}"
                 )
                 send_telegram_message(hb_msg)
 
@@ -500,12 +499,12 @@ def main():
             logger.info("Shutdown requested")
             executor.save_state()
             env = "模擬" if PAPER_TRADING else "實戰"
-            send_telegram_message(f"<b>🛑 機器人下班了（{env}）</b>\n餘額：${executor.account_balance:.2f}")
+            send_telegram_message(f"<b>🖨 印鈔機下班了（{env}）</b>\n💰 今日入袋：${executor.account_balance:.2f}\n🛏 明天繼續印！")
             break
 
         except Exception as e:
             logger.error(f"Cycle error: {e}\n{traceback.format_exc()}")
-            send_telegram_message(f"<b>⚠️ 出事了！</b>\n{str(e)[:200]}")
+            send_telegram_message(f"<b>🚨 印鈔機卡紙了！</b>\n🔧 故障原因：{str(e)[:200]}\n⏳ 60 秒後自動維修...")
             # 等 60 秒再試，避免瘋狂重試
             time.sleep(60)
 

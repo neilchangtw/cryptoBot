@@ -158,13 +158,23 @@ async def api_status(mode: str = Query("paper")):
         except Exception:
             pass
 
-    # 最新 GK / close（從 bar_snapshots）
+    # 最新 GK（從 bar_snapshots，每小時更新）
     snap_csv = paths["data_dir"] / "bar_snapshots.csv"
     snap_df = read_csv_safe(snap_csv)
     if len(snap_df) > 0:
         last = snap_df.iloc[-1]
         result["gk_pctile"] = clean_value(last.get("gk_pctile"))
-        result["last_close"] = clean_value(last.get("close"))
+
+    # 最新價格（Binance ticker API，即時更新）
+    try:
+        import requests
+        resp = requests.get("https://fapi.binance.com/fapi/v2/ticker/price",
+                            params={"symbol": "ETHUSDT"}, timeout=5)
+        if resp.ok:
+            result["last_close"] = round(float(resp.json().get("price", 0)), 2)
+    except Exception:
+        if len(snap_df) > 0:
+            result["last_close"] = clean_value(snap_df.iloc[-1].get("close"))
 
     # 健康度
     try:
@@ -384,7 +394,7 @@ if __name__ == "__main__":
             time.sleep(0.5)
 
     webview.create_window(
-        "CryptoBot Dashboard",
+        "印鈔機監控台",
         f"http://127.0.0.1:{port}",
         width=1400,
         height=900,

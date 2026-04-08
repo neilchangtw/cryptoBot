@@ -282,20 +282,23 @@ class Executor:
         env = "模擬" if PAPER_TRADING else "實戰"
         if sub_strategy == "L":
             direction = "做多 📈"
-            sub_label = "L 策略"
+            sub_label = "L 多單"
+            action = "🐂 衝啊！抄底進場"
         else:
             direction = "做空 📉"
-            sub_label = f"{sub_strategy} 子策略"
+            sub_label = f"{sub_strategy} 空單"
+            action = "🐻 空它！高空進場"
         sn_price = entry_price * (1 - strategy.SAFENET_PCT) if side == "long" \
             else entry_price * (1 + strategy.SAFENET_PCT)
         msg = (
-            f"<b>🔔 開倉！（{env}）</b>\n"
+            f"<b>🎰 下注！（{env}）</b>\n"
             f"━━━━━━━━━━━━━━━\n"
-            f"策略：{sub_label} | {direction}\n"
-            f"進場價：${entry_price:.2f}\n"
-            f"安全網：${sn_price:.2f}（±{strategy.SAFENET_PCT*100:.1f}%）\n"
-            f"壓縮指數：{gk_pctile:.1f}\n"
-            f"第 {self.trade_number} 筆 ｜ 餘額 ${self.account_balance:.2f}"
+            f"{action}\n"
+            f"🏷 策略：{sub_label}\n"
+            f"💲 進場價：${entry_price:.2f}\n"
+            f"🛡 安全網：${sn_price:.2f}（±{strategy.SAFENET_PCT*100:.1f}%）\n"
+            f"🔋 壓縮能量：{gk_pctile:.1f}\n"
+            f"📝 第 {self.trade_number} 筆 ｜ 💰 金庫 ${self.account_balance:.2f}"
         )
         send_telegram_message(msg)
 
@@ -379,23 +382,30 @@ class Executor:
         else:
             sub_label = f"{sub_strategy} 空單"
         exit_map = {
-            "SafeNet": "⛑ 安全網",
-            "Trail": "🏃 EMA20 追蹤停利",
-            "EarlyStop": "✂️ 提前止損",
-            "TP": "🎯 止盈 2%",
-            "MaxHold": "⏰ 時間止損 12h",
+            "SafeNet": "🆘 安全網接住了",
+            "Trail": "🏃 追蹤停利，落袋為安",
+            "EarlyStop": "✂️ 苗頭不對，提前跑路",
+            "TP": "🎯 精準止盈，完美收割",
+            "MaxHold": "⏰ 時間到，強制下課",
         }
         exit_text = exit_map.get(exit_reason, exit_reason)
-        result_emoji = "💰" if pnl_usd > 0 else "🩸"
-        result_text = "賺" if pnl_usd > 0 else "虧"
+        if pnl_usd > 0:
+            result_header = "💵 印到鈔票了！"
+            result_text = f"賺 ${abs(pnl_usd):.2f}"
+        elif pnl_usd < 0:
+            result_header = "🔥 紙燒掉了…"
+            result_text = f"虧 ${abs(pnl_usd):.2f}"
+        else:
+            result_header = "😐 白忙一場"
+            result_text = "打平"
         msg = (
-            f"<b>{result_emoji} 平倉！（{env}）</b>\n"
+            f"<b>{result_header}（{env}）</b>\n"
             f"━━━━━━━━━━━━━━━\n"
-            f"{sub_label}：${pos['entry_price']:.2f} → ${exit_price:.2f}\n"
-            f"原因：{exit_text}\n"
-            f"損益：{result_text} ${abs(pnl_usd):.2f}（{pnl_pct:+.1f}%）\n"
-            f"持倉：{bars_held}h ｜ 最大回撤 {abs(pos.get('mae_pct', 0)):.1f}%\n"
-            f"餘額：${self.account_balance:.2f}"
+            f"🏷 {sub_label}：${pos['entry_price']:.2f} → ${exit_price:.2f}\n"
+            f"📋 {exit_text}\n"
+            f"💰 {result_text}（{pnl_pct:+.1f}%）\n"
+            f"⏱ 抱了 {bars_held}h ｜ 最慘 -{abs(pos.get('mae_pct', 0)):.1f}%\n"
+            f"🏦 金庫：${self.account_balance:.2f}"
         )
         send_telegram_message(msg)
 
