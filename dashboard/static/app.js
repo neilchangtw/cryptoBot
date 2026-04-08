@@ -36,6 +36,42 @@ function pnlClass(v) { return v > 0 ? 'pnl-pos' : v < 0 ? 'pnl-neg' : ''; }
 function pnlStr(v) { return v == null ? '-' : (v > 0 ? '+' : '') + v.toFixed(2); }
 function fmtTime(s) { return s ? s.replace('T', ' ').substring(0, 16) : '-'; }
 
+function relativeTime(dtStr) {
+    if (!dtStr) return '';
+    try {
+        const dt = new Date(dtStr.replace(' ', 'T'));
+        const now = new Date();
+        const diffMs = now - dt;
+        const mins = Math.floor(diffMs / 60000);
+        if (mins < 1) return '剛剛';
+        if (mins < 60) return `${mins} 分鐘前`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `${hrs} 小時前`;
+        return `${Math.floor(hrs / 24)} 天前`;
+    } catch { return ''; }
+}
+
+function setConnStatus(online) {
+    const dot = $('conn-dot');
+    if (dot) {
+        dot.className = 'conn-dot ' + (online ? 'conn-online' : 'conn-offline');
+        dot.title = online ? 'API 連線正常' : 'API 連線失敗';
+        // 更新成功時閃一下
+        if (online) {
+            dot.classList.add('conn-flash');
+            setTimeout(() => dot.classList.remove('conn-flash'), 600);
+        }
+    }
+}
+
+// 數值更新動畫：給所有 .card-value 加 pop 效果
+function triggerValuePop() {
+    document.querySelectorAll('.card-value').forEach(el => {
+        el.classList.add('updated');
+        setTimeout(() => el.classList.remove('updated'), 400);
+    });
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Mode Switch
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -74,10 +110,15 @@ function loadCurrentTab() {
 async function loadStatus() {
     try {
         const d = await api('/api/status');
+        setConnStatus(true);
         renderStatusCards(d);
         renderGK(d);
+        renderEntryConditions(d.entry_conditions, d.positions);
+        renderRecentTrades(d.recent_trades || [], d.positions);
         renderHealth(d.health);
+        triggerValuePop();
     } catch (e) {
+        setConnStatus(false);
         $('status-cards').innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
     }
 }
@@ -85,18 +126,47 @@ async function loadStatus() {
 function renderStatusCards(d) {
     const pnl = d.today_pnl || 0;
     const pos = d.positions;
+    const relTime = relativeTime(d.last_bar_time);
+    const barTimeStr = d.last_bar_time ? `${d.last_bar_time}${relTime ? ' (' + relTime + ')' : ''}` : '-';
+
+    // 持倉列表 + 均價計算
+    let posDetail = '';
+    let avgPriceHtml = '';
+    if (pos.details.length > 0) {
+        // 分 L/S 計算均價
+        const longs = pos.details.filter(p => p.sub_strategy === 'L');
+        const shorts = pos.details.filter(p => (p.sub_strategy||'').startsWith('S'));
+        const avgPrice = (arr) => arr.length ? arr.reduce((s, p) => s + (p.entry_price||0), 0) / arr.length : 0;
+        const parts = [];
+        if (longs.length > 0) parts.push(`<span class="dir-long">L 均價 $${avgPrice(longs).toFixed(2)}</span>`);
+        if (shorts.length > 0) parts.push(`<span class="dir-short">S 均價 $${avgPrice(shorts).toFixed(2)}</span>`);
+        avgPriceHtml = `<div class="card-sub" style="margin-top:6px">${parts.join(' | ')}</div>`;
+
+        posDetail = '<div class="pos-list">' + pos.details.map(p => {
+            const dirCls = p.sub_strategy === 'L' ? 'dir-long' : 'dir-short';
+            return `<div class="pos-row">
+                <span class="${dirCls}">${p.sub_strategy||''}</span>
+                <span>$${(p.entry_price||0).toFixed(2)}</span>
+                <span>${p.bars_held||0}h</span>
+            </div>`;
+        }).join('') + '</div>';
+    } else {
+        posDetail = '<div class="card-sub">無持倉</div>';
+    }
+
     $('status-cards').innerHTML = `
         <div class="card">
             <div class="card-label">帳戶餘額 (Balance)</div>
             <div class="card-value">$${(d.account_balance||0).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-            <div class="card-sub">Bar #${d.bar_counter} | ${d.last_bar_time || '-'}</div>
+            <div class="card-sub">Bar #${d.bar_counter} | ${barTimeStr}</div>
         </div>
         <div class="card">
             <div class="card-label">持倉 (Positions)</div>
             <div class="card-value ${pos.total>0?'gold':''}">
                 ${pos.total > 0 ? `L:${pos.long_count} S:${pos.short_count}` : '空手'}
             </div>
-            <div class="card-sub">${pos.details.map(p=>`${p.sub_strategy} ${p.side} @$${(p.entry_price||0).toFixed(2)}`).join(' | ') || '無持倉'}</div>
+            ${avgPriceHtml}
+            ${posDetail}
         </div>
         <div class="card">
             <div class="card-label">今日損益 (Today P&L)</div>
@@ -107,8 +177,53 @@ function renderStatusCards(d) {
             <div class="card-label">最新價格 (Price)</div>
             <div class="card-value">${d.last_close ? '$'+d.last_close.toFixed(2) : '-'}</div>
             <div class="card-sub">ETHUSDT 1h</div>
+            ${renderUnrealizedSummary(pos.details, d.last_close)}
         </div>
     `;
+}
+
+function renderUnrealizedSummary(details, lastClose) {
+    if (!details || details.length === 0 || !lastClose) return '';
+    let totalUnr = 0;
+    let lines = [];
+    const longs = details.filter(p => p.sub_strategy === 'L');
+    const shorts = details.filter(p => (p.sub_strategy||'').startsWith('S'));
+
+    for (const p of details) {
+        const ep = p.entry_price || 0;
+        if (ep <= 0) continue;
+        const sub = p.sub_strategy || '';
+        let unrPct;
+        if (sub === 'L') {
+            unrPct = (lastClose - ep) / ep * 100;
+        } else {
+            unrPct = (ep - lastClose) / ep * 100;
+        }
+        totalUnr += unrPct / 100 * 2000; // $2000 notional per position
+    }
+
+    // L 均價 unrealized
+    if (longs.length > 0) {
+        const avgEp = longs.reduce((s, p) => s + (p.entry_price||0), 0) / longs.length;
+        const lUnrPct = (lastClose - avgEp) / avgEp * 100;
+        const lUnrUsd = longs.length * 2000 * lUnrPct / 100;
+        const cls = lUnrPct >= 0 ? 'pnl-pos' : 'pnl-neg';
+        lines.push(`<span class="${cls}">L: ${lUnrPct >= 0 ? '+' : ''}${lUnrPct.toFixed(2)}% ($${lUnrUsd >= 0 ? '+' : ''}${lUnrUsd.toFixed(0)})</span>`);
+    }
+    if (shorts.length > 0) {
+        const avgEp = shorts.reduce((s, p) => s + (p.entry_price||0), 0) / shorts.length;
+        const sUnrPct = (avgEp - lastClose) / avgEp * 100;
+        const sUnrUsd = shorts.length * 2000 * sUnrPct / 100;
+        const cls = sUnrPct >= 0 ? 'pnl-pos' : 'pnl-neg';
+        lines.push(`<span class="${cls}">S: ${sUnrPct >= 0 ? '+' : ''}${sUnrPct.toFixed(2)}% ($${sUnrUsd >= 0 ? '+' : ''}${sUnrUsd.toFixed(0)})</span>`);
+    }
+
+    const totalCls = totalUnr >= 0 ? 'pnl-pos' : 'pnl-neg';
+    return `<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:12px">
+        <div style="margin-bottom:2px">未實現損益</div>
+        <div class="${totalCls}" style="font-size:16px;font-weight:700">$${totalUnr >= 0 ? '+' : ''}${totalUnr.toFixed(2)}</div>
+        <div style="margin-top:2px;color:var(--text-dim)">${lines.join(' | ')}</div>
+    </div>`;
 }
 
 function renderGK(d) {
@@ -119,30 +234,20 @@ function renderGK(d) {
         else if (gk < 50) { color = 'var(--gold)'; label = '蓄勢中 (Building Up)'; bg = 'var(--gold)'; }
         else { color = 'var(--text-dim)'; label = '正常波動 (Normal)'; bg = 'var(--text-dim)'; }
     }
-    const rangeItems = [
-        { range: '0 – 30', label: '壓縮區 (Compression)', desc: '波動率極低，突破信號可觸發 (L 策略進場條件)', cls: 'gk-range-green' },
-        { range: '30 – 40', label: '低波動 (Low Vol)', desc: '做空策略可觸發 (S1/S2/S4 門檻)', cls: 'gk-range-gold' },
-        { range: '40 – 50', label: '過渡區 (Transition)', desc: '波動回升中，暫無信號', cls: 'gk-range-dim' },
-        { range: '50 – 70', label: '正常區 (Normal)', desc: '一般波動水平', cls: 'gk-range-dim' },
-        { range: '70 – 100', label: '擴張區 (Expansion)', desc: '高波動，突破正在進行', cls: 'gk-range-blue' },
-    ];
-    const rangeHtml = rangeItems.map(r => `
-        <div class="gk-range-item ${r.cls}${gk != null && isInRange(gk, r.range) ? ' gk-range-active' : ''}">
-            <span class="gk-range-num">${r.range}</span>
-            <span class="gk-range-label">${r.label}</span>
-            <span class="gk-range-desc">${r.desc}</span>
-        </div>`).join('');
-
     $('gk-section').innerHTML = `
         <div class="gk-panel">
             <div class="gk-label">GK 壓縮指數 (Compression Index)</div>
             <div class="gk-value" style="color:${color}">${gk != null ? gk.toFixed(1) : '-'}</div>
             <div class="gk-label">${label}</div>
-            <div class="gk-bar"><div class="gk-bar-fill" style="width:${gk||0}%;background:${bg}"></div></div>
-        </div>
-        <div class="gk-explain">
-            <div class="gk-explain-title">GK 指數區間說明 (Range Guide)</div>
-            ${rangeHtml}
+            <div class="gk-bar-wrap">
+                <div class="gk-bar"><div class="gk-bar-fill" style="width:${gk||0}%;background:${bg}"></div></div>
+                <div class="gk-bar-ticks">
+                    <div class="gk-tick" style="left:30%"></div>
+                    <div class="gk-tick-label" style="left:30%">30</div>
+                    <div class="gk-tick" style="left:50%"></div>
+                    <div class="gk-tick-label" style="left:50%">50</div>
+                </div>
+            </div>
         </div>
     `;
 }
@@ -150,6 +255,245 @@ function renderGK(d) {
 function isInRange(val, rangeStr) {
     const parts = rangeStr.split('–').map(s => parseInt(s.trim()));
     return val >= parts[0] && (parts[1] === 100 ? val <= 100 : val < parts[1]);
+}
+
+function sessionTimeStr() {
+    // 封鎖: UTC+8 0,1,2,12 點 + 一/六/日
+    const now = new Date();
+    const h = now.getHours();  // 本機 = UTC+8
+    const d = now.getDay();    // 0=Sun
+    const blockH = [0, 1, 2, 12];
+    const blockD = [0, 1, 6];  // Sun=0, Mon=1, Sat=6
+    const inBlock = blockH.includes(h) || blockD.includes(d);
+    const dayNames = ['日','一','二','三','四','五','六'];
+    if (inBlock) {
+        return `現在 ${dayNames[d]} ${h}:00（封鎖中）`;
+    }
+    return `二~五 3-11,13-23點`;
+}
+
+function renderEntryConditions(ec, positions) {
+    const el = $('entry-conditions');
+    if (!el) return;
+    if (!ec) { el.innerHTML = ''; return; }
+
+    function condRow(icon, pass, label, valueStr) {
+        const cls = pass ? 'cond-pass' : 'cond-fail';
+        const ic = pass ? '✓' : '✗';
+        return `<div class="entry-cond">
+            <span class="cond-icon ${cls}">${ic}</span>
+            <span class="cond-label">${label}</span>
+            <span class="cond-value">${valueStr || ''}</span>
+        </div>`;
+    }
+
+    // L 條件面板
+    const lc = ec.L ? ec.L.conditions : {};
+    const lPassed = ec.L ? ec.L.passed : 0;
+    const lTotal = ec.L ? ec.L.total : 3;
+    const lPct = Math.round(lPassed / lTotal * 100);
+    const lColor = lPct >= 100 ? 'var(--green)' : lPct >= 50 ? 'var(--gold)' : 'var(--red)';
+
+    let lHtml = `<div class="entry-panel">
+        <div class="entry-panel-title">
+            <span>L 做多進場條件</span>
+            <span class="entry-progress" style="color:${lColor}">${lPassed}/${lTotal}</span>
+        </div>`;
+    // OR 條件組
+    const orPass = lc.or_pass ? lc.or_pass.pass : false;
+    lHtml += condRow('', orPass, 'OR 觸發（任一即可）', '');
+    if (lc.gk) lHtml += condRow('', lc.gk.pass, '　GK < 30', lc.gk.value != null ? lc.gk.value.toFixed(1) : '-');
+    if (lc.skew) lHtml += condRow('', lc.skew.pass, '　Skew > 1.0', lc.skew.value != null ? lc.skew.value.toFixed(2) : '-');
+    if (lc.ret_sign) lHtml += condRow('', lc.ret_sign.pass, '　RetSign > 0.6', lc.ret_sign.value != null ? lc.ret_sign.value.toFixed(2) : '-');
+    // AND 條件
+    if (lc.breakout) lHtml += condRow('', lc.breakout.pass, '向上突破 10bar', '');
+    if (lc.session) lHtml += condRow('', lc.session.pass, '時段允許', sessionTimeStr());
+    lHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${lPct}%;background:${lColor}"></div></div>`;
+    lHtml += '</div>';
+
+    // S 條件面板
+    const sc = ec.S ? ec.S.conditions : {};
+    const sPassed = ec.S ? ec.S.passed : 0;
+    const sTotal = ec.S ? ec.S.total : 3;
+    const sPct = Math.round(sPassed / sTotal * 100);
+    const sColor = sPct >= 100 ? 'var(--green)' : sPct >= 50 ? 'var(--gold)' : 'var(--red)';
+
+    let sHtml = `<div class="entry-panel">
+        <div class="entry-panel-title">
+            <span>S 做空進場條件</span>
+            <span class="entry-progress" style="color:${sColor}">${sPassed}/${sTotal}</span>
+        </div>`;
+    if (sc.gk) sHtml += condRow('', sc.gk.pass, 'GK < 40', sc.gk.value != null ? sc.gk.value.toFixed(1) : '-');
+    if (sc.breakout) sHtml += condRow('', sc.breakout.pass, '向下突破', '');
+    if (sc.session) sHtml += condRow('', sc.session.pass, '時段允許', sessionTimeStr());
+    sHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${sPct}%;background:${sColor}"></div></div>`;
+    sHtml += '</div>';
+
+    // GK 指數說明（原有的 explain）
+    const gkHtml = renderGKExplainPanel(ec.L && ec.L.conditions.gk ? ec.L.conditions.gk.value : null);
+
+    el.innerHTML = `<div class="entry-grid">${lHtml}${sHtml}${gkHtml}</div>`;
+}
+
+function renderGKExplainPanel(gk) {
+    const rangeItems = [
+        { range: '0 – 30', label: '壓縮區', desc: '突破信號可觸發', cls: 'gk-range-green' },
+        { range: '30 – 40', label: '低波動', desc: 'S 策略門檻', cls: 'gk-range-gold' },
+        { range: '40 – 50', label: '過渡區', desc: '暫無信號', cls: 'gk-range-dim' },
+        { range: '50 – 70', label: '正常區', desc: '一般波動', cls: 'gk-range-dim' },
+        { range: '70 – 100', label: '擴張區', desc: '高波動', cls: 'gk-range-blue' },
+    ];
+    const rows = rangeItems.map(r => `
+        <div class="gk-range-item ${r.cls}${gk != null && isInRange(gk, r.range) ? ' gk-range-active' : ''}">
+            <span class="gk-range-num">${r.range}</span>
+            <span class="gk-range-label">${r.label}</span>
+            <span class="gk-range-desc">${r.desc}</span>
+        </div>`).join('');
+    return `<div class="entry-panel">
+        <div class="entry-panel-title"><span>GK 指數區間</span></div>
+        ${rows}
+    </div>`;
+}
+
+function exitBarHtml(label, pct, clr, desc) {
+    // pct: 0~100, 越高=越接近平倉
+    const rounded = Math.round(pct);
+    return `<div class="exit-item">
+        <span>${label}</span>
+        <span style="color:var(--text-dim)">${desc}</span>
+        <div class="exit-bar-track" data-tooltip="${rounded}% 接近觸發"><div class="exit-bar-fill" style="width:${pct}%;background:${clr}"></div></div>
+    </div>`;
+}
+
+function renderExitProgress(ep, sub) {
+    if (!ep) return '';
+    let items = '';
+    const unr = ep.unrealized_pct;
+    const unrCls = unr >= 0 ? 'pnl-pos' : 'pnl-neg';
+    items += `<div class="exit-item"><span>未實現: <b class="${unrCls}">${unr >= 0 ? '+' : ''}${unr}%</b></span></div>`;
+
+    if (sub === 'L') {
+        // SafeNet -5.5%: 進度條 = 已虧多少比例（接近 -5.5% 就越滿）
+        const sn = ep.safenet;
+        if (sn) {
+            // 從 0% 到 -5.5%，計算已消耗多少
+            const lossAmt = Math.max(0, -sn.current); // 虧損量（正數）
+            const pct = Math.min(100, lossAmt / 5.5 * 100);
+            const clr = pct > 70 ? 'var(--red)' : pct > 40 ? 'var(--gold)' : 'var(--green)';
+            const safeLabel = pct < 30 ? '安全' : pct < 70 ? '注意' : '危險';
+            items += exitBarHtml('安全網 -5.5%', pct, clr, `已用 ${lossAmt.toFixed(1)}% / 5.5%（${safeLabel}）`);
+        }
+        // EMA Trail: 收盤跌破 EMA20 就平倉
+        const tr = ep.trail;
+        if (tr) {
+            if (!tr.ready) {
+                // 未啟動：顯示還要等幾 bar
+                const waitBars = tr.min_bars - tr.bars_held;
+                items += `<div class="exit-item"><span>EMA 追蹤止盈</span><span style="color:var(--text-dim)">尚未啟動（還需 ${waitBars}h）</span></div>`;
+            } else if (tr.ema_distance_pct != null) {
+                // 已啟動：顯示距離 EMA20 多遠，越近越危險
+                const dist = tr.ema_distance_pct;
+                // dist > 0 = 價格在 EMA 上方（安全），dist < 0 = 已跌破（會平倉）
+                const pct = dist > 0 ? Math.min(100, Math.max(0, (3 - dist) / 3 * 100)) : 100;
+                const clr = dist <= 0 ? 'var(--red)' : dist < 0.5 ? 'var(--gold)' : 'var(--green)';
+                const label = dist <= 0 ? '已跌破！' : `距 EMA20 ${dist.toFixed(2)}%`;
+                items += exitBarHtml('EMA 追蹤止盈', pct, clr, `${label}（收盤 < EMA20 即平倉）`);
+            } else {
+                items += `<div class="exit-item"><span>EMA 追蹤止盈</span><span class="cond-pass">已啟動</span><span style="color:var(--text-dim)">EMA20 數據待更新</span></div>`;
+            }
+        }
+        // EarlyStop
+        const es = ep.early_stop;
+        if (es && es.in_range) {
+            const lossAmt = Math.max(0, -es.current);
+            const pct = Math.min(100, lossAmt / 1.0 * 100);
+            const clr = pct > 70 ? 'var(--red)' : pct > 40 ? 'var(--gold)' : 'var(--green)';
+            items += exitBarHtml('提前止損 (7-12h)', pct, clr, `虧 ${lossAmt.toFixed(2)}% / 1%（超過即平倉）`);
+        }
+    } else {
+        // S: TP 2% — 進度條 = 已獲利多少（接近 2% 就越滿）
+        const tp = ep.tp;
+        if (tp) {
+            const profit = Math.max(0, tp.current);
+            const pct = Math.min(100, profit / 2.0 * 100);
+            const clr = pct > 70 ? 'var(--green)' : pct > 40 ? 'var(--gold)' : 'var(--text-dim)';
+            const label = pct >= 100 ? '即將止盈！' : `已賺 ${profit.toFixed(2)}% / 2%`;
+            items += exitBarHtml('止盈 2%', pct, clr, label);
+        }
+        // SafeNet +5.5%
+        const sn = ep.safenet;
+        if (sn) {
+            const lossAmt = Math.max(0, sn.current);
+            const pct = Math.min(100, lossAmt / 5.5 * 100);
+            const clr = pct > 70 ? 'var(--red)' : pct > 40 ? 'var(--gold)' : 'var(--green)';
+            const safeLabel = pct < 30 ? '安全' : pct < 70 ? '注意' : '危險';
+            items += exitBarHtml('安全網 +5.5%', pct, clr, `已虧 ${lossAmt.toFixed(1)}% / 5.5%（${safeLabel}）`);
+        }
+        // MaxHold 12 bar
+        const mh = ep.max_hold;
+        if (mh) {
+            const pct = Math.min(100, mh.bars_held / 12 * 100);
+            const clr = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--gold)' : 'var(--text-dim)';
+            items += exitBarHtml('時間止損 12h', pct, clr, `${mh.bars_held}/12h（剩 ${mh.remaining}h）`);
+        }
+    }
+    return `<div class="exit-progress">${items}</div>`;
+}
+
+function renderRecentTrades(trades, positions) {
+    const el = $('recent-section');
+    if (!el) return;
+
+    // 先渲染持倉出場進度
+    const posDetails = positions ? positions.details || [] : [];
+    let exitHtml = '';
+    if (posDetails.length > 0) {
+        const posWithExit = posDetails.filter(p => p.exit_progress);
+        if (posWithExit.length > 0) {
+            let posRows = '';
+            for (const p of posWithExit) {
+                const dirCls = p.sub_strategy === 'L' ? 'dir-long' : 'dir-short';
+                posRows += `<div style="margin-bottom:8px">
+                    <span class="${dirCls}" style="font-weight:600">${p.sub_strategy}</span>
+                    <span style="color:var(--text-dim)">@ $${(p.entry_price||0).toFixed(2)} | ${p.bars_held||0}h</span>
+                    ${renderExitProgress(p.exit_progress, p.sub_strategy)}
+                </div>`;
+            }
+            exitHtml = `<div class="recent-section" style="margin-bottom:12px">
+                <div class="recent-title">持倉平倉進度 (Exit Progress)</div>
+                ${posRows}
+            </div>`;
+        }
+    }
+
+    // 再渲染最近交易
+    let tradeHtml = '';
+    if (!trades || trades.length === 0) {
+        tradeHtml = `<div class="recent-section"><div class="recent-title">最近交易 (Recent Trades)</div><div style="color:var(--text-dim);font-size:13px">尚無交易記錄</div></div>`;
+    } else {
+        let rows = '';
+        for (const t of trades) {
+            const dirCls = (t.direction||'') === 'LONG' ? 'dir-long' : 'dir-short';
+            const dirLabel = (t.direction||'') === 'LONG' ? '多' : '空';
+            const pCls = pnlClass(t.net_pnl_usd);
+            rows += `<tr>
+                <td>${t.trade_number||''}</td>
+                <td class="${dirCls}">${dirLabel} ${t.sub_strategy||''}</td>
+                <td>${fmtTime(t.entry_time_utc8)}</td>
+                <td>${t.exit_type||'<span style="color:var(--gold)">持倉中</span>'}</td>
+                <td class="${pCls}">${t.net_pnl_usd != null ? pnlStr(t.net_pnl_usd) : '-'}</td>
+                <td>${t.hold_bars != null ? t.hold_bars + 'h' : '-'}</td>
+            </tr>`;
+        }
+        tradeHtml = `<div class="recent-section">
+            <div class="recent-title">最近交易 (Recent Trades)</div>
+            <table class="recent-table"><thead><tr>
+                <th>#</th><th>方向</th><th>進場時間</th><th>出場原因</th><th>損益</th><th>持倉</th>
+            </tr></thead><tbody>${rows}</tbody></table>
+        </div>`;
+    }
+
+    el.innerHTML = exitHtml + tradeHtml;
 }
 
 // 健康檢查翻譯表
@@ -220,11 +564,13 @@ async function loadChart() {
             api('/api/trades'),
             api('/api/status'),
         ]);
+        setConnStatus(true);
         if (!S.chartReady) initCharts();
         S.trades = td.trades || [];
         updateChartData(kd, S.trades);
         updatePositionLines(st.positions ? st.positions.details : []);
     } catch (e) {
+        setConnStatus(false);
         $('main-chart').innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
     }
 }
@@ -235,15 +581,18 @@ function initCharts() {
     mc.innerHTML = '';
     gc.innerHTML = '';
 
-    const chartOpts = {
+    const baseOpts = {
         layout: { background: { color: '#1a1a2e' }, textColor: '#d1d4dc' },
         grid: { vertLines: { color: '#2B2B43' }, horzLines: { color: '#2B2B43' } },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-        timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2B2B43' },
-        rightPriceScale: { borderColor: '#2B2B43' },
+        rightPriceScale: { borderColor: '#2B2B43', minimumWidth: 80 },
     };
 
-    S.mainChart = LightweightCharts.createChart(mc, { ...chartOpts, width: mc.clientWidth, height: 480 });
+    // 主圖：隱藏底部時間軸（由 GK 副圖統一顯示）
+    S.mainChart = LightweightCharts.createChart(mc, {
+        ...baseOpts, width: mc.clientWidth, height: 480,
+        timeScale: { visible: false, borderColor: '#2B2B43' },
+    });
     S.candleSeries = S.mainChart.addCandlestickSeries({
         upColor: '#26a69a', downColor: '#ef5350',
         borderUpColor: '#26a69a', borderDownColor: '#ef5350',
@@ -251,7 +600,11 @@ function initCharts() {
     });
     S.ema20Series = S.mainChart.addLineSeries({ color: '#f0b90b', lineWidth: 2, title: 'EMA20' });
 
-    S.gkChart = LightweightCharts.createChart(gc, { ...chartOpts, width: gc.clientWidth, height: 120 });
+    // GK 副圖：顯示時間軸，作為上下共用的時間標籤
+    S.gkChart = LightweightCharts.createChart(gc, {
+        ...baseOpts, width: gc.clientWidth, height: 150,
+        timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2B2B43' },
+    });
     S.gkSeries = S.gkChart.addHistogramSeries({ color: '#5b86e5', title: 'GK 百分位 (Pctile)' });
 
     // Sync time scales
@@ -299,13 +652,25 @@ function initCharts() {
         const isLong = (t.direction || '').toUpperCase() === 'LONG';
         const dirLabel = isLong ? '做多 (Long)' : '做空 (Short)';
         const dirCls = isLong ? 'pnl-pos' : 'pnl-neg';
+        // 信號指標
+        const sigLines = [];
+        if (t.gk_pctile_at_entry != null) sigLines.push(`GK: ${Number(t.gk_pctile_at_entry).toFixed(1)}`);
+        if (t.ema20_at_entry != null) sigLines.push(`EMA20: $${Number(t.ema20_at_entry).toFixed(2)}`);
+        if (t.ema20_distance_pct != null) sigLines.push(`EMA距離: ${Number(t.ema20_distance_pct).toFixed(2)}%`);
+        if (t.breakout_strength_pct != null) sigLines.push(`突破力: ${Number(t.breakout_strength_pct).toFixed(2)}%`);
+        const sigHtml = sigLines.length > 0
+            ? `<div style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border);color:var(--text-dim);font-size:11px">
+                <div style="color:var(--gold);font-weight:600;margin-bottom:2px">進場信號</div>
+                ${sigLines.join(' | ')}
+               </div>` : '';
         tooltip.innerHTML = `
             <div style="margin-bottom:6px"><b class="${dirCls}">${dirLabel}</b> <span style="color:var(--text-dim)">${t.sub_strategy||''}</span></div>
             <div>進場：${fmtTime(t.entry_time_utc8)} @ $${Number(t.entry_price||0).toFixed(2)}</div>
-            ${t.exit_price ? `<div>出場：${fmtTime(t.exit_time_utc8)} @ $${Number(t.exit_price).toFixed(2)}</div>` : '<div>狀態：持倉中</div>'}
+            ${t.exit_price ? `<div>出場：${fmtTime(t.exit_time_utc8)} @ $${Number(t.exit_price).toFixed(2)}</div>` : '<div>狀態：<span style="color:var(--gold)">持倉中</span></div>'}
             ${t.exit_type ? `<div>原因：${t.exit_type}</div>` : ''}
             ${t.net_pnl_usd != null ? `<div>損益：<span class="${pnlClass(t.net_pnl_usd)}">${pnlStr(t.net_pnl_usd)} (${t.net_pnl_pct!=null?t.net_pnl_pct.toFixed(1)+'%':''})</span></div>` : ''}
             ${t.hold_bars != null ? `<div>持倉：${t.hold_bars}h</div>` : ''}
+            ${sigHtml}
         `;
         // 定位 tooltip
         const rect = mc.getBoundingClientRect();
@@ -329,13 +694,22 @@ function initCharts() {
 }
 
 function updateChartData(kd, trades) {
-    S.candleSeries.setData(kd.candles || []);
+    const candles = kd.candles || [];
+    S.candleSeries.setData(candles);
     S.ema20Series.setData(kd.ema20 || []);
-    S.gkSeries.setData((kd.gk_pctile || []).map(g => ({
-        time: g.time,
-        value: g.value,
-        color: g.value < 30 ? '#26a69a' : g.value < 50 ? '#f0b90b' : '#5b86e5',
-    })));
+
+    // 用 candles 的時間建立完整時間集合，GK 沒值的 bar 填 0（保持時間對齊）
+    const gkMap = {};
+    for (const g of (kd.gk_pctile || [])) { gkMap[g.time] = g.value; }
+    const gkFull = candles.map(c => {
+        const v = gkMap[c.time];
+        return {
+            time: c.time,
+            value: v != null ? v : 0,
+            color: v != null ? (v < 30 ? '#26a69a' : v < 50 ? '#f0b90b' : '#5b86e5') : 'rgba(0,0,0,0)',
+        };
+    });
+    S.gkSeries.setData(gkFull);
 
     // Trade markers — 圓點標記（無文字）
     // 多單進場: 綠色 | 多單出場: 金色 | 空單進場: 紅色 | 空單出場: 紫色
@@ -393,39 +767,43 @@ function scrollChartTo(ts) {
 async function loadTrades() {
     try {
         const td = await api('/api/trades');
+        setConnStatus(true);
         S.trades = td.trades || [];
         renderFilters();
         renderTradesTable();
     } catch (e) {
+        setConnStatus(false);
         $('trades-table-wrap').innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
     }
 }
 
 function renderFilters() {
+    const f = S.filters;
+    const sel = (val, target) => val === target ? 'selected' : '';
     $('trade-filters').innerHTML = `
         <select onchange="S.filters.direction=this.value;renderTradesTable()">
-            <option value="">全部方向 (All)</option>
-            <option value="LONG">做多 (Long)</option>
-            <option value="SHORT">做空 (Short)</option>
+            <option value="" ${sel(f.direction,'')}>全部方向 (All)</option>
+            <option value="LONG" ${sel(f.direction,'LONG')}>做多 (Long)</option>
+            <option value="SHORT" ${sel(f.direction,'SHORT')}>做空 (Short)</option>
         </select>
         <select onchange="S.filters.sub=this.value;renderTradesTable()">
-            <option value="">全部策略 (All)</option>
-            <option value="L">L</option>
-            <option value="S1">S1</option><option value="S2">S2</option>
-            <option value="S3">S3</option><option value="S4">S4</option>
+            <option value="" ${sel(f.sub,'')}>全部策略 (All)</option>
+            <option value="L" ${sel(f.sub,'L')}>L</option>
+            <option value="S1" ${sel(f.sub,'S1')}>S1</option><option value="S2" ${sel(f.sub,'S2')}>S2</option>
+            <option value="S3" ${sel(f.sub,'S3')}>S3</option><option value="S4" ${sel(f.sub,'S4')}>S4</option>
         </select>
         <select onchange="S.filters.win=this.value;renderTradesTable()">
-            <option value="">勝負 (W/L)</option>
-            <option value="WIN">贏 (Win)</option>
-            <option value="LOSS">虧 (Loss)</option>
+            <option value="" ${sel(f.win,'')}>勝負 (W/L)</option>
+            <option value="WIN" ${sel(f.win,'WIN')}>贏 (Win)</option>
+            <option value="LOSS" ${sel(f.win,'LOSS')}>虧 (Loss)</option>
         </select>
         <select onchange="S.filters.exit=this.value;renderTradesTable()">
-            <option value="">出場原因 (Exit)</option>
-            <option value="Trail">追蹤止盈 (Trail)</option>
-            <option value="SafeNet">安全網 (SafeNet)</option>
-            <option value="EarlyStop">提前止損 (EarlyStop)</option>
-            <option value="TP">止盈 (TP)</option>
-            <option value="MaxHold">時間止損 (MaxHold)</option>
+            <option value="" ${sel(f.exit,'')}>出場原因 (Exit)</option>
+            <option value="Trail" ${sel(f.exit,'Trail')}>追蹤止盈 (Trail)</option>
+            <option value="SafeNet" ${sel(f.exit,'SafeNet')}>安全網 (SafeNet)</option>
+            <option value="EarlyStop" ${sel(f.exit,'EarlyStop')}>提前止損 (EarlyStop)</option>
+            <option value="TP" ${sel(f.exit,'TP')}>止盈 (TP)</option>
+            <option value="MaxHold" ${sel(f.exit,'MaxHold')}>時間止損 (MaxHold)</option>
         </select>
     `;
 }
@@ -462,8 +840,11 @@ function renderTradesTable() {
         <th onclick="sortBy('net_pnl_usd')">損益 $ (PnL)${sortIcon('net_pnl_usd')}</th>
         <th onclick="sortBy('net_pnl_pct')">損益 % (PnL)${sortIcon('net_pnl_pct')}</th>
         <th onclick="sortBy('hold_bars')">持倉時數 (Hold h)${sortIcon('hold_bars')}</th>
-        <th onclick="sortBy('max_adverse_excursion_pct')">最大逆行 (MAE%)${sortIcon('max_adverse_excursion_pct')}</th>
-        <th onclick="sortBy('max_favorable_excursion_pct')">最大順行 (MFE%)${sortIcon('max_favorable_excursion_pct')}</th>
+        <th onclick="sortBy('gk_pctile_at_entry')">GK${sortIcon('gk_pctile_at_entry')}</th>
+        <th onclick="sortBy('ema20_distance_pct')">EMA距離%${sortIcon('ema20_distance_pct')}</th>
+        <th onclick="sortBy('breakout_strength_pct')">突破力%${sortIcon('breakout_strength_pct')}</th>
+        <th onclick="sortBy('max_adverse_excursion_pct')">MAE%${sortIcon('max_adverse_excursion_pct')}</th>
+        <th onclick="sortBy('max_favorable_excursion_pct')">MFE%${sortIcon('max_favorable_excursion_pct')}</th>
     </tr></thead><tbody>`;
 
     for (const t of data) {
@@ -480,6 +861,9 @@ function renderTradesTable() {
             <td class="${pCls}">${pnlStr(t.net_pnl_usd)}</td>
             <td class="${pCls}">${t.net_pnl_pct!=null ? t.net_pnl_pct.toFixed(1)+'%' : '-'}</td>
             <td>${t.hold_bars!=null ? t.hold_bars : '-'}</td>
+            <td>${t.gk_pctile_at_entry!=null ? Number(t.gk_pctile_at_entry).toFixed(1) : '-'}</td>
+            <td>${t.ema20_distance_pct!=null ? Number(t.ema20_distance_pct).toFixed(2)+'%' : '-'}</td>
+            <td>${t.breakout_strength_pct!=null ? Number(t.breakout_strength_pct).toFixed(2)+'%' : '-'}</td>
             <td>${t.max_adverse_excursion_pct!=null ? t.max_adverse_excursion_pct.toFixed(1)+'%' : '-'}</td>
             <td>${t.max_favorable_excursion_pct!=null ? t.max_favorable_excursion_pct.toFixed(1)+'%' : '-'}</td>
         </tr>`;
@@ -503,12 +887,14 @@ async function loadAnalytics() {
             api('/api/analytics'),
             api('/api/daily'),
         ]);
+        setConnStatus(true);
         renderAnalyticsCards(an);
         renderEquityCurve(an.cumulative_equity || []);
         renderDailyChart(dl.daily || []);
         renderExitDist(an.exit_distribution || {});
         renderStratCompare(an.strategy_comparison || {});
     } catch (e) {
+        setConnStatus(false);
         $('analytics-cards').innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
     }
 }
@@ -540,6 +926,8 @@ function renderAnalyticsCards(an) {
 
 function renderEquityCurve(data) {
     const el = $('equity-chart');
+    // 銷毀舊 chart 防止記憶體洩漏
+    if (S.equityChart) { try { S.equityChart.remove(); } catch {} S.equityChart = null; }
     el.innerHTML = '';
     if (data.length === 0) { el.innerHTML = '<div class="loading">尚無資料 (No Data)</div>'; return; }
 
@@ -561,6 +949,8 @@ function renderEquityCurve(data) {
 
 function renderDailyChart(daily) {
     const el = $('daily-chart');
+    // 銷毀舊 chart 防止記憶體洩漏
+    if (S.dailyChart) { try { S.dailyChart.remove(); } catch {} S.dailyChart = null; }
     el.innerHTML = '';
     if (daily.length === 0) { el.innerHTML = '<div class="loading">尚無資料 (No Data)</div>'; return; }
 
@@ -638,7 +1028,8 @@ function updateTimerDisplay() {
     const el = $('refresh-timer');
     if (el) {
         const timeStr = lastRefreshTime ? lastRefreshTime.toLocaleTimeString('zh-TW', {hour12: false}) : '--:--:--';
-        el.innerHTML = `上次更新 ${timeStr} | 刷新 <span class="timer-sec">${refreshCountdown}s</span>`;
+        const urgentCls = refreshCountdown <= 5 ? ' timer-urgent' : '';
+        el.innerHTML = `上次更新 ${timeStr} | 刷新 <span class="timer-sec${urgentCls}">${refreshCountdown}s</span>`;
     }
 }
 

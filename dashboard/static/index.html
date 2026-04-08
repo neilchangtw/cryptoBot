@@ -12,6 +12,7 @@
 <div class="header">
     <h1>印鈔機<span>監控台</span></h1>
     <div class="header-right">
+        <span class="conn-dot conn-online" id="conn-dot" title="API 連線狀態"></span>
         <div class="refresh-timer" id="refresh-timer"></div>
         <div class="mode-switch">
             <button class="mode-btn active" data-mode="paper" onclick="switchMode('paper')">模擬盤 (Paper)</button>
@@ -32,6 +33,8 @@
 <div id="tab-status" class="tab-content active">
     <div class="cards" id="status-cards"></div>
     <div id="gk-section"></div>
+    <div id="entry-conditions"></div>
+    <div id="recent-section"></div>
     <div id="health-section"></div>
 </div>
 
@@ -47,6 +50,10 @@
         <span class="legend-item"><span class="legend-dot" style="background:#ef5350"></span>空單進場 (Short Entry)</span>
         <span class="legend-item"><span class="legend-dot" style="background:#b39ddb"></span>空單出場 (Short Exit)</span>
         <span class="legend-item"><span class="legend-line" style="background:#f0b90b"></span>EMA20</span>
+        <span style="color:#2d2d44;margin:0 4px">|</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#26a69a"></span>GK &lt; 30 壓縮區</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#f0b90b"></span>GK 30-50 低波動</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#5b86e5"></span>GK &gt; 50 正常/擴張</span>
     </div>
     <div class="trade-tooltip" id="trade-tooltip"></div>
 </div>

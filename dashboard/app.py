@@ -161,20 +161,132 @@ async def api_status(mode: str = Query("paper")):
     # 最新 GK（從 bar_snapshots，每小時更新）
     snap_csv = paths["data_dir"] / "bar_snapshots.csv"
     snap_df = read_csv_safe(snap_csv)
+    last_ema20 = None
     if len(snap_df) > 0:
         last = snap_df.iloc[-1]
         result["gk_pctile"] = clean_value(last.get("gk_pctile"))
 
+        # 進場條件達成狀態
+        gk = clean_value(last.get("gk_pctile"))
+        skew = clean_value(last.get("skew_20"))
+        ret_sign = clean_value(last.get("ret_sign_15"))
+        brk_long = last.get("breakout_long")
+        brk_short = last.get("breakout_short")
+        ema20_raw = last.get("ema20")
+        # 舊 CSV 格式的 ema20 可能是 bool（True/False），新格式是數值
+        if isinstance(ema20_raw, (bool, np.bool_)):
+            ema20_val = None
+        else:
+            ema20_val = clean_value(ema20_raw)
+            if ema20_val is not None and ema20_val < 100:
+                ema20_val = None  # 不合理的值（可能是 ratio）
+        last_ema20 = ema20_val
+
+        # Session: 直接用當前時間計算（CSV 欄位可能因新舊格式錯位不準確）
+        from datetime import datetime as _dt
+        _now = _dt.now()  # 本機 = UTC+8
+        session_ok = _now.hour not in {0, 1, 2, 12} and _now.weekday() not in {0, 5, 6}
+
+        # breakout: 可能是 bool 或 float（突破強度）
+        def _brk_pass(v):
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, (float, np.floating)):
+                return not math.isnan(v) and v != 0
+            if isinstance(v, str):
+                return v.lower() not in ('false', '0', '')
+            return bool(v) if v is not None else False
+
+        # L 進場條件（所有 bool 強轉 Python bool 避免 numpy.bool 序列化問題）
+        l_conds = {
+            "gk": {"label": "GK < 30", "value": gk, "threshold": 30, "pass": bool(gk is not None and gk < 30)},
+            "skew": {"label": "Skew > 1.0", "value": skew, "threshold": 1.0, "pass": bool(skew is not None and skew > 1.0)},
+            "ret_sign": {"label": "RetSign > 0.6", "value": ret_sign, "threshold": 0.6, "pass": bool(ret_sign is not None and ret_sign > 0.6)},
+            "or_pass": {"label": "OR 觸發條件", "pass": False},
+            "breakout": {"label": "向上突破 10bar", "pass": bool(_brk_pass(brk_long))},
+            "session": {"label": "時段允許", "pass": bool(session_ok)},
+        }
+        l_conds["or_pass"]["pass"] = bool(l_conds["gk"]["pass"] or l_conds["skew"]["pass"] or l_conds["ret_sign"]["pass"])
+        l_total = sum([l_conds["or_pass"]["pass"], l_conds["breakout"]["pass"], l_conds["session"]["pass"]])
+
+        # S 進場條件（以 S1 為代表: GK<40, BL8）
+        s_conds = {
+            "gk": {"label": "GK < 40", "value": gk, "threshold": 40, "pass": bool(gk is not None and gk < 40)},
+            "breakout": {"label": "向下突破", "pass": bool(_brk_pass(brk_short))},
+            "session": {"label": "時段允許", "pass": bool(session_ok)},
+        }
+        s_total = sum([s_conds["gk"]["pass"], s_conds["breakout"]["pass"], s_conds["session"]["pass"]])
+
+        result["entry_conditions"] = {
+            "L": {"conditions": l_conds, "passed": l_total, "total": 3},
+            "S": {"conditions": s_conds, "passed": s_total, "total": 3},
+        }
+
     # 最新價格（Binance ticker API，即時更新）
+    last_close = None
     try:
         import requests
         resp = requests.get("https://fapi.binance.com/fapi/v2/ticker/price",
                             params={"symbol": "ETHUSDT"}, timeout=5)
         if resp.ok:
-            result["last_close"] = round(float(resp.json().get("price", 0)), 2)
+            last_close = round(float(resp.json().get("price", 0)), 2)
+            result["last_close"] = last_close
     except Exception:
         if len(snap_df) > 0:
-            result["last_close"] = clean_value(snap_df.iloc[-1].get("close"))
+            last_close = clean_value(snap_df.iloc[-1].get("close"))
+            result["last_close"] = last_close
+
+    # 為每筆持倉計算出場條件距離
+    if last_close and last_close > 0:
+        for d in result["positions"]["details"]:
+            ep = d.get("entry_price", 0)
+            if not ep or ep <= 0:
+                continue
+            bars = d.get("bars_held", 0)
+            sub = d.get("sub_strategy", "")
+            if sub == "L":
+                unr_pct = (last_close - ep) / ep * 100
+                safenet_dist = round(-5.5 - unr_pct, 2)  # 負值=已超過
+                ema_dist = round((last_close - last_ema20) / last_close * 100, 2) if last_ema20 else None
+                d["exit_progress"] = {
+                    "unrealized_pct": round(unr_pct, 2),
+                    "safenet": {"threshold": -5.5, "current": round(unr_pct, 2), "distance": safenet_dist},
+                    "trail": {"min_bars": 7, "bars_held": bars, "ema20": last_ema20,
+                              "ema_distance_pct": ema_dist,
+                              "ready": bars >= 7},
+                    "early_stop": {"range": "7-12 bar", "threshold": -1.0,
+                                   "in_range": 7 <= bars < 12,
+                                   "current": round(unr_pct, 2)},
+                }
+            elif sub.startswith("S"):
+                unr_pct = (ep - last_close) / ep * 100  # 做空: 正=賺
+                safenet_dist = round(5.5 - abs(unr_pct), 2) if unr_pct < 0 else round(5.5 + unr_pct, 2)
+                tp_dist = round(2.0 - unr_pct, 2)
+                d["exit_progress"] = {
+                    "unrealized_pct": round(unr_pct, 2),
+                    "safenet": {"threshold": 5.5, "current": round(-unr_pct if unr_pct < 0 else 0, 2),
+                                "distance": round(5.5 - (-unr_pct if unr_pct < 0 else 0), 2)},
+                    "tp": {"threshold": 2.0, "current": round(unr_pct, 2), "distance": tp_dist},
+                    "max_hold": {"threshold": 12, "bars_held": bars, "remaining": max(0, 12 - bars)},
+                }
+
+    # 最近 5 筆交易（給 Status 頁迷你表格用）
+    trades_csv = paths["data_dir"] / "trades.csv"
+    trades_df = read_csv_safe(trades_csv)
+    recent_trades = []
+    if len(trades_df) > 0:
+        last5 = trades_df.tail(5).iloc[::-1]  # 最新的在前
+        for _, row in last5.iterrows():
+            recent_trades.append({k: clean_value(v) for k, v in {
+                "trade_number": row.get("trade_number"),
+                "direction": row.get("direction"),
+                "sub_strategy": row.get("sub_strategy"),
+                "entry_time_utc8": row.get("entry_time_utc8"),
+                "exit_type": row.get("exit_type"),
+                "net_pnl_usd": row.get("net_pnl_usd"),
+                "hold_bars": row.get("hold_bars"),
+            }.items()})
+    result["recent_trades"] = recent_trades
 
     # 健康度
     try:
