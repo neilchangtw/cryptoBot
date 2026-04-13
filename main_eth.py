@@ -1,16 +1,17 @@
 """
-ETH 1h 雙策略 L+S 主循環
+ETH 1h V11-E 雙策略 L+S 主循環
 
 單執行緒架構：每小時整點 + 10s 喚醒一次
   1. 取 K 線資料 + 計算指標
-  2. 檢查持倉出場（L → check_exit, S → check_exit_cmp）
-  3. 評估進場信號（L: evaluate_long_signal, S: evaluate_short_signals）
-  4. 記錄 bar_snapshot + position_lifecycle
-  5. 日結統計
-  6. 狀態持久化
-  7. 定時心跳
+  2. 更新風控熔斷（日/月 rollover）
+  3. 檢查持倉出場（L → check_exit_long, S → check_exit_short）
+  4. 評估進場信號（L/S 各自獨立，maxTotal=1）
+  5. 記錄 bar_snapshot + position_lifecycle
+  6. 日結統計
+  7. 狀態持久化
+  8. 定時心跳
 
-策略規格鎖定，見 strategy.py。
+策略規格 V11-E，見 strategy.py。
 """
 import os
 import sys
@@ -142,15 +143,13 @@ def indicators_to_dict(df_row) -> dict:
         "ema20": safe(df_row.get("ema20")),
         "close": safe(df_row.get("close")),
         "close_shift1": safe(df_row.get("close_shift1")),
-        "breakout_10bar_max": safe(df_row.get("breakout_10bar_max")),
-        "breakout_10bar_min": safe(df_row.get("breakout_10bar_min")),
+        "breakout_15bar_max": safe(df_row.get("breakout_15bar_max")),
+        "breakout_15bar_min": safe(df_row.get("breakout_15bar_min")),
         "breakout_long": bool(df_row.get("breakout_long", False)),
         "breakout_short": bool(df_row.get("breakout_short", False)),
         "session_ok": bool(df_row.get("session_ok", False)),
         "hour_utc8": int(df_row.get("hour_utc8", -1)),
         "weekday_utc8": int(df_row.get("weekday_utc8", -1)),
-        "skew_20": safe(df_row.get("skew_20")),
-        "ret_sign_15": safe(df_row.get("ret_sign_15")),
     }
 
 
@@ -158,7 +157,7 @@ def get_position_state(executor) -> dict:
     """構建當前持倉狀態快照（給 bar_snapshot 用）"""
     positions = executor.get_open_positions()
     l_count = sum(1 for p in positions if p.get("sub_strategy") == "L")
-    s_count = sum(1 for p in positions if p.get("sub_strategy", "").startswith("S"))
+    s_count = sum(1 for p in positions if p.get("sub_strategy") == "S")
     return {
         "long_positions": l_count,
         "short_positions": s_count,
@@ -187,10 +186,10 @@ def main():
 
     mode = "PAPER" if PAPER_TRADING else "LIVE"
     logger.info(f"=" * 60)
-    logger.info(f"  ETH 1h 雙策略 L+S ({mode})")
-    logger.info(f"  L: GK+Skew+RetSign OR-entry, maxSame={strategy.L_MAX_SAME}, EMA20 Trail")
-    logger.info(f"  S: CMP-Portfolio x{len(strategy.S_SUBS)}, TP {strategy.CMP_TP_PCT*100}%, MaxHold {strategy.CMP_MAX_HOLD}")
-    logger.info(f"  Symbol: {SYMBOL} | Notional: ${strategy.NOTIONAL}")
+    logger.info(f"  ETH 1h V11-E 雙策略 L+S ({mode})")
+    logger.info(f"  L: GK<{strategy.L_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.L_TP_PCT*100}% MH{strategy.L_MAX_HOLD} SN{strategy.L_SAFENET_PCT*100}%")
+    logger.info(f"  S: GK<{strategy.S_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.S_TP_PCT*100}% MH{strategy.S_MAX_HOLD} SN{strategy.S_SAFENET_PCT*100}%")
+    logger.info(f"  Symbol: {SYMBOL} | Notional: ${strategy.NOTIONAL} | Fee: ${strategy.FEE}")
     logger.info(f"=" * 60)
 
     # 初始化 Executor
@@ -216,12 +215,12 @@ def main():
     # 啟動通知
     env = "模擬" if PAPER_TRADING else "實戰"
     l_count = sum(1 for p in executor.positions.values() if p.get("sub_strategy") == "L")
-    s_count = sum(1 for p in executor.positions.values() if p.get("sub_strategy", "").startswith("S"))
+    s_count = sum(1 for p in executor.positions.values() if p.get("sub_strategy") == "S")
     pos_text = f"L:{l_count} S:{s_count}" if (l_count + s_count) > 0 else "空手待命"
     startup_msg = (
-        f"<b>🖨 印鈔機開機！（{env}）</b>\n"
+        f"<b>🖨 印鈔機開機！V11-E（{env}）</b>\n"
         f"━━━━━━━━━━━━━━━\n"
-        f"🔧 配方：L 做多 + S1-S4 做空\n"
+        f"🔧 配方：L 做多 + S 做空（各最多1筆）\n"
         f"💼 口袋：${executor.account_balance:.2f}\n"
         f"📊 持倉：{pos_text}\n"
         f"⏱ 已印：{executor.bar_counter} 張（K棒）"
@@ -265,7 +264,10 @@ def main():
                         f"GK={ind['gk_pctile']:.1f}" if ind['gk_pctile'] else
                         f"Bar: {bar_time_str} | C={bar_data['close']:.2f} | GK=NaN")
 
-            # ── 2. 檢查持倉出場 ──
+            # ── 2. 更新風控熔斷 ──
+            executor.update_period_keys(t_utc8)
+
+            # ── 3. 檢查持倉出場 ──
             exits_this_bar = []
             ema20 = float(df.iloc[idx]["ema20"])
             for pos in list(executor.get_open_positions()):
@@ -278,23 +280,21 @@ def main():
                     logger.error(f"Skipping invalid position {trade_id}: entry_price={pos.get('entry_price')}")
                     continue
 
-                # 更新追蹤（MAE/MFE, pnl_at_bar7/12）
+                # 更新追蹤（MAE/MFE）
                 executor.update_tracking(trade_id, bar_data, executor.bar_counter)
 
-                # 按子策略分派出場檢查
+                # 按策略分派出場檢查
                 if sub == "L":
-                    exit_result = strategy.check_exit(
-                        side=side,
+                    exit_result = strategy.check_exit_long(
                         entry_price=pos["entry_price"],
                         entry_bar_counter=pos["entry_bar_counter"],
                         current_bar_counter=executor.bar_counter,
                         bar_high=bar_data["high"],
                         bar_low=bar_data["low"],
                         bar_close=bar_data["close"],
-                        ema20=ema20,
                     )
-                else:  # S1-S4: CMP 出場
-                    exit_result = strategy.check_exit_cmp(
+                else:  # S
+                    exit_result = strategy.check_exit_short(
                         entry_price=pos["entry_price"],
                         entry_bar_counter=pos["entry_bar_counter"],
                         current_bar_counter=executor.bar_counter,
@@ -334,18 +334,25 @@ def main():
                             f"PnL ${result['pnl_usd']:.2f}"
                         )
 
-            # ── 3. 評估進場信號 ──
+            # ── 4. 評估進場信號 ──
             bar_data_for_entry = dict(bar_data)
             bar_data_for_entry["eth_24h_change_pct"] = calc_eth_24h_change(df, idx)
             any_signal = False
 
             # L 信號
-            long_sig = strategy.evaluate_long_signal(
-                df=df, idx=idx,
-                open_positions=executor.positions,
-                last_exits=executor.last_exits,
-                bar_counter=executor.bar_counter,
-            )
+            l_cb_ok, l_cb_reason = executor.check_circuit_breaker("L")
+            long_sig = None
+            if l_cb_ok:
+                long_sig = strategy.evaluate_long_signal(
+                    df=df, idx=idx,
+                    open_positions=executor.positions,
+                    last_exits=executor.last_exits,
+                    bar_counter=executor.bar_counter,
+                    monthly_pnl_l=executor.monthly_pnl.get("L", 0.0),
+                    monthly_entries_l=executor.monthly_entries.get("L", 0),
+                )
+            elif l_cb_reason:
+                logger.debug(f"L blocked by circuit breaker: {l_cb_reason}")
 
             if long_sig:
                 any_signal = True
@@ -368,40 +375,47 @@ def main():
                 except Exception as e:
                     logger.error(f"L entry failed: {e}")
 
-            # S 信號（0-4 個）
-            short_sigs = strategy.evaluate_short_signals(
-                df=df, idx=idx,
-                open_positions=executor.positions,
-                last_exits=executor.last_exits,
-                bar_counter=executor.bar_counter,
-            )
+            # S 信號
+            s_cb_ok, s_cb_reason = executor.check_circuit_breaker("S")
+            short_sig = None
+            if s_cb_ok:
+                short_sig = strategy.evaluate_short_signal(
+                    df=df, idx=idx,
+                    open_positions=executor.positions,
+                    last_exits=executor.last_exits,
+                    bar_counter=executor.bar_counter,
+                    monthly_pnl_s=executor.monthly_pnl.get("S", 0.0),
+                    monthly_entries_s=executor.monthly_entries.get("S", 0),
+                )
+            elif s_cb_reason:
+                logger.debug(f"S blocked by circuit breaker: {s_cb_reason}")
 
-            for sig in short_sigs:
+            if short_sig:
                 any_signal = True
                 executor.record_signal(fired=True)
-                sig_logger.info(f"SIGNAL SELL {sig['sub_strategy']} | {sig['reason']} | GK={ind.get('gk_pctile')}")
+                sig_logger.info(f"SIGNAL SELL S | {short_sig['reason']} | GK={ind.get('gk_pctile')}")
                 try:
                     fill_price = bar_data["close"]
                     trade_id = executor.open_position(
                         side="short",
-                        sub_strategy=sig["sub_strategy"],
+                        sub_strategy="S",
                         entry_price=fill_price,
                         bar_counter=executor.bar_counter,
-                        signal_indicators=sig["indicators"],
+                        signal_indicators=short_sig["indicators"],
                         bar_data=bar_data_for_entry,
                         btc_context=btc_context,
                     )
                     if trade_id:
                         executor.record_open()
-                        sig_logger.info(f"ENTRY SHORT {sig['sub_strategy']} @ ${fill_price:.2f} | {trade_id}")
+                        sig_logger.info(f"ENTRY SHORT S @ ${fill_price:.2f} | {trade_id}")
                 except Exception as e:
-                    logger.error(f"{sig['sub_strategy']} entry failed: {e}")
+                    logger.error(f"S entry failed: {e}")
 
             if not any_signal:
                 executor.record_signal(fired=False)
                 logger.debug("HOLD: no L or S signals")
 
-            # ── 4. 記錄 bar snapshot ──
+            # ── 5. 記錄 bar snapshot ──
             pos_state = get_position_state(executor)
             total_unr = 0.0
             for pos in executor.get_open_positions():
@@ -416,12 +430,12 @@ def main():
             pos_state["total_unrealized_pnl"] = total_unr
 
             long_sig_str = long_sig["reason"] if long_sig else "HOLD"
-            short_sig_str = ",".join(s["sub_strategy"] for s in short_sigs) if short_sigs else "HOLD"
+            short_sig_str = short_sig["reason"] if short_sig else "HOLD"
             detail_parts = []
             if long_sig:
                 detail_parts.append(f"L:{long_sig['reason']}")
-            for s in short_sigs:
-                detail_parts.append(f"{s['sub_strategy']}:{s['reason']}")
+            if short_sig:
+                detail_parts.append(f"S:{short_sig['reason']}")
 
             recorder.record_bar_snapshot(
                 bar_data=bar_data,
@@ -434,47 +448,45 @@ def main():
                 position_state=pos_state,
             )
 
-            # ── 5. 日結統計 ──
+            # ── 6. 日結統計 ──
             today_str = t_utc8.strftime("%Y-%m-%d")
             if last_daily_date is not None and last_daily_date != today_str:
                 executor.flush_daily_summary(last_daily_date)
                 logger.info(f"Daily summary flushed for {last_daily_date}")
             last_daily_date = today_str
 
-            # ── 6. 狀態持久化 ──
+            # ── 7. 狀態持久化 ──
             executor.save_state()
 
-            # ── 7. 心跳 ──
+            # ── 8. 心跳 ──
             if executor.bar_counter - last_heartbeat_bar >= HEARTBEAT_INTERVAL:
                 last_heartbeat_bar = executor.bar_counter
                 positions = executor.get_open_positions()
                 l_pos = [p for p in positions if p.get("sub_strategy") == "L"]
-                s_pos = [p for p in positions if p.get("sub_strategy", "").startswith("S")]
+                s_pos = [p for p in positions if p.get("sub_strategy") == "S"]
 
                 if positions:
                     lines = []
-                    # L 持倉摘要
                     if l_pos:
-                        l_unr = sum(
-                            (bar_data["close"] - p["entry_price"]) / p["entry_price"] * 100
-                            for p in l_pos if p["entry_price"] > 0
-                        )
-                        lines.append(f"📈 L 多單 ×{len(l_pos)}（{l_unr:+.1f}%）")
-                    # S 持倉摘要
+                        for p in l_pos:
+                            if p["entry_price"] > 0:
+                                unr = (bar_data["close"] - p["entry_price"]) / p["entry_price"] * 100
+                                lines.append(f"📈 L 多單（{unr:+.1f}%，抱{p['bars_held']}h）")
                     if s_pos:
-                        s_unr = sum(
-                            (p["entry_price"] - bar_data["close"]) / p["entry_price"] * 100
-                            for p in s_pos if p["entry_price"] > 0
-                        )
-                        lines.append(f"📉 S 空單 ×{len(s_pos)}（{s_unr:+.1f}%）")
+                        for p in s_pos:
+                            if p["entry_price"] > 0:
+                                unr = (p["entry_price"] - bar_data["close"]) / p["entry_price"] * 100
+                                lines.append(f"📉 S 空單（{unr:+.1f}%，抱{p['bars_held']}h）")
                     pos_text = "\n".join(lines)
                 else:
                     pos_text = "空手中 🏖"
 
                 gk_val = ind.get('gk_pctile')
                 if gk_val is not None:
-                    if gk_val < 30:
-                        gk_status = f"🔥 {gk_val:.1f}（壓縮中！）"
+                    if gk_val < 25:
+                        gk_status = f"🔥 {gk_val:.1f}（極度壓縮！）"
+                    elif gk_val < 30:
+                        gk_status = f"⚡ {gk_val:.1f}（壓縮中）"
                     elif gk_val < 50:
                         gk_status = f"👀 {gk_val:.1f}（快了…）"
                     else:
@@ -482,13 +494,20 @@ def main():
                 else:
                     gk_status = "N/A"
 
+                # 風控狀態
+                cb_info = ""
+                if executor.consec_losses >= 2:
+                    cb_info = f"\n⚠️ 連虧 {executor.consec_losses} 筆"
+                if executor.daily_pnl < 0:
+                    cb_info += f"\n📊 今日：${executor.daily_pnl:.0f}"
+
                 hb_msg = (
-                    f"<b>🖨 印鈔機運轉中…（第 {executor.bar_counter} 張）</b>\n"
+                    f"<b>🖨 V11-E 運轉中…（第 {executor.bar_counter} 張）</b>\n"
                     f"━━━━━━━━━━━━━━━\n"
                     f"💵 ETH：${bar_data['close']:.2f}\n"
                     f"🔋 壓縮能量：{gk_status}\n"
                     f"🎰 持倉：\n{pos_text}\n"
-                    f"💰 金庫：${executor.account_balance:.2f}"
+                    f"💰 金庫：${executor.account_balance:.2f}{cb_info}"
                 )
                 send_telegram_message(hb_msg)
 
@@ -499,12 +518,12 @@ def main():
             logger.info("Shutdown requested")
             executor.save_state()
             env = "模擬" if PAPER_TRADING else "實戰"
-            send_telegram_message(f"<b>🖨 印鈔機下班了（{env}）</b>\n💰 今日入袋：${executor.account_balance:.2f}\n🛏 明天繼續印！")
+            send_telegram_message(f"<b>🖨 V11-E 下班了（{env}）</b>\n💰 金庫：${executor.account_balance:.2f}\n🛏 明天繼續印！")
             break
 
         except Exception as e:
             logger.error(f"Cycle error: {e}\n{traceback.format_exc()}")
-            send_telegram_message(f"<b>🚨 印鈔機卡紙了！</b>\n🔧 故障原因：{str(e)[:200]}\n⏳ 60 秒後自動維修...")
+            send_telegram_message(f"<b>🚨 V11-E 卡紙了！</b>\n🔧 故障原因：{str(e)[:200]}\n⏳ 60 秒後自動維修...")
             # 等 60 秒再試，避免瘋狂重試
             time.sleep(60)
 

@@ -1,12 +1,16 @@
 """
-執行引擎 — 持倉管理 + 狀態持久化
+V11-E 執行引擎 — 持倉管理 + 狀態持久化 + 風控熔斷
 
 支持雙策略：
-  L（做多）：sub_strategy="L", maxSame=9
-  S（做空）：sub_strategy="S1"~"S4", maxSame=5/子策略
+  L（做多）：sub_strategy="L", maxTotal=1
+  S（做空）：sub_strategy="S", maxTotal=1
 
 Paper mode: 用計算的價格模擬成交
 Live mode:  呼叫 binance_trade.py 下單
+
+風控熔斷：
+  日虧 -$200 停 / L 月虧 -$75 停 / S 月虧 -$150 停
+  連虧 4 筆 → 24 bar 冷卻
 
 狀態持久化到 eth_state.json，重啟後可恢復。
 """
@@ -26,11 +30,6 @@ PAPER_TRADING = os.getenv("PAPER_TRADING", "true").lower() == "true"
 SYMBOL = os.getenv("SYMBOL", "ETHUSDT")
 logger = logging.getLogger("executor")
 
-# sub_strategy → max_same 的映射
-_SUB_MAX = {"L": strategy.L_MAX_SAME}
-for s in strategy.S_SUBS:
-    _SUB_MAX[s["id"]] = s["max_same"]
-
 
 class Executor:
     def __init__(self, state_path: str = None):
@@ -40,15 +39,23 @@ class Executor:
 
         # 核心狀態
         self.positions = {}          # {trade_id: position_dict}，所有未平倉持倉
-        self.pending_entry = None    # 保留相容性（目前未使用）
-        self.last_exits = {          # 各子策略最後出場的 bar_counter（cooldown 用）
-            "L": -9999, "S1": -9999, "S2": -9999, "S3": -9999, "S4": -9999
+        self.last_exits = {          # 各策略最後出場的 bar_counter（cooldown 用）
+            "L": -9999, "S": -9999
         }
         self.account_balance = None  # USDT 帳戶餘額
         self.bar_counter = 0         # 已處理的 bar 數
         self.last_bar_time = None    # 最後處理的 bar 時間（防重複）
         self.trade_number = 0        # 累計交易編號
         self.daily_stats = {}        # 每日統計 {date_str: {...}}
+
+        # 風控熔斷狀態
+        self.monthly_pnl = {"L": 0.0, "S": 0.0}     # 當月各策略已實現 PnL
+        self.monthly_entries = {"L": 0, "S": 0}       # 當月各策略進場筆數
+        self.monthly_key = None                        # 當前月份 key "YYYY-MM"
+        self.daily_pnl = 0.0                           # 當日 PnL
+        self.daily_key = None                          # 當日 key "YYYY-MM-DD"
+        self.consec_losses = 0                         # 連續虧損筆數
+        self.consec_loss_cooldown_until = 0            # 連虧冷卻結束的 bar_counter
 
         self._load_state()
         self._init_balance()
@@ -66,40 +73,55 @@ class Executor:
             with open(self.state_path, "r", encoding="utf-8") as f:
                 state = json.load(f)
             self.positions = state.get("positions", {})
-            self.pending_entry = state.get("pending_entry", None)
             self.account_balance = state.get("account_balance", None)
             self.bar_counter = state.get("bar_counter", 0)
             self.last_bar_time = state.get("last_bar_time", None)
             self.trade_number = state.get("trade_number", 0)
             self.daily_stats = state.get("daily_stats", {})
 
-            # 遷移 last_exits: 舊單策略格式 {"long":x,"short":y} → 新雙策略格式
-            # 舊 long → L, 舊 short → S1~S4（共用同一個值）
+            # 載入 last_exits，支持 v6 → V10 遷移
             raw_exits = state.get("last_exits", {})
-            if "long" in raw_exits or "short" in raw_exits:
-                logger.info("Migrating last_exits from old format")
-                old_long = raw_exits.get("long", -9999)
-                old_short = raw_exits.get("short", -9999)
+            if "S1" in raw_exits or "S2" in raw_exits:
+                # v6 格式：S1-S4 → 合併為 S（取最新的）
+                logger.info("Migrating last_exits from v6 format (S1-S4 → S)")
+                s_vals = [raw_exits.get(k, -9999) for k in ["S1", "S2", "S3", "S4"]]
                 self.last_exits = {
-                    "L": old_long,
-                    "S1": old_short, "S2": old_short,
-                    "S3": old_short, "S4": old_short,
+                    "L": raw_exits.get("L", -9999),
+                    "S": max(s_vals),
+                }
+            elif "long" in raw_exits or "short" in raw_exits:
+                # 更舊的格式
+                logger.info("Migrating last_exits from legacy format")
+                self.last_exits = {
+                    "L": raw_exits.get("long", -9999),
+                    "S": raw_exits.get("short", -9999),
                 }
             else:
-                self.last_exits = raw_exits
-                # 確保所有 key 都存在
-                for key in ["L", "S1", "S2", "S3", "S4"]:
-                    if key not in self.last_exits:
-                        self.last_exits[key] = -9999
+                self.last_exits = {
+                    "L": raw_exits.get("L", -9999),
+                    "S": raw_exits.get("S", -9999),
+                }
 
-            # 遷移 positions: 若無 sub_strategy 欄位則補上
-            for tid, pos in self.positions.items():
-                if "sub_strategy" not in pos:
-                    if pos.get("side") == "long":
-                        pos["sub_strategy"] = "L"
-                    else:
-                        pos["sub_strategy"] = "S1"
-                    logger.info(f"Migrated position {tid} → sub_strategy={pos['sub_strategy']}")
+            # 遷移 positions: S1-S4 → S
+            for tid, pos in list(self.positions.items()):
+                sub = pos.get("sub_strategy", "")
+                if sub in ("S1", "S2", "S3", "S4"):
+                    pos["sub_strategy"] = "S"
+                    logger.info(f"Migrated position {tid}: {sub} → S")
+                elif sub == "" and pos.get("side") == "long":
+                    pos["sub_strategy"] = "L"
+                elif sub == "" and pos.get("side") == "short":
+                    pos["sub_strategy"] = "S"
+
+            # 載入風控熔斷狀態
+            cb = state.get("circuit_breaker", {})
+            self.monthly_pnl = cb.get("monthly_pnl", {"L": 0.0, "S": 0.0})
+            self.monthly_entries = cb.get("monthly_entries", {"L": 0, "S": 0})
+            self.monthly_key = cb.get("monthly_key", None)
+            self.daily_pnl = cb.get("daily_pnl", 0.0)
+            self.daily_key = cb.get("daily_key", None)
+            self.consec_losses = cb.get("consec_losses", 0)
+            self.consec_loss_cooldown_until = cb.get("consec_loss_cooldown_until", 0)
 
             logger.info(f"State loaded: {len(self.positions)} positions, "
                         f"bar_counter={self.bar_counter}")
@@ -128,13 +150,21 @@ class Executor:
         """儲存狀態到 eth_state.json"""
         state = {
             "positions": self.positions,
-            "pending_entry": self.pending_entry,
             "last_exits": self.last_exits,
             "account_balance": round(self.account_balance, 4),
             "bar_counter": self.bar_counter,
             "last_bar_time": self.last_bar_time,
             "trade_number": self.trade_number,
             "daily_stats": self.daily_stats,
+            "circuit_breaker": {
+                "monthly_pnl": self.monthly_pnl,
+                "monthly_entries": self.monthly_entries,
+                "monthly_key": self.monthly_key,
+                "daily_pnl": self.daily_pnl,
+                "daily_key": self.daily_key,
+                "consec_losses": self.consec_losses,
+                "consec_loss_cooldown_until": self.consec_loss_cooldown_until,
+            },
         }
         tmp_path = self.state_path + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
@@ -142,15 +172,75 @@ class Executor:
         os.replace(tmp_path, self.state_path)
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 持倉操作
+    # 風控熔斷
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    def can_open_sub(self, sub_strategy: str) -> bool:
-        """是否可以開倉（按 sub_strategy 計數）"""
-        count = sum(1 for p in self.positions.values()
-                    if p.get("sub_strategy") == sub_strategy)
-        max_same = _SUB_MAX.get(sub_strategy, 5)
-        return count < max_same
+    def update_period_keys(self, dt_utc8: datetime):
+        """更新月/日 key，跨月/日時重置計數器"""
+        month_key = dt_utc8.strftime("%Y-%m")
+        day_key = dt_utc8.strftime("%Y-%m-%d")
+
+        if self.monthly_key != month_key:
+            if self.monthly_key is not None:
+                logger.info(f"Month rollover: {self.monthly_key} → {month_key} | "
+                            f"L: ${self.monthly_pnl['L']:.2f} ({self.monthly_entries['L']}t), "
+                            f"S: ${self.monthly_pnl['S']:.2f} ({self.monthly_entries['S']}t)")
+            self.monthly_key = month_key
+            self.monthly_pnl = {"L": 0.0, "S": 0.0}
+            self.monthly_entries = {"L": 0, "S": 0}
+
+        if self.daily_key != day_key:
+            if self.daily_key is not None:
+                logger.info(f"Day rollover: {self.daily_key} → {day_key} | "
+                            f"Daily PnL: ${self.daily_pnl:.2f}")
+            self.daily_key = day_key
+            self.daily_pnl = 0.0
+
+    def check_circuit_breaker(self, side: str) -> tuple:
+        """
+        檢查風控熔斷是否允許進場。
+
+        Args:
+            side: "L" or "S"
+
+        Returns:
+            (allowed: bool, reason: str)
+        """
+        # 1. 連虧冷卻
+        if self.consec_losses >= strategy.CONSEC_LOSS_PAUSE:
+            if self.bar_counter < self.consec_loss_cooldown_until:
+                remaining = self.consec_loss_cooldown_until - self.bar_counter
+                return False, f"連虧{self.consec_losses}筆冷卻中（剩{remaining}bar）"
+
+        # 2. 日虧上限
+        if self.daily_pnl <= strategy.DAILY_LOSS_LIMIT:
+            return False, f"日虧${self.daily_pnl:.0f}已達上限${strategy.DAILY_LOSS_LIMIT}"
+
+        # 3. 月虧上限（per-strategy）
+        if side == "L":
+            cap = strategy.L_MONTHLY_LOSS_CAP
+            pnl = self.monthly_pnl.get("L", 0.0)
+        else:
+            cap = strategy.S_MONTHLY_LOSS_CAP
+            pnl = self.monthly_pnl.get("S", 0.0)
+        if pnl <= cap:
+            return False, f"{side}月虧${pnl:.0f}已達上限${cap}"
+
+        # 4. 月度進場上限
+        if side == "L":
+            entry_cap = strategy.L_MONTHLY_ENTRY_CAP
+            entries = self.monthly_entries.get("L", 0)
+        else:
+            entry_cap = strategy.S_MONTHLY_ENTRY_CAP
+            entries = self.monthly_entries.get("S", 0)
+        if entries >= entry_cap:
+            return False, f"{side}月進場{entries}筆已達上限{entry_cap}"
+
+        return True, ""
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # 持倉操作
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def open_position(self, side: str, sub_strategy: str, entry_price: float,
                       bar_counter: int, signal_indicators: dict,
@@ -160,7 +250,7 @@ class Executor:
 
         Args:
             side: "long" or "short"
-            sub_strategy: "L" / "S1" / "S2" / "S3" / "S4"
+            sub_strategy: "L" or "S"
             entry_price: 進場價
             bar_counter: 當前 bar 計數器
             signal_indicators: 信號觸發時的指標快照
@@ -168,7 +258,7 @@ class Executor:
             btc_context: {"btc_close": float}
 
         Returns:
-            trade_id
+            trade_id or None
         """
         self.trade_number += 1
         dt_utc8 = bar_data["datetime"]
@@ -177,24 +267,31 @@ class Executor:
 
         qty = strategy.NOTIONAL / entry_price
 
+        # 決定 SafeNet 價格
+        if side == "long":
+            safenet_pct = strategy.L_SAFENET_PCT
+            safenet_price = entry_price * (1 - safenet_pct)
+        else:
+            safenet_pct = strategy.S_SAFENET_PCT
+            safenet_price = entry_price * (1 + safenet_pct)
+
         # 實際下單
         try:
             import binance_trade
             order_side = "BUY" if side == "long" else "SELL"
             position_side = "LONG" if side == "long" else "SHORT"
-            safenet_price = entry_price * (1 - strategy.SAFENET_PCT) if side == "long" \
-                else entry_price * (1 + strategy.SAFENET_PCT)
-            # 只有該方向第一筆持倉時才掛 SL（closePosition=true 會覆蓋整個方向）
+            # 只有該方向第一筆持倉時才掛 SL（closePosition=true 覆蓋整個方向）
             existing_same_side = sum(1 for p in self.positions.values()
                                     if ("LONG" if p["side"] == "long" else "SHORT") == position_side)
             sl_price = safenet_price if existing_same_side == 0 else None
             result = binance_trade.place_order(
                 SYMBOL, order_side, stop_loss=sl_price,
-                strategy_id=f"eth_dual_{sub_strategy}",
+                strategy_id=f"eth_v10_{sub_strategy}",
                 position_side=position_side,
             )
             if result is None:
                 logger.error(f"Order failed for {trade_id}")
+                self.trade_number -= 1
                 return None
             avg_price = float(result.get("avgPrice", 0))
             if avg_price > 0:
@@ -202,6 +299,7 @@ class Executor:
             qty = float(result.get("executedQty", qty))
         except Exception as e:
             logger.error(f"Order exception: {e}")
+            self.trade_number -= 1
             return None
 
         # 計算進場指標
@@ -209,8 +307,8 @@ class Executor:
         gk_ratio = signal_indicators.get("gk_ratio")
         ema20 = signal_indicators.get("ema20")
         signal_close = signal_indicators.get("close")
-        brk_max = signal_indicators.get("breakout_10bar_max")
-        brk_min = signal_indicators.get("breakout_10bar_min")
+        brk_max = signal_indicators.get("breakout_15bar_max")
+        brk_min = signal_indicators.get("breakout_15bar_min")
 
         if side == "long" and brk_max and brk_max > 0:
             brk_strength = (entry_price - brk_max) / brk_max * 100
@@ -225,6 +323,9 @@ class Executor:
         eth_btc = entry_price / btc_close if btc_close and btc_close > 0 else None
         eth_24h = bar_data.get("eth_24h_change_pct")
         bars_since = bar_counter - self.last_exits.get(sub_strategy, -9999)
+
+        # 更新月度進場計數
+        self.monthly_entries[sub_strategy] = self.monthly_entries.get(sub_strategy, 0) + 1
 
         # 建立持倉記錄
         position = {
@@ -241,12 +342,11 @@ class Executor:
             "mfe_pct": 0.0,
             "mae_time_bar": 0,
             "mfe_time_bar": 0,
-            "pnl_at_bar7": None,
-            "pnl_at_bar12": None,
         }
         self.positions[trade_id] = position
 
         # 記錄到 trades.csv
+        exit_cd = strategy.L_EXIT_CD if sub_strategy == "L" else strategy.S_EXIT_CD
         trade_record = {
             "trade_id": trade_id,
             "trade_number": self.trade_number,
@@ -266,11 +366,7 @@ class Executor:
             "breakout_strength_pct": round(brk_strength, 4) if brk_strength is not None else "",
             "ema20_at_entry": round(ema20, 4) if ema20 else "",
             "ema20_distance_pct": round(ema20_dist, 2) if ema20_dist is not None else "",
-            # 判斷是否剛過 cooldown 就進場
-            "was_cooldown_trade": bars_since == (
-                strategy.L_EXIT_CD if sub_strategy == "L"
-                else next((s["exit_cd"] for s in strategy.S_SUBS if s["id"] == sub_strategy), 6)
-            ),
+            "was_cooldown_trade": bars_since == exit_cd,
             "bars_since_last_exit": bars_since,
             "btc_close_at_entry": round(btc_close, 2) if btc_close else "",
             "eth_btc_ratio_at_entry": round(eth_btc, 6) if eth_btc is not None else "",
@@ -283,20 +379,22 @@ class Executor:
         if sub_strategy == "L":
             direction = "做多 📈"
             sub_label = "L 多單"
-            action = "🐂 衝啊！抄底進場"
+            action = "🐂 衝啊！壓縮突破做多"
         else:
             direction = "做空 📉"
-            sub_label = f"{sub_strategy} 空單"
-            action = "🐻 空它！高空進場"
-        sn_price = entry_price * (1 - strategy.SAFENET_PCT) if side == "long" \
-            else entry_price * (1 + strategy.SAFENET_PCT)
+            sub_label = "S 空單"
+            action = "🐻 空它！壓縮突破做空"
+        sn_price = safenet_price
+        tp_pct = strategy.L_TP_PCT if sub_strategy == "L" else strategy.S_TP_PCT
+        max_hold = strategy.L_MAX_HOLD if sub_strategy == "L" else strategy.S_MAX_HOLD
         msg = (
             f"<b>🎰 下注！（{env}）</b>\n"
             f"━━━━━━━━━━━━━━━\n"
             f"{action}\n"
             f"🏷 策略：{sub_label}\n"
             f"💲 進場價：${entry_price:.2f}\n"
-            f"🛡 安全網：${sn_price:.2f}（±{strategy.SAFENET_PCT*100:.1f}%）\n"
+            f"🎯 止盈：{tp_pct*100:.1f}% ｜ ⏰ 最長 {max_hold}h\n"
+            f"🛡 安全網：${sn_price:.2f}（{safenet_pct*100:.1f}%）\n"
             f"🔋 壓縮能量：{gk_pctile:.1f}\n"
             f"📝 第 {self.trade_number} 筆 ｜ 💰 金庫 ${self.account_balance:.2f}"
         )
@@ -326,7 +424,7 @@ class Executor:
             position_side = "LONG" if side == "long" else "SHORT"
             binance_trade.place_order(
                 SYMBOL, close_side, qty=pos["qty"], reduce_only=True,
-                strategy_id=f"eth_dual_{sub_strategy}",
+                strategy_id=f"eth_v10_{sub_strategy}",
                 position_side=position_side,
             )
             # 只有該方向最後一筆平倉時才取消該方向的 SL
@@ -347,6 +445,18 @@ class Executor:
         self.account_balance += pnl_usd
         self.last_exits[sub_strategy] = bar_counter
 
+        # 更新風控熔斷狀態
+        self.daily_pnl += pnl_usd
+        self.monthly_pnl[sub_strategy] = self.monthly_pnl.get(sub_strategy, 0.0) + pnl_usd
+
+        if pnl_usd < 0:
+            self.consec_losses += 1
+            if self.consec_losses >= strategy.CONSEC_LOSS_PAUSE:
+                self.consec_loss_cooldown_until = bar_counter + strategy.CONSEC_LOSS_COOLDOWN
+                logger.warning(f"連虧 {self.consec_losses} 筆！冷卻至 bar {self.consec_loss_cooldown_until}")
+        else:
+            self.consec_losses = 0
+
         dt_utc8 = bar_data["datetime"]
         dt_utc = dt_utc8 - timedelta(hours=8) if isinstance(dt_utc8, datetime) else dt_utc8
 
@@ -365,8 +475,8 @@ class Executor:
             "max_favorable_excursion_usd": round(pos.get("mfe_pct", 0) / 100 * strategy.NOTIONAL, 2),
             "mae_time_bar": pos.get("mae_time_bar", ""),
             "mfe_time_bar": pos.get("mfe_time_bar", ""),
-            "pnl_at_bar7": round(pos["pnl_at_bar7"], 2) if pos.get("pnl_at_bar7") is not None else "",
-            "pnl_at_bar12": round(pos["pnl_at_bar12"], 2) if pos.get("pnl_at_bar12") is not None else "",
+            "pnl_at_bar7": "",
+            "pnl_at_bar12": "",
             "gross_pnl_usd": round(gross_pnl, 4),
             "commission_usd": strategy.FEE,
             "net_pnl_usd": round(pnl_usd, 4),
@@ -377,14 +487,9 @@ class Executor:
 
         # Telegram
         env = "模擬" if PAPER_TRADING else "實戰"
-        if sub_strategy == "L":
-            sub_label = "L 多單"
-        else:
-            sub_label = f"{sub_strategy} 空單"
+        sub_label = "L 多單" if sub_strategy == "L" else "S 空單"
         exit_map = {
             "SafeNet": "🆘 安全網接住了",
-            "Trail": "🏃 追蹤停利，落袋為安",
-            "EarlyStop": "✂️ 苗頭不對，提前跑路",
             "TP": "🎯 精準止盈，完美收割",
             "MaxHold": "⏰ 時間到，強制下課",
         }
@@ -398,6 +503,13 @@ class Executor:
         else:
             result_header = "😐 白忙一場"
             result_text = "打平"
+
+        cb_info = ""
+        if self.consec_losses >= strategy.CONSEC_LOSS_PAUSE:
+            cb_info = f"\n⚠️ 連虧{self.consec_losses}筆，冷卻24h"
+        if self.daily_pnl <= strategy.DAILY_LOSS_LIMIT:
+            cb_info += f"\n🚫 日虧${self.daily_pnl:.0f}，今日停工"
+
         msg = (
             f"<b>{result_header}（{env}）</b>\n"
             f"━━━━━━━━━━━━━━━\n"
@@ -405,19 +517,21 @@ class Executor:
             f"📋 {exit_text}\n"
             f"💰 {result_text}（{pnl_pct:+.1f}%）\n"
             f"⏱ 抱了 {bars_held}h ｜ 最慘 -{abs(pos.get('mae_pct', 0)):.1f}%\n"
-            f"🏦 金庫：${self.account_balance:.2f}"
+            f"🏦 金庫：${self.account_balance:.2f}{cb_info}"
         )
         send_telegram_message(msg)
 
         del self.positions[trade_id]
-        logger.info(f"Closed {trade_id} | {exit_reason} | PnL ${pnl_usd:.2f}")
+        logger.info(f"Closed {trade_id} | {exit_reason} | PnL ${pnl_usd:.2f} | "
+                    f"consec_losses={self.consec_losses} daily=${self.daily_pnl:.2f} "
+                    f"monthly_L=${self.monthly_pnl['L']:.2f} monthly_S=${self.monthly_pnl['S']:.2f}")
         self.save_state()
 
         return {"pnl_usd": pnl_usd, "pnl_pct": pnl_pct, "exit_reason": exit_reason,
                 "bars_held": bars_held, "trade_id": trade_id}
 
     def update_tracking(self, trade_id: str, bar_data: dict, bar_counter: int):
-        """每 bar 更新持倉追蹤：MAE/MFE, pnl_at_bar7/bar12。"""
+        """每 bar 更新持倉追蹤：MAE/MFE。"""
         pos = self.positions.get(trade_id)
         if pos is None:
             return
@@ -433,16 +547,13 @@ class Executor:
 
         bar_high = bar_data["high"]
         bar_low = bar_data["low"]
-        bar_close = bar_data["close"]
 
         if side == "long":
             adverse = (bar_low - entry_price) / entry_price * 100
             favorable = (bar_high - entry_price) / entry_price * 100
-            current_pnl_pct = (bar_close - entry_price) / entry_price * 100
         else:
             adverse = (entry_price - bar_high) / entry_price * 100
             favorable = (entry_price - bar_low) / entry_price * 100
-            current_pnl_pct = (entry_price - bar_close) / entry_price * 100
 
         if adverse < pos.get("mae_pct", 0):
             pos["mae_pct"] = adverse
@@ -451,11 +562,6 @@ class Executor:
         if favorable > pos.get("mfe_pct", 0):
             pos["mfe_pct"] = favorable
             pos["mfe_time_bar"] = bars_held
-
-        if bars_held == 7 and pos.get("pnl_at_bar7") is None:
-            pos["pnl_at_bar7"] = current_pnl_pct
-        if bars_held == 12 and pos.get("pnl_at_bar12") is None:
-            pos["pnl_at_bar12"] = current_pnl_pct
 
     def get_open_positions(self) -> list:
         """回傳所有持倉的 list"""
@@ -475,7 +581,7 @@ class Executor:
                 "trades_opened": 0, "trades_closed": 0,
                 "wins": 0, "losses": 0,
                 "pnl": 0.0, "signals_fired": 0, "signals_blocked": 0,
-                "safenet_count": 0, "earlyStop_count": 0, "trail_count": 0,
+                "safenet_count": 0,
                 "tp_count": 0, "maxhold_count": 0,
                 "hold_hours_sum": 0, "max_hold_hours": 0,
             }
@@ -501,11 +607,8 @@ class Executor:
             d["wins"] += 1
         elif pnl_usd < 0:
             d["losses"] += 1
-        # 出場原因計數（注意 key 大小寫需與 daily_stats 一致）
         reason_map = {
             "SafeNet": "safenet_count",
-            "EarlyStop": "earlyStop_count",
-            "Trail": "trail_count",
             "TP": "tp_count",
             "MaxHold": "maxhold_count",
         }
@@ -525,7 +628,7 @@ class Executor:
 
         # 計算持倉狀態
         l_count = sum(1 for p in self.positions.values() if p.get("sub_strategy") == "L")
-        s_count = sum(1 for p in self.positions.values() if p.get("sub_strategy", "").startswith("S"))
+        s_count = sum(1 for p in self.positions.values() if p.get("sub_strategy") == "S")
         open_pos = f"L:{l_count} S:{s_count}" if (l_count + s_count) > 0 else ""
 
         stats = {
@@ -538,12 +641,12 @@ class Executor:
             "gross_pnl": round(d["pnl"] + strategy.FEE * n_closed, 2),
             "net_pnl": round(d["pnl"], 2),
             "safenet_count": d["safenet_count"],
-            "earlyStop_count": d["earlyStop_count"],
-            "trail_count": d.get("trail_count", 0),
+            "earlyStop_count": 0,
+            "trail_count": 0,
             "avg_hold_hours": round(avg_hold, 1),
             "longest_hold_hours": d["max_hold_hours"],
             "account_balance": round(self.account_balance, 2),
-            "cumulative_pnl": round(self.account_balance - 10000.0, 2),
+            "cumulative_pnl": round(self.account_balance - 1000.0, 2),
             "open_position": open_pos,
             "system_alerts": 0,
         }

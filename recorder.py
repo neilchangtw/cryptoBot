@@ -1,5 +1,5 @@
 """
-4 層 CSV 記錄系統
+V10 4 層 CSV 記錄系統
 
 Layer 1: bar_snapshots.csv     — 每小時一行，所有指標 + 信號評估
 Layer 2: position_lifecycle.csv — 持倉期間每 bar 一行，MAE/MFE 追蹤
@@ -36,10 +36,8 @@ BAR_SNAPSHOT_FIELDS = [
     "open", "high", "low", "close", "volume", "taker_buy_volume",
     # GK 指標
     "gk_ratio", "gk_pctile",
-    # Breakout 指標
+    # Breakout 指標（BL15）
     "breakout_long", "breakout_short",
-    # L 專用指標
-    "skew_20", "ret_sign_15",
     # EMA
     "ema20",
     # Session 狀態
@@ -58,7 +56,6 @@ POSITION_LIFECYCLE_FIELDS = [
     "max_adverse_so_far", "max_favorable_so_far",
     # 出場機制狀態
     "ema20", "distance_to_ema20_pct", "safenet_distance_pct",
-    "earlyStop_eligible",
     # 本根是否出場
     "exit_triggered", "exit_type", "exit_price", "exit_pnl_usd",
 ]
@@ -176,8 +173,6 @@ def record_bar_snapshot(bar_data: dict, indicators: dict,
         "gk_pctile": _fmt(indicators.get("gk_pctile"), 2),
         "breakout_long": indicators.get("breakout_long", False),
         "breakout_short": indicators.get("breakout_short", False),
-        "skew_20": _fmt(indicators.get("skew_20"), 3),
-        "ret_sign_15": _fmt(indicators.get("ret_sign_15"), 3),
         "ema20": _fmt(indicators.get("ema20")),
         "session_allowed": indicators.get("session_ok", False),
         "long_signal": signal_result.get("long_signal", "HOLD"),
@@ -228,13 +223,13 @@ def record_position_bar(trade_id: str, position: dict, bar_data: dict,
     # EMA20 距離
     ema_dist = (close - ema20) / close * 100 if close > 0 else 0
 
-    # SafeNet 距離（從 strategy 讀取常數，避免硬編碼）
-    from strategy import SAFENET_PCT
+    # SafeNet 距離（per-side SafeNet）
+    from strategy import L_SAFENET_PCT, S_SAFENET_PCT
     if side == "long":
-        sn_level = entry_price * (1 - SAFENET_PCT)
+        sn_level = entry_price * (1 - L_SAFENET_PCT)
         sn_dist = (close - sn_level) / close * 100
     else:
-        sn_level = entry_price * (1 + SAFENET_PCT)
+        sn_level = entry_price * (1 + S_SAFENET_PCT)
         sn_dist = (sn_level - close) / close * 100
 
     exited = exit_result is not None and exit_result.get("exit", False)
@@ -257,7 +252,6 @@ def record_position_bar(trade_id: str, position: dict, bar_data: dict,
         "ema20": _fmt(ema20),
         "distance_to_ema20_pct": _fmt(ema_dist, 2),
         "safenet_distance_pct": _fmt(sn_dist, 2),
-        "earlyStop_eligible": 7 <= bars_held < 12 if position.get("sub_strategy", "L") == "L" else False,
         "exit_triggered": exited,
         "exit_type": exit_result.get("reason", "") if exited else "",
         "exit_price": _fmt(exit_result.get("exit_price")) if exited else "",

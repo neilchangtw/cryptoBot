@@ -26,6 +26,9 @@ ETH 1h Garman-Klass Compression-Breakout 自動交易機器人（Binance Futures
 | **CLAUDE.md**（本文件） | 專案總覽、架構、策略規格、目錄結構 |
 | [doc/backtest_history.md](doc/backtest_history.md) | 所有回測結果完整記錄（含 R10 Fix 16 輪 + GK 研究 + 稽核） |
 | [doc/dual_strategy_research.md](doc/dual_strategy_research.md) | 雙策略 L+S 研究過程 |
+| [doc/v9_research.md](doc/v9_research.md) | V9 $1K 帳戶最佳可行策略研究（4 輪、2400+ 配置、3 組 8/8 PASS） |
+| [doc/v10_research.md](doc/v10_research.md) | V10 $1K 帳戶穩定獲利研究（6 輪 + 稽核、6700+ 配置、Short-only 4h-1h） |
+| [doc/v11_research.md](doc/v11_research.md) | V11 TP/MH 出場優化研究（R1 掃描 204 組、V11-E 冠軍 OOS $2,801 +28%） |
 
 ---
 
@@ -112,79 +115,106 @@ cryptoBot/
 
 ## 目前狀態
 
-- **策略**：雙策略 L+S（GK Compression-Breakout + CMP-Portfolio）
+- **策略版本**：**V11-E** — 雙策略 L+S（GK 壓縮突破 + TP + MaxHold，出場優化）
 - **模式**：Paper Trading（模擬盤），Binance Testnet
 - **Hedge Mode**：已啟用（dualSidePosition=true），L/S 倉位互不影響
-- **起始餘額**：$10,000（Testnet）
-- **演進**：GK v1.1 → 雙策略 L+S（OOS $23,996, 8/8 Gate PASS）
+- **帳戶**：$1,000 / $200 保證金 / 20x / $4,000 名目
+- **演進**：GK v1.1 → v6 L+S → V10 → **V11-E（L+S $2,801, 12/13 正月, worst -$8）**
 - **Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗
 
 ---
 
-## 策略規格（鎖定）
+## 策略規格 V11-E（鎖定）
 
-### L 策略（做多）— 趨勢跟隨
+> V11-E 目標：V10 出場優化。L/S 各 maxTotal=1，純 1h 無 4h 前瞻。
+> 完整研究過程見 [doc/v11_research.md](doc/v11_research.md)。
+> V10 研究見 [doc/v10_research.md](doc/v10_research.md)。
+
+### L 策略（做多）— GK<25 壓縮突破 + TP 3.5% + MaxHold 6
 
 ```
-進場（OR-entry + AND 條件）：
-  OR: GK pctile < 30 OR Skew(20) > 1.0 OR RetSign(15) > 0.60
-    gk = 0.5×ln(H/L)² - (2ln2-1)×ln(C/O)²
-    ratio = mean(gk, 5) / mean(gk, 20)
-    pctile = min-max percentile over 100 bars with shift(1)
-    skew = ret.rolling(20).skew().shift(1)
-    ret_sign = (ret>0).rolling(15).mean().shift(1)
-  AND:
-    1. Close Breakout 10 bar（向上突破）
-    2. Session Filter: block hours {0,1,2,12} UTC+8, block days {Mon,Sat,Sun}
-    3. Exit Cooldown: L 上次出場後 12 bar
-    4. 持倉 < 9 筆
+方向：Long-only
+時框：1h（純 1h，無 4h 數據）
+帳戶：$1,000 / $200 margin / 20x / $4,000 notional / $4 fee
+
+進場：
+  1. GK pctile < 25（波動壓縮）
+     gk = 0.5×ln(H/L)² - (2ln2-1)×ln(C/O)²
+     ratio = mean(gk,5) / mean(gk,20)
+     pctile = ratio.shift(1).rolling(100).apply(rank pctile)
+  2. Close breakout 15 bar（c > c.shift(1).rolling(15).max()）
+  3. Session filter: block hours {0,1,2,12} UTC+8, block days {Mon,Sat,Sun}
+  4. Exit Cooldown: 6 bar
+  5. Monthly Entry Cap: 20
+  6. maxTotal = 1
 
 出場（優先順序）：
-  1. SafeNet -5.5%（安全網，含滑價模型）
-  2. EarlyStop: bars 7-12, loss > 1%（OR Trail）
-  3. EMA20 Trail: min hold 7 bar
+  1. SafeNet -3.5%（含 25% 穿透模型，max 單筆虧損 ~$158）
+  2. TP +3.5%（固定止盈）← V10 為 2.0%
+  3. MaxHold: 6 bar（時間止損）← V10 為 5
 
-OOS: 428t $13,882, PF 2.94, WR 45%
+風控熔斷：
+  日虧 -$200 停 / 月虧 -$75 停 / 連虧 4 筆 → 24 bar 冷卻
+
+OOS: $+1,473, WR ~59%, PF ~1.68
+IS:  $+326
+WF:  5/6, 7/8
 ```
 
-### S 策略（做空）— CMP-Portfolio 4 子策略
+### S 策略（做空）— GK<30 壓縮突破 + TP 2.0% + MaxHold 7
 
 ```
-子策略配置：
-  S1: GK<40, BL8,  maxSame=5, EXIT_CD=6
-  S2: GK<40, BL15, maxSame=5, EXIT_CD=6
-  S3: GK<30, BL10, maxSame=5, EXIT_CD=6
-  S4: GK<40, BL12, maxSame=5, EXIT_CD=6
+方向：Short-only（純 1h，無 4h 數據）
+帳戶：$1,000 / $200 margin / 20x / $4,000 notional / $4 fee
 
-進場（各子策略獨立）：
-  1. GK pctile < 子策略 threshold
-  2. Close Breakout {8/10/12/15} bar（向下突破）
-  3. Session Filter（同 L）
-  4. 子策略 Cooldown 6 bar
-  5. 子策略持倉 < 5 筆
+進場：
+  1. GK pctile < 30（波動壓縮）
+  2. Close breakout 15 bar（c < c.shift(1).rolling(15).min()）
+  3. Session filter: block hours {0,1,2,12} UTC+8, block days {Mon,Sat,Sun}
+  4. Exit Cooldown: 8 bar
+  5. Monthly Entry Cap: 20, maxTotal: 1
 
 出場（優先順序）：
-  1. SafeNet +5.5%（安全網）
-  2. TP: 固定止盈 2%
-  3. MaxHold: 12 bar 時間止損
+  1. SafeNet +4.0%（含 25% 穿透模型，max 單筆虧損 ~$200）
+  2. TP -2.0%（固定止盈）← V10 為 1.5%
+  3. MaxHold: 7 bar（時間止損）← V10 為 5
 
-OOS: 1124t $10,113, PF 1.73, WR 65%
+風控熔斷：
+  日虧 -$200 停 / 月虧 -$150 停 / 連虧 4 筆 → 24 bar 冷卻
+
+OOS: $+1,328, WR ~71%, PF ~2.65
+IS:  $+709
+WF:  5/6, 7/8
+```
+
+### L+S 合併績效 (OOS)
+
+```
+合計：$2,801, 12/13 正月, worst month -$8
+L+S 互補：S 弱月有 L 撐，L 弱月有 S 撐
+MDD: $186
+V10 對比：$2,190→$2,801（+28%），PM 10/13→12/13，worst -$137→-$8
 ```
 
 ### 風控
 
 ```
-$100 保證金 / 20x 槓桿 / $2,000 名目
-Fee: $2/筆（taker 0.04%×2 + slip 0.01%×2）
-L 最多 9 筆同時持倉，S 每個子策略最多 5 筆
+$200 保證金 / 20x 槓桿 / $4,000 名目
+Fee: $4/筆（taker 0.04%×2 + slip 0.01%×2）
+L/S 各最多 1 筆同時持倉（maxTotal=1），合計最多 2 筆
+L 月度 entry cap = 20 筆，S 月度 entry cap = 20 筆
+L 月虧上限 -$75，S 月虧上限 -$150
+日虧上限 -$200，連虧 4 筆 → 24 bar 冷卻
 ```
 
 ### 不要做的事
 
-- TP1 部分止盈（截斷 L 大贏家，破壞趨勢跟隨 edge）
 - 壓縮期結構止損（ETH 突破噪音 > 壓縮區間，<12h 全掃）
-- S 策略加 EMA Trail（CMP 用 TP+MaxHold 更適合）
+- S 策略加 EMA Trail（TP+MaxHold 更適合）
 - Trailing TP for S（研究全部 mirage 或虧損）
+- L 用 EMAcross 出場（WR 22-28%，MDD 無法控制）
+- L 用 Pullback 進場（0/306 pass）
+- 4h 數據（V10-S v1 的 4h EMA20 前瞻偏差已證實無效）
 
 ---
 
@@ -198,8 +228,9 @@ main_eth.py (單執行緒)
   ├── 每小時整點 +10s 喚醒
   ├── data_feed.fetch_eth_and_btc()          # 抓最新 K 線
   ├── strategy.compute_indicators()           # 計算 GK/EMA/Breakout 指標
-  ├── 出場檢查：L → check_exit(), S → check_exit_cmp()
-  ├── 進場信號：evaluate_long_signal() + evaluate_short_signals()
+  ├── executor.update_period_keys()           # 更新日/月熔斷計數器
+  ├── 出場檢查：L → check_exit_long(), S → check_exit_short()
+  ├── 進場信號：check_circuit_breaker() + evaluate_long/short_signal()
   ├── recorder.record_bar_snapshot() + record_position_bar()
   └── executor.save_state()                   # 持久化到 eth_state.json
 ```
@@ -208,16 +239,21 @@ main_eth.py (單執行緒)
 
 ```
 executor.py:
-  positions dict: {trade_id: {sub_strategy: "L"/"S1"/"S2"/"S3"/"S4", ...}}
-  last_exits: {"L": bar, "S1": bar, ...}（每個子策略獨立 cooldown）
-  can_open_sub(): 按子策略計數
+  positions dict: {trade_id: {sub_strategy: "L"/"S", ...}}
+  last_exits: {"L": bar, "S": bar}（各策略獨立 cooldown）
+  maxTotal=1 per side（最多 1L+1S）
+
+  風控熔斷：
+    - check_circuit_breaker(side): 日虧/月虧/連虧/月度 cap 檢查
+    - update_period_keys(): 日/月 rollover 重置計數器
+    - consec_losses: 連虧計數，4 筆 → 24 bar 冷卻
 
   Hedge Mode 邏輯：
-    - open_position(): 自動帶 positionSide=LONG/SHORT
+    - open_position(): 自動帶 positionSide=LONG/SHORT，per-side SafeNet
     - SL 只在該方向第一筆倉位時下單（closePosition=true 覆蓋整個方向）
     - close_position(): 只在該方向最後一筆倉位平倉時才取消 SL
 
-狀態持久化：eth_state.json（atomic write, 支持舊格式自動遷移）
+狀態持久化：eth_state.json（atomic write, 支持 v6→V10 自動遷移）
 記錄系統：4 層 CSV（bar_snapshots / position_lifecycle / trades / daily_summary）
 ```
 

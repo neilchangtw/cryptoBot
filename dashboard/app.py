@@ -168,8 +168,6 @@ async def api_status(mode: str = Query("paper")):
 
         # 進場條件達成狀態
         gk = clean_value(last.get("gk_pctile"))
-        skew = clean_value(last.get("skew_20"))
-        ret_sign = clean_value(last.get("ret_sign_15"))
         brk_long = last.get("breakout_long")
         brk_short = last.get("breakout_short")
         ema20_raw = last.get("ema20")
@@ -197,22 +195,18 @@ async def api_status(mode: str = Query("paper")):
                 return v.lower() not in ('false', '0', '')
             return bool(v) if v is not None else False
 
-        # L 進場條件（所有 bool 強轉 Python bool 避免 numpy.bool 序列化問題）
+        # L 進場條件（V10: GK<25 + BRK15 + Session）
         l_conds = {
-            "gk": {"label": "GK < 30", "value": gk, "threshold": 30, "pass": bool(gk is not None and gk < 30)},
-            "skew": {"label": "Skew > 1.0", "value": skew, "threshold": 1.0, "pass": bool(skew is not None and skew > 1.0)},
-            "ret_sign": {"label": "RetSign > 0.6", "value": ret_sign, "threshold": 0.6, "pass": bool(ret_sign is not None and ret_sign > 0.6)},
-            "or_pass": {"label": "OR 觸發條件", "pass": False},
-            "breakout": {"label": "向上突破 10bar", "pass": bool(_brk_pass(brk_long))},
+            "gk": {"label": "GK < 25", "value": gk, "threshold": 25, "pass": bool(gk is not None and gk < 25)},
+            "breakout": {"label": "向上突破 15bar", "pass": bool(_brk_pass(brk_long))},
             "session": {"label": "時段允許", "pass": bool(session_ok)},
         }
-        l_conds["or_pass"]["pass"] = bool(l_conds["gk"]["pass"] or l_conds["skew"]["pass"] or l_conds["ret_sign"]["pass"])
-        l_total = sum([l_conds["or_pass"]["pass"], l_conds["breakout"]["pass"], l_conds["session"]["pass"]])
+        l_total = sum([l_conds["gk"]["pass"], l_conds["breakout"]["pass"], l_conds["session"]["pass"]])
 
-        # S 進場條件（以 S1 為代表: GK<40, BL8）
+        # S 進場條件（V10: GK<30 + BRK15 + Session）
         s_conds = {
-            "gk": {"label": "GK < 40", "value": gk, "threshold": 40, "pass": bool(gk is not None and gk < 40)},
-            "breakout": {"label": "向下突破", "pass": bool(_brk_pass(brk_short))},
+            "gk": {"label": "GK < 30", "value": gk, "threshold": 30, "pass": bool(gk is not None and gk < 30)},
+            "breakout": {"label": "向下突破 15bar", "pass": bool(_brk_pass(brk_short))},
             "session": {"label": "時段允許", "pass": bool(session_ok)},
         }
         s_total = sum([s_conds["gk"]["pass"], s_conds["breakout"]["pass"], s_conds["session"]["pass"]])
@@ -246,28 +240,24 @@ async def api_status(mode: str = Query("paper")):
             sub = d.get("sub_strategy", "")
             if sub == "L":
                 unr_pct = (last_close - ep) / ep * 100
-                safenet_dist = round(-5.5 - unr_pct, 2)  # 負值=已超過
-                ema_dist = round((last_close - last_ema20) / last_close * 100, 2) if last_ema20 else None
-                d["exit_progress"] = {
-                    "unrealized_pct": round(unr_pct, 2),
-                    "safenet": {"threshold": -5.5, "current": round(unr_pct, 2), "distance": safenet_dist},
-                    "trail": {"min_bars": 7, "bars_held": bars, "ema20": last_ema20,
-                              "ema_distance_pct": ema_dist,
-                              "ready": bars >= 7},
-                    "early_stop": {"range": "7-12 bar", "threshold": -1.0,
-                                   "in_range": 7 <= bars < 12,
-                                   "current": round(unr_pct, 2)},
-                }
-            elif sub.startswith("S"):
-                unr_pct = (ep - last_close) / ep * 100  # 做空: 正=賺
-                safenet_dist = round(5.5 - abs(unr_pct), 2) if unr_pct < 0 else round(5.5 + unr_pct, 2)
+                safenet_dist = round(-3.5 - unr_pct, 2)  # 負值=已超過
                 tp_dist = round(2.0 - unr_pct, 2)
                 d["exit_progress"] = {
                     "unrealized_pct": round(unr_pct, 2),
-                    "safenet": {"threshold": 5.5, "current": round(-unr_pct if unr_pct < 0 else 0, 2),
-                                "distance": round(5.5 - (-unr_pct if unr_pct < 0 else 0), 2)},
+                    "safenet": {"threshold": -3.5, "current": round(unr_pct, 2), "distance": safenet_dist},
                     "tp": {"threshold": 2.0, "current": round(unr_pct, 2), "distance": tp_dist},
-                    "max_hold": {"threshold": 12, "bars_held": bars, "remaining": max(0, 12 - bars)},
+                    "max_hold": {"threshold": 5, "bars_held": bars, "remaining": max(0, 5 - bars)},
+                }
+            elif sub == "S":
+                unr_pct = (ep - last_close) / ep * 100  # 做空: 正=賺
+                safenet_dist = round(4.0 - abs(unr_pct), 2) if unr_pct < 0 else round(4.0 + unr_pct, 2)
+                tp_dist = round(1.5 - unr_pct, 2)
+                d["exit_progress"] = {
+                    "unrealized_pct": round(unr_pct, 2),
+                    "safenet": {"threshold": 4.0, "current": round(-unr_pct if unr_pct < 0 else 0, 2),
+                                "distance": round(4.0 - (-unr_pct if unr_pct < 0 else 0), 2)},
+                    "tp": {"threshold": 1.5, "current": round(unr_pct, 2), "distance": tp_dist},
+                    "max_hold": {"threshold": 5, "bars_held": bars, "remaining": max(0, 5 - bars)},
                 }
 
     # 最近 5 筆交易（給 Status 頁迷你表格用）
@@ -391,6 +381,7 @@ async def api_analytics(mode: str = Query("paper")):
         "profit_factor": 0,
         "avg_hold_bars": 0,
         "cumulative_equity": [],
+        "daily_pnl": [],
         "exit_distribution": {},
         "strategy_comparison": {},
     }
@@ -417,14 +408,36 @@ async def api_analytics(mode: str = Query("paper")):
     pf = gross_wins / gross_losses if gross_losses > 0 else (999 if gross_wins > 0 else 0)
     avg_hold = float(closed["hold_bars"].mean())
 
-    # 累計收益曲線
+    # 累計收益曲線（按出場時間排序 + 去重複時間戳）
+    sorted_closed = closed.copy()
+    sorted_closed["_exit_ts"] = sorted_closed["exit_time_utc8"].apply(
+        lambda x: utc8_to_ts(x) if pd.notna(x) else 0)
+    sorted_closed = sorted_closed.sort_values("_exit_ts")
+
     cum_equity = []
     cum = 0
-    for _, row in closed.iterrows():
+    for _, row in sorted_closed.iterrows():
         cum += float(row["net_pnl_usd"])
-        ts = utc8_to_ts(row.get("exit_time_utc8", ""))
+        ts = int(row["_exit_ts"])
         if ts > 0:
-            cum_equity.append({"time": ts, "value": round(cum, 2)})
+            # 同一時間戳只保留最後的累計值（LightweightCharts 要求嚴格遞增）
+            if cum_equity and cum_equity[-1]["time"] == ts:
+                cum_equity[-1]["value"] = round(cum, 2)
+            else:
+                cum_equity.append({"time": ts, "value": round(cum, 2)})
+
+    # 每日損益（從 trades 計算，不依賴 daily_summary CSV）
+    daily_pnl = []
+    if "exit_time_utc8" in sorted_closed.columns:
+        sorted_closed["_exit_date"] = sorted_closed["exit_time_utc8"].apply(
+            lambda x: str(x)[:10] if pd.notna(x) else None)
+        daily_group = sorted_closed.groupby("_exit_date")["net_pnl_usd"].sum()
+        for date_str, pnl in daily_group.items():
+            if date_str:
+                daily_pnl.append({
+                    "time": str(date_str),
+                    "value": round(float(pnl), 2),
+                })
 
     # 出場原因分佈
     exit_dist = {}
@@ -434,10 +447,10 @@ async def api_analytics(mode: str = Query("paper")):
             if et:
                 exit_dist[et] = exit_dist.get(et, 0) + 1
 
-    # L vs S 策略比較
+    # L vs S 策略比較（支援 V10 "S" 和 v6 "S1-S4"）
     strat_comp = {}
     if "sub_strategy" in closed.columns:
-        for sub in ["L", "S1", "S2", "S3", "S4"]:
+        for sub in ["L", "S", "S1", "S2", "S3", "S4"]:
             sub_df = closed[closed["sub_strategy"] == sub]
             if len(sub_df) > 0:
                 sub_wins = sub_df[sub_df["net_pnl_usd"] > 0]
@@ -455,6 +468,7 @@ async def api_analytics(mode: str = Query("paper")):
         "profit_factor": round(pf, 2),
         "avg_hold_bars": round(avg_hold, 1),
         "cumulative_equity": cum_equity,
+        "daily_pnl": daily_pnl,
         "exit_distribution": exit_dist,
         "strategy_comparison": strat_comp,
     })

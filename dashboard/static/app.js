@@ -299,14 +299,8 @@ function renderEntryConditions(ec, positions) {
             <span>L 做多進場條件</span>
             <span class="entry-progress" style="color:${lColor}">${lPassed}/${lTotal}</span>
         </div>`;
-    // OR 條件組
-    const orPass = lc.or_pass ? lc.or_pass.pass : false;
-    lHtml += condRow('', orPass, 'OR 觸發（任一即可）', '');
-    if (lc.gk) lHtml += condRow('', lc.gk.pass, '　GK < 30', lc.gk.value != null ? lc.gk.value.toFixed(1) : '-');
-    if (lc.skew) lHtml += condRow('', lc.skew.pass, '　Skew > 1.0', lc.skew.value != null ? lc.skew.value.toFixed(2) : '-');
-    if (lc.ret_sign) lHtml += condRow('', lc.ret_sign.pass, '　RetSign > 0.6', lc.ret_sign.value != null ? lc.ret_sign.value.toFixed(2) : '-');
-    // AND 條件
-    if (lc.breakout) lHtml += condRow('', lc.breakout.pass, '向上突破 10bar', '');
+    if (lc.gk) lHtml += condRow('', lc.gk.pass, 'GK < 25（壓縮）', lc.gk.value != null ? lc.gk.value.toFixed(1) : '-');
+    if (lc.breakout) lHtml += condRow('', lc.breakout.pass, '向上突破 15bar', '');
     if (lc.session) lHtml += condRow('', lc.session.pass, '時段允許', sessionTimeStr());
     lHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${lPct}%;background:${lColor}"></div></div>`;
     lHtml += '</div>';
@@ -323,8 +317,8 @@ function renderEntryConditions(ec, positions) {
             <span>S 做空進場條件</span>
             <span class="entry-progress" style="color:${sColor}">${sPassed}/${sTotal}</span>
         </div>`;
-    if (sc.gk) sHtml += condRow('', sc.gk.pass, 'GK < 40', sc.gk.value != null ? sc.gk.value.toFixed(1) : '-');
-    if (sc.breakout) sHtml += condRow('', sc.breakout.pass, '向下突破', '');
+    if (sc.gk) sHtml += condRow('', sc.gk.pass, 'GK < 30（壓縮）', sc.gk.value != null ? sc.gk.value.toFixed(1) : '-');
+    if (sc.breakout) sHtml += condRow('', sc.breakout.pass, '向下突破 15bar', '');
     if (sc.session) sHtml += condRow('', sc.session.pass, '時段允許', sessionTimeStr());
     sHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${sPct}%;background:${sColor}"></div></div>`;
     sHtml += '</div>';
@@ -373,68 +367,56 @@ function renderExitProgress(ep, sub) {
     items += `<div class="exit-item"><span>未實現: <b class="${unrCls}">${unr >= 0 ? '+' : ''}${unr}%</b></span></div>`;
 
     if (sub === 'L') {
-        // SafeNet -5.5%: 進度條 = 已虧多少比例（接近 -5.5% 就越滿）
+        // L: SafeNet -3.5%
         const sn = ep.safenet;
         if (sn) {
-            // 從 0% 到 -5.5%，計算已消耗多少
-            const lossAmt = Math.max(0, -sn.current); // 虧損量（正數）
-            const pct = Math.min(100, lossAmt / 5.5 * 100);
+            const lossAmt = Math.max(0, -sn.current);
+            const pct = Math.min(100, lossAmt / 3.5 * 100);
             const clr = pct > 70 ? 'var(--red)' : pct > 40 ? 'var(--gold)' : 'var(--green)';
             const safeLabel = pct < 30 ? '安全' : pct < 70 ? '注意' : '危險';
-            items += exitBarHtml('安全網 -5.5%', pct, clr, `已用 ${lossAmt.toFixed(1)}% / 5.5%（${safeLabel}）`);
+            items += exitBarHtml('安全網 -3.5%', pct, clr, `已用 ${lossAmt.toFixed(1)}% / 3.5%（${safeLabel}）`);
         }
-        // EMA Trail: 收盤跌破 EMA20 就平倉
-        const tr = ep.trail;
-        if (tr) {
-            if (!tr.ready) {
-                // 未啟動：顯示還要等幾 bar
-                const waitBars = tr.min_bars - tr.bars_held;
-                items += `<div class="exit-item"><span>EMA 追蹤止盈</span><span style="color:var(--text-dim)">尚未啟動（還需 ${waitBars}h）</span></div>`;
-            } else if (tr.ema_distance_pct != null) {
-                // 已啟動：顯示距離 EMA20 多遠，越近越危險
-                const dist = tr.ema_distance_pct;
-                // dist > 0 = 價格在 EMA 上方（安全），dist < 0 = 已跌破（會平倉）
-                const pct = dist > 0 ? Math.min(100, Math.max(0, (3 - dist) / 3 * 100)) : 100;
-                const clr = dist <= 0 ? 'var(--red)' : dist < 0.5 ? 'var(--gold)' : 'var(--green)';
-                const label = dist <= 0 ? '已跌破！' : `距 EMA20 ${dist.toFixed(2)}%`;
-                items += exitBarHtml('EMA 追蹤止盈', pct, clr, `${label}（收盤 < EMA20 即平倉）`);
-            } else {
-                items += `<div class="exit-item"><span>EMA 追蹤止盈</span><span class="cond-pass">已啟動</span><span style="color:var(--text-dim)">EMA20 數據待更新</span></div>`;
-            }
-        }
-        // EarlyStop
-        const es = ep.early_stop;
-        if (es && es.in_range) {
-            const lossAmt = Math.max(0, -es.current);
-            const pct = Math.min(100, lossAmt / 1.0 * 100);
-            const clr = pct > 70 ? 'var(--red)' : pct > 40 ? 'var(--gold)' : 'var(--green)';
-            items += exitBarHtml('提前止損 (7-12h)', pct, clr, `虧 ${lossAmt.toFixed(2)}% / 1%（超過即平倉）`);
-        }
-    } else {
-        // S: TP 2% — 進度條 = 已獲利多少（接近 2% 就越滿）
+        // L: TP +2.0%
         const tp = ep.tp;
         if (tp) {
             const profit = Math.max(0, tp.current);
             const pct = Math.min(100, profit / 2.0 * 100);
             const clr = pct > 70 ? 'var(--green)' : pct > 40 ? 'var(--gold)' : 'var(--text-dim)';
             const label = pct >= 100 ? '即將止盈！' : `已賺 ${profit.toFixed(2)}% / 2%`;
-            items += exitBarHtml('止盈 2%', pct, clr, label);
+            items += exitBarHtml('止盈 +2%', pct, clr, label);
         }
-        // SafeNet +5.5%
+        // L: MaxHold 5 bar
+        const mh = ep.max_hold;
+        if (mh) {
+            const pct = Math.min(100, mh.bars_held / 5 * 100);
+            const clr = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--gold)' : 'var(--text-dim)';
+            items += exitBarHtml('時間止損 5h', pct, clr, `${mh.bars_held}/5h（剩 ${mh.remaining}h）`);
+        }
+    } else {
+        // S: TP -1.5%
+        const tp = ep.tp;
+        if (tp) {
+            const profit = Math.max(0, tp.current);
+            const pct = Math.min(100, profit / 1.5 * 100);
+            const clr = pct > 70 ? 'var(--green)' : pct > 40 ? 'var(--gold)' : 'var(--text-dim)';
+            const label = pct >= 100 ? '即將止盈！' : `已賺 ${profit.toFixed(2)}% / 1.5%`;
+            items += exitBarHtml('止盈 -1.5%', pct, clr, label);
+        }
+        // S: SafeNet +4.0%
         const sn = ep.safenet;
         if (sn) {
             const lossAmt = Math.max(0, sn.current);
-            const pct = Math.min(100, lossAmt / 5.5 * 100);
+            const pct = Math.min(100, lossAmt / 4.0 * 100);
             const clr = pct > 70 ? 'var(--red)' : pct > 40 ? 'var(--gold)' : 'var(--green)';
             const safeLabel = pct < 30 ? '安全' : pct < 70 ? '注意' : '危險';
-            items += exitBarHtml('安全網 +5.5%', pct, clr, `已虧 ${lossAmt.toFixed(1)}% / 5.5%（${safeLabel}）`);
+            items += exitBarHtml('安全網 +4.0%', pct, clr, `已虧 ${lossAmt.toFixed(1)}% / 4.0%（${safeLabel}）`);
         }
-        // MaxHold 12 bar
+        // S: MaxHold 5 bar
         const mh = ep.max_hold;
         if (mh) {
-            const pct = Math.min(100, mh.bars_held / 12 * 100);
+            const pct = Math.min(100, mh.bars_held / 5 * 100);
             const clr = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--gold)' : 'var(--text-dim)';
-            items += exitBarHtml('時間止損 12h', pct, clr, `${mh.bars_held}/12h（剩 ${mh.remaining}h）`);
+            items += exitBarHtml('時間止損 5h', pct, clr, `${mh.bars_held}/5h（剩 ${mh.remaining}h）`);
         }
     }
     return `<div class="exit-progress">${items}</div>`;
@@ -788,9 +770,8 @@ function renderFilters() {
         </select>
         <select onchange="S.filters.sub=this.value;renderTradesTable()">
             <option value="" ${sel(f.sub,'')}>全部策略 (All)</option>
-            <option value="L" ${sel(f.sub,'L')}>L</option>
-            <option value="S1" ${sel(f.sub,'S1')}>S1</option><option value="S2" ${sel(f.sub,'S2')}>S2</option>
-            <option value="S3" ${sel(f.sub,'S3')}>S3</option><option value="S4" ${sel(f.sub,'S4')}>S4</option>
+            <option value="L" ${sel(f.sub,'L')}>L 做多</option>
+            <option value="S" ${sel(f.sub,'S')}>S 做空</option>
         </select>
         <select onchange="S.filters.win=this.value;renderTradesTable()">
             <option value="" ${sel(f.win,'')}>勝負 (W/L)</option>
@@ -799,11 +780,9 @@ function renderFilters() {
         </select>
         <select onchange="S.filters.exit=this.value;renderTradesTable()">
             <option value="" ${sel(f.exit,'')}>出場原因 (Exit)</option>
-            <option value="Trail" ${sel(f.exit,'Trail')}>追蹤止盈 (Trail)</option>
-            <option value="SafeNet" ${sel(f.exit,'SafeNet')}>安全網 (SafeNet)</option>
-            <option value="EarlyStop" ${sel(f.exit,'EarlyStop')}>提前止損 (EarlyStop)</option>
             <option value="TP" ${sel(f.exit,'TP')}>止盈 (TP)</option>
             <option value="MaxHold" ${sel(f.exit,'MaxHold')}>時間止損 (MaxHold)</option>
+            <option value="SafeNet" ${sel(f.exit,'SafeNet')}>安全網 (SafeNet)</option>
         </select>
     `;
 }
@@ -883,14 +862,11 @@ function sortBy(col) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function loadAnalytics() {
     try {
-        const [an, dl] = await Promise.all([
-            api('/api/analytics'),
-            api('/api/daily'),
-        ]);
+        const an = await api('/api/analytics');
         setConnStatus(true);
         renderAnalyticsCards(an);
         renderEquityCurve(an.cumulative_equity || []);
-        renderDailyChart(dl.daily || []);
+        renderDailyChart(an.daily_pnl || []);
         renderExitDist(an.exit_distribution || {});
         renderStratCompare(an.strategy_comparison || {});
     } catch (e) {
@@ -962,10 +938,10 @@ function renderDailyChart(daily) {
         rightPriceScale: { borderColor: '#2B2B43' },
     });
     const series = chart.addHistogramSeries();
-    const data = daily.filter(d => d.date && d.net_pnl != null).map(d => ({
-        time: d.date,
-        value: d.net_pnl || 0,
-        color: (d.net_pnl || 0) >= 0 ? '#26a69a' : '#ef5350',
+    const data = daily.filter(d => d.time && d.value != null).map(d => ({
+        time: d.time,
+        value: d.value,
+        color: d.value >= 0 ? '#26a69a' : '#ef5350',
     }));
     series.setData(data);
     S.dailyChart = chart;
@@ -978,7 +954,7 @@ function renderExitDist(dist) {
     if (entries.length === 0) { el.innerHTML = '<div class="loading">尚無資料 (No Data)</div>'; return; }
 
     const total = entries.reduce((s, [, v]) => s + v, 0);
-    const colors = { Trail: '#26a69a', TP: '#5b86e5', MaxHold: '#f0b90b', SafeNet: '#ef5350', EarlyStop: '#ff9800' };
+    const colors = { TP: '#26a69a', MaxHold: '#f0b90b', SafeNet: '#ef5350', Trail: '#5b86e5', EarlyStop: '#ff9800' };
 
     let html = '';
     for (const [name, count] of entries.sort((a, b) => b[1] - a[1])) {
