@@ -212,15 +212,25 @@ body {
     transition: border-color 0.5s, box-shadow 0.5s;
 }
 .gk-panel.gk-panel-trigger {
-    border-color: rgba(34,197,94,0.3);
-    box-shadow: 0 0 20px rgba(34,197,94,0.08);
+    animation: gk-panel-breathe-trigger 3s ease-in-out infinite;
 }
 .gk-panel.gk-panel-ready {
-    border-color: rgba(6,182,212,0.25);
-    box-shadow: 0 0 16px rgba(6,182,212,0.06);
+    animation: gk-panel-breathe-ready 4s ease-in-out infinite;
 }
 .gk-panel.gk-panel-building {
-    border-color: rgba(234,179,8,0.2);
+    animation: gk-panel-breathe-building 5s ease-in-out infinite;
+}
+@keyframes gk-panel-breathe-trigger {
+    0%, 100% { border-color: rgba(34,197,94,0.15); box-shadow: 0 0 8px rgba(34,197,94,0.03); }
+    50%      { border-color: rgba(34,197,94,0.5);  box-shadow: 0 0 30px rgba(34,197,94,0.12); }
+}
+@keyframes gk-panel-breathe-ready {
+    0%, 100% { border-color: rgba(6,182,212,0.1);  box-shadow: 0 0 6px rgba(6,182,212,0.02); }
+    50%      { border-color: rgba(6,182,212,0.4);  box-shadow: 0 0 24px rgba(6,182,212,0.08); }
+}
+@keyframes gk-panel-breathe-building {
+    0%, 100% { border-color: rgba(234,179,8,0.1); }
+    50%      { border-color: rgba(234,179,8,0.3);  box-shadow: 0 0 16px rgba(234,179,8,0.05); }
 }
 .gk-value { font-size: 48px; font-weight: 800; text-align: center; letter-spacing: -1px; }
 .gk-label { text-align: center; font-size: 13px; color: var(--text-dim); }
@@ -236,92 +246,78 @@ body {
     position: relative;
 }
 
-/* GK heartbeat zones — speed & color differ by compression level */
+/* GK 呼吸燈 — 緩慢明暗漸變，越壓縮呼吸越深 */
 .gk-bar-fill.gk-zone-trigger {
     background: var(--green) !important;
-    animation: gk-heartbeat-fast 0.6s ease-in-out infinite;
-    box-shadow: 0 0 12px rgba(34,197,94,0.6), 0 0 4px rgba(34,197,94,0.8) inset;
+    animation: gk-breathe-trigger 3s ease-in-out infinite;
 }
 .gk-bar-fill.gk-zone-ready {
     background: #06b6d4 !important;
-    animation: gk-heartbeat-med 1.0s ease-in-out infinite;
-    box-shadow: 0 0 10px rgba(6,182,212,0.5), 0 0 3px rgba(6,182,212,0.6) inset;
+    animation: gk-breathe-ready 4s ease-in-out infinite;
 }
 .gk-bar-fill.gk-zone-building {
     background: var(--gold) !important;
-    animation: gk-heartbeat-slow 1.8s ease-in-out infinite;
-    box-shadow: 0 0 8px rgba(234,179,8,0.35);
+    animation: gk-breathe-building 5s ease-in-out infinite;
 }
 .gk-bar-fill.gk-zone-normal {
     background: var(--text-dim) !important;
-    animation: gk-heartbeat-idle 3s ease-in-out infinite;
+    animation: gk-breathe-normal 6s ease-in-out infinite;
 }
 
-/* Heartbeat keyframes — fast (trigger zone, rapid pulse) */
-@keyframes gk-heartbeat-fast {
-    0%   { transform: scaleY(1);   filter: brightness(1);   box-shadow: 0 0 8px rgba(34,197,94,0.4); }
-    15%  { transform: scaleY(1.6); filter: brightness(1.5); box-shadow: 0 0 20px rgba(34,197,94,0.8); }
-    30%  { transform: scaleY(0.9); filter: brightness(0.9); box-shadow: 0 0 4px rgba(34,197,94,0.2); }
-    45%  { transform: scaleY(1.3); filter: brightness(1.3); box-shadow: 0 0 14px rgba(34,197,94,0.6); }
-    60%  { transform: scaleY(1);   filter: brightness(1);   box-shadow: 0 0 8px rgba(34,197,94,0.4); }
-    100% { transform: scaleY(1);   filter: brightness(1);   box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+/* 呼吸燈 — 觸發區：深呼吸，光暈強 */
+@keyframes gk-breathe-trigger {
+    0%, 100% { filter: brightness(0.8); box-shadow: 0 0 6px rgba(34,197,94,0.3); }
+    50%      { filter: brightness(1.4); box-shadow: 0 0 24px rgba(34,197,94,0.7), 0 0 6px rgba(34,197,94,0.9) inset; }
 }
 
-/* Heartbeat keyframes — medium (ready zone, steady pulse) */
-@keyframes gk-heartbeat-med {
-    0%   { transform: scaleY(1);   filter: brightness(1);   box-shadow: 0 0 6px rgba(6,182,212,0.3); }
-    20%  { transform: scaleY(1.4); filter: brightness(1.4); box-shadow: 0 0 16px rgba(6,182,212,0.7); }
-    40%  { transform: scaleY(0.95);filter: brightness(0.95);box-shadow: 0 0 4px rgba(6,182,212,0.2); }
-    55%  { transform: scaleY(1.15);filter: brightness(1.15);box-shadow: 0 0 10px rgba(6,182,212,0.5); }
-    70%  { transform: scaleY(1);   filter: brightness(1);   box-shadow: 0 0 6px rgba(6,182,212,0.3); }
-    100% { transform: scaleY(1);   filter: brightness(1);   box-shadow: 0 0 6px rgba(6,182,212,0.3); }
+/* 呼吸燈 — 待命區：穩定呼吸 */
+@keyframes gk-breathe-ready {
+    0%, 100% { filter: brightness(0.85); box-shadow: 0 0 4px rgba(6,182,212,0.2); }
+    50%      { filter: brightness(1.3); box-shadow: 0 0 18px rgba(6,182,212,0.6), 0 0 4px rgba(6,182,212,0.7) inset; }
 }
 
-/* Heartbeat keyframes — slow (building zone, gentle sway) */
-@keyframes gk-heartbeat-slow {
-    0%   { transform: scaleY(1);   filter: brightness(1);   box-shadow: 0 0 4px rgba(234,179,8,0.2); }
-    30%  { transform: scaleY(1.2); filter: brightness(1.2); box-shadow: 0 0 10px rgba(234,179,8,0.5); }
-    60%  { transform: scaleY(0.95);filter: brightness(0.95);box-shadow: 0 0 3px rgba(234,179,8,0.15); }
-    100% { transform: scaleY(1);   filter: brightness(1);   box-shadow: 0 0 4px rgba(234,179,8,0.2); }
+/* 呼吸燈 — 蓄勢區：淺呼吸 */
+@keyframes gk-breathe-building {
+    0%, 100% { filter: brightness(0.9); box-shadow: 0 0 2px rgba(234,179,8,0.15); }
+    50%      { filter: brightness(1.2); box-shadow: 0 0 12px rgba(234,179,8,0.4); }
 }
 
-/* Heartbeat keyframes — idle (normal zone, barely breathing) */
-@keyframes gk-heartbeat-idle {
-    0%, 100% { filter: brightness(1);   opacity: 0.7; }
-    50%      { filter: brightness(1.15); opacity: 1; }
+/* 呼吸燈 — 靜息區：微弱起伏 */
+@keyframes gk-breathe-normal {
+    0%, 100% { opacity: 0.5; }
+    50%      { opacity: 0.85; }
 }
 
-/* GK value heartbeat glow — synced with bar */
+/* GK 數值呼吸燈 — 光暈緩慢漸變 */
 .gk-value.gk-val-trigger {
-    animation: gk-val-pulse-fast 0.6s ease-in-out infinite;
+    animation: gk-val-breathe-trigger 3s ease-in-out infinite;
     text-shadow: 0 0 16px rgba(34,197,94,0.5);
 }
 .gk-value.gk-val-ready {
-    animation: gk-val-pulse-med 1.0s ease-in-out infinite;
+    animation: gk-val-breathe-ready 4s ease-in-out infinite;
     text-shadow: 0 0 12px rgba(6,182,212,0.4);
 }
 .gk-value.gk-val-building {
-    animation: gk-val-pulse-slow 1.8s ease-in-out infinite;
+    animation: gk-val-breathe-building 5s ease-in-out infinite;
 }
 .gk-value.gk-val-normal {
-    animation: gk-val-pulse-idle 3s ease-in-out infinite;
+    animation: gk-val-breathe-normal 6s ease-in-out infinite;
 }
-@keyframes gk-val-pulse-fast {
-    0%, 60%, 100% { transform: scale(1); }
-    15%  { transform: scale(1.05); filter: brightness(1.3); }
-    45%  { transform: scale(1.02); }
+@keyframes gk-val-breathe-trigger {
+    0%, 100% { opacity: 0.7; text-shadow: 0 0 8px rgba(34,197,94,0.3); }
+    50%      { opacity: 1;   text-shadow: 0 0 24px rgba(34,197,94,0.7); }
 }
-@keyframes gk-val-pulse-med {
-    0%, 70%, 100% { transform: scale(1); }
-    20%  { transform: scale(1.04); filter: brightness(1.2); }
+@keyframes gk-val-breathe-ready {
+    0%, 100% { opacity: 0.75; text-shadow: 0 0 6px rgba(6,182,212,0.2); }
+    50%      { opacity: 1;    text-shadow: 0 0 18px rgba(6,182,212,0.5); }
 }
-@keyframes gk-val-pulse-slow {
-    0%, 100% { transform: scale(1); }
-    30%  { transform: scale(1.02); filter: brightness(1.1); }
-}
-@keyframes gk-val-pulse-idle {
+@keyframes gk-val-breathe-building {
     0%, 100% { opacity: 0.8; }
-    50%      { opacity: 1; }
+    50%      { opacity: 1; filter: brightness(1.1); }
+}
+@keyframes gk-val-breathe-normal {
+    0%, 100% { opacity: 0.6; }
+    50%      { opacity: 0.9; }
 }
 
 /* ── Entry conditions ── */
