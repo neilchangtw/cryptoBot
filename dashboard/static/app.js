@@ -230,6 +230,7 @@ function renderUnrealizedSummary(details, lastClose) {
 
 function renderGK(d) {
     const gk = d.gk_pctile;
+    const gkS = d.gk_pctile_s;
     let color = '#8888a0', label = '無資料 (No Data)', barZone = '', valZone = '', panelZone = '';
     if (gk != null) {
         if (gk < 25) {
@@ -246,10 +247,26 @@ function renderGK(d) {
             barZone = 'gk-zone-normal'; valZone = 'gk-val-normal'; panelZone = '';
         }
     }
+    // L/S 雙 GK 值顯示
+    const gkLStr = gk != null ? gk.toFixed(1) : '-';
+    const gkSStr = gkS != null ? gkS.toFixed(1) : '-';
+    let gkLColor = 'var(--text-dim)', gkSColor = 'var(--text-dim)';
+    if (gk != null) gkLColor = gk < 25 ? 'var(--green)' : gk < 35 ? '#06b6d4' : gk < 50 ? 'var(--gold)' : 'var(--text-dim)';
+    if (gkS != null) gkSColor = gkS < 25 ? 'var(--green)' : gkS < 35 ? '#06b6d4' : gkS < 50 ? 'var(--gold)' : 'var(--text-dim)';
     $('gk-section').innerHTML = `
         <div class="gk-panel ${panelZone}">
             <div class="gk-label">GK 壓縮指數 (Compression Index)</div>
-            <div class="gk-value ${valZone}" style="color:${color}">${gk != null ? gk.toFixed(1) : '-'}</div>
+            <div class="gk-dual-values">
+                <div class="gk-dual-item">
+                    <span class="gk-dual-label">L (5/20)</span>
+                    <span class="gk-value ${valZone}" style="color:${gkLColor};font-size:1.6rem">${gkLStr}</span>
+                </div>
+                <div class="gk-dual-sep"></div>
+                <div class="gk-dual-item">
+                    <span class="gk-dual-label">S (10/30)</span>
+                    <span class="gk-value" style="color:${gkSColor};font-size:1.6rem">${gkSStr}</span>
+                </div>
+            </div>
             <div class="gk-label">${label}</div>
             <div class="gk-bar-wrap">
                 <div class="gk-bar"><div class="gk-bar-fill ${barZone}" style="width:${gk||0}%"></div></div>
@@ -390,31 +407,42 @@ function renderExitProgress(ep, sub) {
             const safeLabel = pct < 30 ? '安全' : pct < 70 ? '注意' : '危險';
             items += exitBarHtml('安全網 -3.5%', pct, clr, `已用 ${lossAmt.toFixed(1)}% / 3.5%（${safeLabel}）`);
         }
-        // L: TP +2.0%
+        // L: TP +3.5%
+        const tp = ep.tp;
+        if (tp) {
+            const profit = Math.max(0, tp.current);
+            const pct = Math.min(100, profit / 3.5 * 100);
+            const clr = pct > 70 ? 'var(--green)' : pct > 40 ? 'var(--gold)' : 'var(--text-dim)';
+            const label = pct >= 100 ? '即將止盈！' : `已賺 ${profit.toFixed(2)}% / 3.5%`;
+            items += exitBarHtml('止盈 +3.5%', pct, clr, label);
+        }
+        // L: MFE Trailing（V14 新增）
+        const mft = ep.mfe_trail;
+        if (mft) {
+            const mfe = mft.running_mfe;
+            const armed = mfe >= mft.act;
+            const pct = Math.min(100, mfe / mft.act * 100);
+            const clr = armed ? 'var(--green)' : 'var(--text-dim)';
+            const label = armed ? `MFE ${mfe.toFixed(2)}% 已啟動（回吐 ${mft.dd}% 出場）` : `MFE ${mfe.toFixed(2)}% / ${mft.act}%`;
+            items += exitBarHtml('MFE 追蹤', pct, clr, label);
+        }
+        // L: MaxHold (5 or 6 bar)
+        const mh = ep.max_hold;
+        if (mh) {
+            const th = mh.threshold;
+            const pct = Math.min(100, mh.bars_held / th * 100);
+            const clr = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--gold)' : 'var(--text-dim)';
+            items += exitBarHtml(`時間止損 ${th}h`, pct, clr, `${mh.bars_held}/${th}h（剩 ${mh.remaining}h）`);
+        }
+    } else {
+        // S: TP -2.0%
         const tp = ep.tp;
         if (tp) {
             const profit = Math.max(0, tp.current);
             const pct = Math.min(100, profit / 2.0 * 100);
             const clr = pct > 70 ? 'var(--green)' : pct > 40 ? 'var(--gold)' : 'var(--text-dim)';
-            const label = pct >= 100 ? '即將止盈！' : `已賺 ${profit.toFixed(2)}% / 2%`;
-            items += exitBarHtml('止盈 +2%', pct, clr, label);
-        }
-        // L: MaxHold 5 bar
-        const mh = ep.max_hold;
-        if (mh) {
-            const pct = Math.min(100, mh.bars_held / 5 * 100);
-            const clr = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--gold)' : 'var(--text-dim)';
-            items += exitBarHtml('時間止損 5h', pct, clr, `${mh.bars_held}/5h（剩 ${mh.remaining}h）`);
-        }
-    } else {
-        // S: TP -1.5%
-        const tp = ep.tp;
-        if (tp) {
-            const profit = Math.max(0, tp.current);
-            const pct = Math.min(100, profit / 1.5 * 100);
-            const clr = pct > 70 ? 'var(--green)' : pct > 40 ? 'var(--gold)' : 'var(--text-dim)';
-            const label = pct >= 100 ? '即將止盈！' : `已賺 ${profit.toFixed(2)}% / 1.5%`;
-            items += exitBarHtml('止盈 -1.5%', pct, clr, label);
+            const label = pct >= 100 ? '即將止盈！' : `已賺 ${profit.toFixed(2)}% / 2.0%`;
+            items += exitBarHtml('止盈 -2.0%', pct, clr, label);
         }
         // S: SafeNet +4.0%
         const sn = ep.safenet;
@@ -425,12 +453,12 @@ function renderExitProgress(ep, sub) {
             const safeLabel = pct < 30 ? '安全' : pct < 70 ? '注意' : '危險';
             items += exitBarHtml('安全網 +4.0%', pct, clr, `已虧 ${lossAmt.toFixed(1)}% / 4.0%（${safeLabel}）`);
         }
-        // S: MaxHold 5 bar
+        // S: MaxHold 10 bar
         const mh = ep.max_hold;
         if (mh) {
-            const pct = Math.min(100, mh.bars_held / 5 * 100);
+            const pct = Math.min(100, mh.bars_held / 10 * 100);
             const clr = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--gold)' : 'var(--text-dim)';
-            items += exitBarHtml('時間止損 5h', pct, clr, `${mh.bars_held}/5h（剩 ${mh.remaining}h）`);
+            items += exitBarHtml('時間止損 10h', pct, clr, `${mh.bars_held}/10h（剩 ${mh.remaining}h）`);
         }
     }
     return `<div class="exit-progress">${items}</div>`;
@@ -795,7 +823,10 @@ function renderFilters() {
         <select onchange="S.filters.exit=this.value;renderTradesTable()">
             <option value="" ${sel(f.exit,'')}>出場原因 (Exit)</option>
             <option value="TP" ${sel(f.exit,'TP')}>止盈 (TP)</option>
+            <option value="MFE-trail" ${sel(f.exit,'MFE-trail')}>浮盈回吐 (MFE-trail)</option>
             <option value="MaxHold" ${sel(f.exit,'MaxHold')}>時間止損 (MaxHold)</option>
+            <option value="MH-ext" ${sel(f.exit,'MH-ext')}>延長賽 (MH-ext)</option>
+            <option value="BE" ${sel(f.exit,'BE')}>平保 (BE)</option>
             <option value="SafeNet" ${sel(f.exit,'SafeNet')}>安全網 (SafeNet)</option>
         </select>
     `;
@@ -968,7 +999,7 @@ function renderExitDist(dist) {
     if (entries.length === 0) { el.innerHTML = '<div class="loading">尚無資料 (No Data)</div>'; return; }
 
     const total = entries.reduce((s, [, v]) => s + v, 0);
-    const colors = { TP: '#26a69a', MaxHold: '#f0b90b', SafeNet: '#ef5350', Trail: '#5b86e5', EarlyStop: '#ff9800' };
+    const colors = { TP: '#26a69a', 'MFE-trail': '#5b86e5', MaxHold: '#f0b90b', 'MH-ext': '#06b6d4', BE: '#9c27b0', SafeNet: '#ef5350', Trail: '#5b86e5', EarlyStop: '#ff9800' };
 
     let html = '';
     for (const [name, count] of entries.sort((a, b) => b[1] - a[1])) {

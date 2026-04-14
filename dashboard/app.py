@@ -141,6 +141,8 @@ async def api_status(mode: str = Query("paper")):
                     "entry_price": pos.get("entry_price"),
                     "entry_time_utc8": pos.get("entry_time_utc8"),
                     "bars_held": pos.get("bars_held", 0),
+                    "running_mfe": pos.get("running_mfe", 0.0),
+                    "mh_reduced": pos.get("mh_reduced", False),
                 })
             l_count = sum(1 for d in details if d["sub_strategy"] == "L")
             s_count = sum(1 for d in details if (d.get("sub_strategy") or "").startswith("S"))
@@ -170,6 +172,7 @@ async def api_status(mode: str = Query("paper")):
     if len(snap_df) > 0:
         last = snap_df.iloc[-1]
         result["gk_pctile"] = clean_value(last.get("gk_pctile"))
+        result["gk_pctile_s"] = clean_value(last.get("gk_pctile_s"))
 
         # 進場條件達成狀態
         gk = clean_value(last.get("gk_pctile"))
@@ -251,11 +254,15 @@ async def api_status(mode: str = Query("paper")):
                 unr_pct = (last_close - ep) / ep * 100
                 safenet_dist = round(-3.5 - unr_pct, 2)  # 負值=已超過
                 tp_dist = round(3.5 - unr_pct, 2)
+                mh_reduced = d.get("mh_reduced", False)
+                effective_mh = 5 if mh_reduced else 6
+                running_mfe = d.get("running_mfe", 0.0)
                 d["exit_progress"] = {
                     "unrealized_pct": round(unr_pct, 2),
                     "safenet": {"threshold": -3.5, "current": round(unr_pct, 2), "distance": safenet_dist},
                     "tp": {"threshold": 3.5, "current": round(unr_pct, 2), "distance": tp_dist},
-                    "max_hold": {"threshold": 6, "bars_held": bars, "remaining": max(0, 6 - bars)},
+                    "mfe_trail": {"running_mfe": round(running_mfe * 100, 2), "act": 1.0, "dd": 0.8},
+                    "max_hold": {"threshold": effective_mh, "bars_held": bars, "remaining": max(0, effective_mh - bars)},
                 }
             elif sub == "S":
                 unr_pct = (ep - last_close) / ep * 100  # 做空: 正=賺

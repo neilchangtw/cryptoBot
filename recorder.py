@@ -1,5 +1,5 @@
 """
-V13 4 層 CSV 記錄系統
+V14 4 層 CSV 記錄系統
 
 Layer 1: bar_snapshots.csv     — 每小時一行，所有指標 + 信號評估
 Layer 2: position_lifecycle.csv — 持倉期間每 bar 一行，MAE/MFE 追蹤
@@ -98,8 +98,8 @@ DAILY_SUMMARY_FIELDS = [
     "total_trades", "long_trades", "short_trades",
     "wins", "losses",
     "gross_pnl", "net_pnl",
-    "safenet_count", "earlyStop_count", "trail_count", "tp_count", "maxhold_count",
-    "mh_ext_count", "be_count",
+    "safenet_count", "earlyStop_count", "trail_count", "tp_count", "mfe_trail_count",
+    "maxhold_count", "mh_ext_count", "be_count",
     "avg_hold_hours", "longest_hold_hours",
     "account_balance", "cumulative_pnl",
     "open_position", "system_alerts",

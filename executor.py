@@ -1,5 +1,5 @@
 """
-V13 執行引擎 — 持倉管理 + 狀態持久化 + 風控熔斷
+V14 執行引擎 — 持倉管理 + 狀態持久化 + 風控熔斷
 
 支持雙策略：
   L（做多）：sub_strategy="L", maxTotal=1
@@ -12,7 +12,7 @@ Live mode:  呼叫 binance_trade.py 下單
   日虧 -$200 停 / L 月虧 -$75 停 / S 月虧 -$150 停
   連虧 4 筆 → 24 bar 冷卻
 
-V13 新增：持倉支持 extension_active / extension_start_bar 欄位。
+V14 新增：L 持倉新增 running_mfe / mh_reduced 欄位（MFE Trailing + Conditional MH）。
 狀態持久化到 eth_state.json，重啟後可恢復。
 """
 import os
@@ -332,7 +332,7 @@ class Executor:
         # 更新月度進場計數
         self.monthly_entries[sub_strategy] = self.monthly_entries.get(sub_strategy, 0) + 1
 
-        # 建立持倉記錄（V13: 含 extension 欄位）
+        # 建立持倉記錄（V14: 含 extension + MFE trail + conditional MH 欄位）
         position = {
             "trade_id": trade_id,
             "side": side,
@@ -349,6 +349,8 @@ class Executor:
             "mfe_time_bar": 0,
             "extension_active": False,
             "extension_start_bar": 0,
+            "running_mfe": 0.0,
+            "mh_reduced": False,
         }
         self.positions[trade_id] = position
 
@@ -498,6 +500,7 @@ class Executor:
         exit_map = {
             "SafeNet": "🆘 安全網接住了",
             "TP": "🎯 精準止盈，完美收割",
+            "MFE-trail": "📐 浮盈回吐，鎖利出場",
             "MaxHold": "⏰ 時間到，強制下課",
             "MH-ext": "⏰ 延長賽結束，收工",
             "BE": "🔄 平保出場，保本離場",
@@ -591,7 +594,7 @@ class Executor:
                 "wins": 0, "losses": 0,
                 "pnl": 0.0, "signals_fired": 0, "signals_blocked": 0,
                 "safenet_count": 0,
-                "tp_count": 0, "maxhold_count": 0,
+                "tp_count": 0, "mfe_trail_count": 0, "maxhold_count": 0,
                 "mh_ext_count": 0, "be_count": 0,
                 "hold_hours_sum": 0, "max_hold_hours": 0,
             }
@@ -620,6 +623,7 @@ class Executor:
         reason_map = {
             "SafeNet": "safenet_count",
             "TP": "tp_count",
+            "MFE-trail": "mfe_trail_count",
             "MaxHold": "maxhold_count",
             "MH-ext": "mh_ext_count",
             "BE": "be_count",

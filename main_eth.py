@@ -1,5 +1,5 @@
 """
-ETH 1h V13 雙策略 L+S 主循環
+ETH 1h V14 雙策略 L+S 主循環
 
 單執行緒架構：每小時整點 + 10s 喚醒一次
   1. 取 K 線資料 + 計算指標
@@ -11,7 +11,7 @@ ETH 1h V13 雙策略 L+S 主循環
   7. 狀態持久化
   8. 定時心跳
 
-策略規格 V13，見 strategy.py。
+策略規格 V14，見 strategy.py。
 """
 import os
 import sys
@@ -189,7 +189,7 @@ def main():
 
     mode = "PAPER" if PAPER_TRADING else "LIVE"
     logger.info(f"=" * 60)
-    logger.info(f"  ETH 1h V13 雙策略 L+S ({mode})")
+    logger.info(f"  ETH 1h V14 雙策略 L+S ({mode})")
     logger.info(f"  L: GK<{strategy.L_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.L_TP_PCT*100}% MH{strategy.L_MAX_HOLD} SN{strategy.L_SAFENET_PCT*100}%")
     logger.info(f"  S: GK<{strategy.S_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.S_TP_PCT*100}% MH{strategy.S_MAX_HOLD} SN{strategy.S_SAFENET_PCT*100}%")
     logger.info(f"  Symbol: {SYMBOL} | Notional: ${strategy.NOTIONAL} | Fee: ${strategy.FEE}")
@@ -221,7 +221,7 @@ def main():
     s_count = sum(1 for p in executor.positions.values() if p.get("sub_strategy") == "S")
     pos_text = f"L:{l_count} S:{s_count}" if (l_count + s_count) > 0 else "空手待命"
     startup_msg = (
-        f"<b>🖨 印鈔機開機！V13（{env}）</b>\n"
+        f"<b>🖨 印鈔機開機！V14（{env}）</b>\n"
         f"━━━━━━━━━━━━━━━\n"
         f"🔧 配方：L 做多 + S 做空（各最多1筆）\n"
         f"💼 口袋：${executor.account_balance:.2f}\n"
@@ -286,7 +286,7 @@ def main():
                 # 更新追蹤（MAE/MFE）
                 executor.update_tracking(trade_id, bar_data, executor.bar_counter)
 
-                # 按策略分派出場檢查（V13: 傳入 extension 狀態）
+                # 按策略分派出場檢查（V14: 傳入 extension 狀態）
                 ext_active = pos.get("extension_active", False)
                 ext_start = pos.get("extension_start_bar", 0)
 
@@ -300,7 +300,12 @@ def main():
                         bar_close=bar_data["close"],
                         extension_active=ext_active,
                         extension_start_bar=ext_start,
+                        running_mfe=pos.get("running_mfe", 0.0),
+                        mh_reduced=pos.get("mh_reduced", False),
                     )
+                    # V14: 更新 running_mfe 和 mh_reduced 到持倉狀態
+                    executor.positions[trade_id]["running_mfe"] = exit_result.get("running_mfe", 0.0)
+                    executor.positions[trade_id]["mh_reduced"] = exit_result.get("mh_reduced", False)
                 else:  # S
                     exit_result = strategy.check_exit_short(
                         entry_price=pos["entry_price"],
@@ -313,7 +318,7 @@ def main():
                         extension_start_bar=ext_start,
                     )
 
-                # V13: 處理延長期啟動
+                # V14: 處理延長期啟動
                 if exit_result.get("start_extension") and not ext_active:
                     executor.positions[trade_id]["extension_active"] = True
                     executor.positions[trade_id]["extension_start_bar"] = executor.bar_counter
@@ -523,7 +528,7 @@ def main():
                 if executor.daily_pnl < 0:
                     cb_info += f"\n📊 今日：${executor.daily_pnl:.0f}"
 
-                # ── V13 自檢 ──
+                # ── V14 自檢 ──
                 checks = []
 
                 # 1. 日誌健康：最近 24h 無 ERROR/WARNING
@@ -558,22 +563,24 @@ def main():
                 else:
                     checks.append("⏳ GK 暖機中")
 
-                # 4. Extension 邏輯：檢查歷史出場是否出現 MH-ext/BE
-                ext_reasons = set()
+                # 4. V14 出場機制：檢查歷史出場是否出現 MFE-trail/MH-ext/BE
+                v14_reasons = set()
                 for ds in executor.daily_stats.values():
+                    if ds.get("mfe_trail_count", 0) > 0:
+                        v14_reasons.add("MFE-trail")
                     if ds.get("mh_ext_count", 0) > 0:
-                        ext_reasons.add("MH-ext")
+                        v14_reasons.add("MH-ext")
                     if ds.get("be_count", 0) > 0:
-                        ext_reasons.add("BE")
-                if ext_reasons:
-                    checks.append(f"✅ Extension 已驗證：{','.join(sorted(ext_reasons))}")
+                        v14_reasons.add("BE")
+                if v14_reasons:
+                    checks.append(f"✅ V14 出場已驗證：{','.join(sorted(v14_reasons))}")
                 else:
-                    checks.append("⏳ Extension 待驗證（尚無 MH-ext/BE 出場）")
+                    checks.append("⏳ V14 出場待驗證（尚無 MFE-trail/MH-ext/BE）")
 
                 check_text = "\n".join(checks)
 
                 hb_msg = (
-                    f"<b>🖨 V13 運轉中…（第 {executor.bar_counter} 張）</b>\n"
+                    f"<b>🖨 V14 運轉中…（第 {executor.bar_counter} 張）</b>\n"
                     f"━━━━━━━━━━━━━━━\n"
                     f"💵 ETH：${bar_data['close']:.2f}\n"
                     f"🔋 壓縮能量：{gk_status}\n"
@@ -591,12 +598,12 @@ def main():
             logger.info("Shutdown requested")
             executor.save_state()
             env = "模擬" if PAPER_TRADING else "實戰"
-            send_telegram_message(f"<b>🖨 V13 下班了（{env}）</b>\n💰 金庫：${executor.account_balance:.2f}\n🛏 明天繼續印！")
+            send_telegram_message(f"<b>🖨 V14 下班了（{env}）</b>\n💰 金庫：${executor.account_balance:.2f}\n🛏 明天繼續印！")
             break
 
         except Exception as e:
             logger.error(f"Cycle error: {e}\n{traceback.format_exc()}")
-            send_telegram_message(f"<b>🚨 V13 卡紙了！</b>\n🔧 故障原因：{str(e)[:200]}\n⏳ 60 秒後自動維修...")
+            send_telegram_message(f"<b>🚨 V14 卡紙了！</b>\n🔧 故障原因：{str(e)[:200]}\n⏳ 60 秒後自動維修...")
             # 等 60 秒再試，避免瘋狂重試
             time.sleep(60)
 

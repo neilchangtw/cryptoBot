@@ -1,20 +1,20 @@
 """
-ETH 1h V13 雙策略 — 純指標計算 + 信號判斷（無副作用）
+ETH 1h V14 雙策略 — 純指標計算 + 信號判斷（無副作用）
 
-策略 L（做多）：GK(5/20)<25 壓縮突破 + TP 3.5% + MaxHold 6 + ext2 BE
-  OOS: $1,596, WR 43%, MDD $231, WF 6/6+7/8
+策略 L（做多）：GK(5/20)<25 壓縮突破 + TP 3.5% + MFE trail + MaxHold 6(cond5) + ext2 BE
+  OOS: $2,034, WR 60%, MDD $228, WF 6/6
+  V14 新增：MFE Trailing Exit + Conditional MH Reduction
 
 策略 S（做空）：GK(10/30)<35 壓縮突破 + TP 2.0% + MaxHold 10 + ext2 BE
   OOS: $2,408, WR 62%, MDD $313, WF 5/6+7/8
+  V14：完全不動
 
-L+S 合計：$4,004, 11/13 正月, worst -$32, WF L 6/6+7/8, S 5/6+7/8
+L+S 合計：$4,549, 12/13 正月, worst -$91, WF L 6/6, S 5/6
 
-V11-E→V13 變更：
-  S GK 窗口: mean(5)/mean(20) → mean(10)/mean(30)
-  S GK 閾值: <30 → <35
-  S MaxHold: 7 → 10
-  L/S MaxHold: 固定出場 → 條件式延長 + BE trail
-  L block_days: {Mon,Sat,Sun} → {Sat,Sun}
+V13→V14 變更（只影響 L 出場）：
+  L 新增 MFE Trailing：浮盈 >=1.0% 後回吐 >=0.8% → MFE-trail 出場
+  L 新增 Conditional MH：bar 2 虧 >=-1.0% → MH 從 6 縮短為 5
+  S：完全不動
 """
 import numpy as np
 import pandas as pd
@@ -49,6 +49,16 @@ L_EXIT_CD = 6              # L 出場後冷卻 6 bar
 L_MAX_TOTAL = 1            # L 最多同時 1 筆
 L_MONTHLY_ENTRY_CAP = 20   # L 每月最多 20 筆進場
 L_MONTHLY_LOSS_CAP = -75   # L 月虧 -$75 停
+
+# V14 MFE Trailing（L only）
+L_MFE_ACT = 0.010          # MFE 啟動門檻：浮盈曾達 1.0%
+L_MFE_TRAIL_DD = 0.008     # MFE 回吐門檻：從高點回落 0.8%
+L_MFE_MIN_BAR = 1          # MFE 最早觸發 bar（持倉 >= 1 bar）
+
+# V14 Conditional MH（L only）
+L_COND_CHECK_BAR = 2       # 在 bar 2 檢查
+L_COND_EXIT_THRESH = -0.01 # 虧損 >= 1.0% 觸發
+L_COND_REDUCED_MH = 5      # 縮短後的 MH（原 6 → 5）
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # S 策略常數（做空）
@@ -254,58 +264,84 @@ def check_exit_long(entry_price: float,
                     entry_bar_counter: int, current_bar_counter: int,
                     bar_high: float, bar_low: float, bar_close: float,
                     extension_active: bool = False,
-                    extension_start_bar: int = 0) -> dict:
+                    extension_start_bar: int = 0,
+                    running_mfe: float = 0.0,
+                    mh_reduced: bool = False) -> dict:
     """
-    L 策略出場條件（V13: 條件式 MaxHold 延長 + BE trail）。
+    L 策略出場條件（V14: MFE Trailing + Conditional MH + 條件式延長 + BE trail）。
 
-    優先順序：SafeNet 3.5% → TP 3.5% → MaxHold 6（+ext2 BE）
+    優先順序：SafeNet 3.5% → TP 3.5% → MFE-trail → ext(BE/MH-ext) → MH(5or6)
 
     Returns:
         {"exit": bool, "reason": str, "exit_price": float,
-         "start_extension": bool}
+         "start_extension": bool, "running_mfe": float, "mh_reduced": bool}
     """
     bars_held = current_bar_counter - entry_bar_counter
+    effective_mh = L_COND_REDUCED_MH if mh_reduced else L_MAX_HOLD  # 5 or 6
 
-    # 1. SafeNet: low <= entry*(1-3.5%)
+    # 0. 更新 running MFE（用 bar_high）
+    bar_mfe = (bar_high - entry_price) / entry_price
+    new_mfe = max(running_mfe, bar_mfe)
+
+    base = {"running_mfe": new_mfe, "mh_reduced": mh_reduced}
+
+    # 1. SafeNet: low <= entry*(1-3.5%)（始終有效，含 extension 期間）
     safenet_level = entry_price * (1 - L_SAFENET_PCT)
     if bar_low <= safenet_level:
         ep = safenet_level - (safenet_level - bar_low) * 0.25
         return {"exit": True, "reason": "SafeNet", "exit_price": ep,
-                "start_extension": False}
+                "start_extension": False, **base}
 
-    # 2. TP: high >= entry*(1+3.5%)
+    # 2. TP: high >= entry*(1+3.5%)（始終有效，含 extension 期間）
     tp_level = entry_price * (1 + L_TP_PCT)
     if bar_high >= tp_level:
         return {"exit": True, "reason": "TP", "exit_price": tp_level,
-                "start_extension": False}
+                "start_extension": False, **base}
 
-    # 3. Extension 階段：已進入延長期
+    # 3. MFE Trailing（V14 新增）
+    if bars_held >= L_MFE_MIN_BAR and new_mfe >= L_MFE_ACT:
+        current_pnl_pct = (bar_close - entry_price) / entry_price
+        drawdown_from_mfe = new_mfe - current_pnl_pct
+        if drawdown_from_mfe >= L_MFE_TRAIL_DD:
+            return {"exit": True, "reason": "MFE-trail", "exit_price": bar_close,
+                    "start_extension": False, **base}
+
+    # 4. Extension 階段：已進入延長期
     if extension_active:
         ext_bars = current_bar_counter - extension_start_bar
         # BE trail: 價格回到進場價以下 → 平保出場
         if bar_low <= entry_price:
             return {"exit": True, "reason": "BE", "exit_price": entry_price,
-                    "start_extension": False}
+                    "start_extension": False, **base}
         # Extension 超時
         if ext_bars >= L_EXT_BARS:
             return {"exit": True, "reason": "MH-ext", "exit_price": bar_close,
-                    "start_extension": False}
+                    "start_extension": False, **base}
         return {"exit": False, "reason": "", "exit_price": 0.0,
-                "start_extension": False}
+                "start_extension": False, **base}
 
-    # 4. MaxHold: bars >= 6 → 判斷是否進入延長期
-    if bars_held >= L_MAX_HOLD:
+    # 5. Conditional MH 判定（V14 新增：bar 2 時執行一次）
+    new_mh_reduced = mh_reduced
+    if not mh_reduced and bars_held == L_COND_CHECK_BAR:
+        pnl_pct = (bar_close - entry_price) / entry_price
+        if pnl_pct <= L_COND_EXIT_THRESH:
+            new_mh_reduced = True
+            effective_mh = L_COND_REDUCED_MH
+    base["mh_reduced"] = new_mh_reduced
+
+    # 6. MaxHold: bars >= effective_mh(5or6) → 判斷是否進入延長期
+    if bars_held >= effective_mh:
         pnl_pct = (bar_close - entry_price) / entry_price
         if pnl_pct > 0:
             # 正收益 → 啟動延長期
             return {"exit": False, "reason": "", "exit_price": 0.0,
-                    "start_extension": True}
+                    "start_extension": True, **base}
         else:
             return {"exit": True, "reason": "MaxHold", "exit_price": bar_close,
-                    "start_extension": False}
+                    "start_extension": False, **base}
 
     return {"exit": False, "reason": "", "exit_price": 0.0,
-            "start_extension": False}
+            "start_extension": False, **base}
 
 
 def check_exit_short(entry_price: float,

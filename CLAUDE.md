@@ -31,6 +31,7 @@ ETH 1h Garman-Klass Compression-Breakout 自動交易機器人（Binance Futures
 | [doc/v11_research.md](doc/v11_research.md) | V11 TP/MH 出場優化研究（R1 掃描 204 組、V11-E 冠軍 OOS $2,801 +28%） |
 | [doc/v12_research.md](doc/v12_research.md) | V12 全新 S 進場研究（8 輪、15+ 方向 — 結論：GK 壓縮突破無可取代） |
 | [doc/v13_research.md](doc/v13_research.md) | V13 全時框探索 + GK 窗口優化 + 出場增強（R5: OOS $3,526 +26%, 8/8 PASS） |
+| [doc/v14_research.md](doc/v14_research.md) | V14 出場機制創新（R6: L OOS +$293 +16.8%, MFE trail + Conditional MH, WF 6/6, 12/13 正月） |
 
 ---
 
@@ -117,35 +118,35 @@ cryptoBot/
 
 ## 目前狀態
 
-- **策略版本**：**V13** — 雙策略 L+S（GK 壓縮突破 + TP + MaxHold + 條件式延長 + BE trail）
+- **策略版本**：**V14** — 雙策略 L+S（GK 壓縮突破 + TP + MFE trail + MaxHold(cond) + 條件式延長 + BE trail）
 - **模式**：Paper Trading（模擬盤），Binance Testnet
 - **Hedge Mode**：已啟用（dualSidePosition=true），L/S 倉位互不影響
 - **帳戶**：$1,000 / $200 保證金 / 20x / $4,000 名目
-- **演進**：GK v1.1 → v6 L+S → V10 → V11-E → **V13（L+S $4,004, 11/13 正月, worst -$32）**
+- **演進**：GK v1.1 → v6 L+S → V10 → V11-E → V13 → **V14（L+S $4,549, 12/13 正月, worst -$91）**
 - **Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗
 
 ---
 
-## 策略規格 V13（鎖定）
+## 策略規格 V14（鎖定）
 
-> V13 目標：V11-E GK 窗口優化 + 出場增強。L/S 各 maxTotal=1，純 1h 無 4h 前瞻。
-> 完整研究過程見 [doc/v13_research.md](doc/v13_research.md)。
-> V11-E 研究見 [doc/v11_research.md](doc/v11_research.md)。
+> V14 目標：V13 L 出場機制創新（MFE Trailing + Conditional MH）。S 完全不動。
+> 完整研究過程見 [doc/v14_research.md](doc/v14_research.md)。
+> V13 研究見 [doc/v13_research.md](doc/v13_research.md)。
 
-### L 策略（做多）— GK<25 壓縮突破 + TP 3.5% + MaxHold 6 + ext2 BE
+### L 策略（做多）— GK<25 壓縮突破 + TP 3.5% + MFE trail + MaxHold 6(cond5) + ext2 BE
 
 ```
 方向：Long-only
 時框：1h（純 1h，無 4h 數據）
 帳戶：$1,000 / $200 margin / 20x / $4,000 notional / $4 fee
 
-進場：
+進場（與 V13 完全相同）：
   1. GK pctile < 25（波動壓縮）
      gk = 0.5×ln(H/L)² - (2ln2-1)×ln(C/O)²
      ratio = mean(gk,5) / mean(gk,20)   ← L 用 5/20
      pctile = ratio.shift(1).rolling(100).apply(rank pctile)
   2. Close breakout 15 bar（c > c.shift(1).rolling(15).max()）
-  3. Session filter: block hours {0,1,2,12} UTC+8, block days {Sat,Sun}  ← V13: 移除 Mon
+  3. Session filter: block hours {0,1,2,12} UTC+8, block days {Sat,Sun}
   4. Exit Cooldown: 6 bar
   5. Monthly Entry Cap: 20
   6. maxTotal = 1
@@ -153,16 +154,25 @@ cryptoBot/
 出場（優先順序）：
   1. SafeNet -3.5%（含 25% 穿透模型，max 單筆虧損 ~$158）
   2. TP +3.5%（固定止盈）
-  3. MaxHold 6 bar → 若正收益，延長 2 bar + BE trail
-     - Extension: 額外 2 bar，期間若 low ≤ entry_price → BE 出場
+  3. 【V14】MFE Trailing：浮盈曾達 1.0% 後回吐 0.8% → bar_close 出場
+     - running_mfe = max(所有 bar 的 (high - entry) / entry)
+     - 啟動：running_mfe >= 1.0%
+     - 觸發：(running_mfe - current_close_pnl%) >= 0.8%
+     - 最早 bar 1 可觸發（min_bar=1）
+     - Extension 期間也有效
+  4. 【V14】Conditional MH：bar 2 虧 >=1.0% → MH 從 6 縮短為 5
+     - 只在 bars_held == 2 時判定一次
+     - (close - entry) / entry <= -1.0% → mh_reduced=True
+  5. MaxHold 6 bar（或 5 bar if reduced）→ 若正收益，延長 2 bar + BE trail
+     - Extension: 額外 2 bar，期間若 low <= entry_price → BE 出場
      - ext 超時 → MH-ext 收盤出場
      - 負收益 → 直接 MaxHold 收盤出場
 
 風控熔斷：
   日虧 -$200 停 / 月虧 -$75 停 / 連虧 4 筆 → 24 bar 冷卻
 
-OOS: $+1,596, WR 43%, MDD $231
-WF:  6/6, 7/8
+OOS: $+2,034, WR 60%, MDD $228
+WF:  6/6
 ```
 
 ### S 策略（做空）— GK_S<35 壓縮突破 + TP 2.0% + MaxHold 10 + ext2 BE
@@ -170,9 +180,10 @@ WF:  6/6, 7/8
 ```
 方向：Short-only（純 1h，無 4h 數據）
 帳戶：$1,000 / $200 margin / 20x / $4,000 notional / $4 fee
+V14：完全不動（V14 R2/R3/R4 測試 70+ 種 S 出場調整全部更差）
 
 進場：
-  1. GK pctile_S < 35（波動壓縮）  ← V13: S 用獨立 GK，閾值 30→35
+  1. GK pctile_S < 35（波動壓縮）
      ratio_S = mean(gk,10) / mean(gk,30)   ← S 用 10/30
      pctile_S = ratio_S.shift(1).rolling(100).apply(rank pctile)
   2. Close breakout 15 bar（c < c.shift(1).rolling(15).min()）
@@ -183,8 +194,8 @@ WF:  6/6, 7/8
 出場（優先順序）：
   1. SafeNet +4.0%（含 25% 穿透模型，max 單筆虧損 ~$200）
   2. TP -2.0%（固定止盈）
-  3. MaxHold 10 bar → 若正收益，延長 2 bar + BE trail  ← V13: 7→10
-     - Extension: 額外 2 bar，期間若 high ≥ entry_price → BE 出場
+  3. MaxHold 10 bar → 若正收益，延長 2 bar + BE trail
+     - Extension: 額外 2 bar，期間若 high >= entry_price → BE 出場
      - ext 超時 → MH-ext 收盤出場
      - 負收益 → 直接 MaxHold 收盤出場
 
@@ -198,9 +209,9 @@ WF:  5/6, 7/8
 ### L+S 合併績效 (OOS)
 
 ```
-合計：$4,004, 11/13 正月, worst month -$32
+合計：$4,549, 12/13 正月, worst month -$91
 L+S 互補：S 弱月有 L 撐，L 弱月有 S 撐
-V11-E 對比：$2,801→$4,004（+43%）
+V13 對比：$4,004→$4,549（+14%），L 改善 +$293（+17%）
 ```
 
 ### 風控
@@ -225,6 +236,9 @@ L 月虧上限 -$75，S 月虧上限 -$150
 - 替換 S 進場信號（V12 8 輪研究證實 GK 壓縮突破無可取代）
 - 均值回歸做空（EMA overext / RSI overbought / SMA dev — ETH 趨勢性太強）
 - 月相交易信號（統計不顯著 p>0.3）
+- S 出場參數調整（V14 R2/R3/R4 測試 70+ 種調整，全部更差，S 是 globally optimal）
+- S 加 MFE Trailing（V14 R2 測試 45 種配置全部更差）
+- S 加 Conditional MH（V14 R3 測試 57 種配置全部更差）
 
 ---
 
@@ -249,9 +263,10 @@ main_eth.py (單執行緒)
 
 ```
 executor.py:
-  positions dict: {trade_id: {sub_strategy: "L"/"S", ...}}
+  positions dict: {trade_id: {sub_strategy: "L"/"S", running_mfe, mh_reduced, ...}}
   last_exits: {"L": bar, "S": bar}（各策略獨立 cooldown）
   maxTotal=1 per side（最多 1L+1S）
+  V14: L 持倉新增 running_mfe(float) + mh_reduced(bool)，重啟後恢復
 
   風控熔斷：
     - check_circuit_breaker(side): 日虧/月虧/連虧/月度 cap 檢查

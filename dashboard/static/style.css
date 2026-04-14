@@ -224,6 +224,10 @@ body {
 }
 .gk-value { font-size: 48px; font-weight: 800; text-align: center; letter-spacing: -1px; }
 .gk-label { text-align: center; font-size: 13px; color: var(--text-dim); }
+.gk-dual-values { display: flex; justify-content: center; align-items: center; gap: 24px; margin: 4px 0; }
+.gk-dual-item { display: flex; flex-direction: column; align-items: center; }
+.gk-dual-label { font-size: 11px; color: var(--text-dim); font-weight: 600; letter-spacing: 0.5px; margin-bottom: 2px; }
+.gk-dual-sep { width: 1px; height: 36px; background: rgba(255,255,255,0.1); }
 .gk-bar { height: 10px; background: var(--bg); border-radius: 5px; margin-top: 12px; overflow: hidden; }
 .gk-bar-fill {
     height: 100%;
