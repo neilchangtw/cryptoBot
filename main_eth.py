@@ -267,7 +267,8 @@ def main():
                         f"GK={ind['gk_pctile']:.1f}" if ind['gk_pctile'] else
                         f"Bar: {bar_time_str} | C={bar_data['close']:.2f} | GK=NaN")
 
-            # ── 2. 更新風控熔斷 ──
+            # ── 2. 同步幣安餘額 + 更新風控熔斷 ──
+            executor._sync_balance()
             executor.update_period_keys(t_utc8)
 
             # ── 3. 檢查持倉出場 ──
@@ -347,6 +348,7 @@ def main():
                             result["pnl_usd"],
                             result["exit_reason"],
                             result["bars_held"],
+                            commission=result.get("commission", 0.0),
                         )
                         exits_this_bar.append(result)
                         sig_logger.info(

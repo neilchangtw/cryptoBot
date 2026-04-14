@@ -130,22 +130,33 @@ class Executor:
             logger.error(f"Failed to load state: {e}")
 
     def _init_balance(self):
-        """從幣安帳戶取得實際 USDT 餘額"""
-        if self.account_balance is not None:
-            logger.info(f"Balance from state: ${self.account_balance:.2f}")
-            return
+        """從幣安帳戶取得實際 USDT 錢包餘額（每次啟動都同步）"""
         try:
             import binance_trade
-            balance = binance_trade.get_available_balance()
+            balance = binance_trade.get_wallet_balance()
             if balance > 0:
                 self.account_balance = balance
                 logger.info(f"Balance from Binance: ${balance:.2f}")
             else:
-                self.account_balance = 0.0
-                logger.warning("Binance returned 0 balance, using $0")
+                if self.account_balance is None:
+                    self.account_balance = 0.0
+                logger.warning(f"Binance returned 0 wallet balance, keeping ${self.account_balance:.2f}")
         except Exception as e:
-            logger.error(f"Failed to fetch balance from Binance: {e}, defaulting to $0")
-            self.account_balance = 0.0
+            logger.error(f"Failed to fetch balance from Binance: {e}")
+            if self.account_balance is None:
+                self.account_balance = 0.0
+
+    def _sync_balance(self):
+        """同步幣安實際錢包餘額"""
+        try:
+            import binance_trade
+            balance = binance_trade.get_wallet_balance()
+            if balance > 0:
+                old = self.account_balance
+                self.account_balance = balance
+                logger.info(f"Balance synced: ${old:.2f} → ${balance:.2f}")
+        except Exception as e:
+            logger.error(f"Balance sync failed: {e}")
 
     def save_state(self):
         """儲存狀態到 eth_state.json"""
@@ -298,6 +309,14 @@ class Executor:
             if avg_price > 0:
                 entry_price = avg_price
             qty = float(result.get("executedQty", qty))
+            # 取得實際手續費
+            entry_order_id = result.get("orderId")
+            entry_commission = 0.0
+            if entry_order_id:
+                comm = binance_trade.get_order_commission(SYMBOL, entry_order_id)
+                if comm is not None:
+                    entry_commission = comm
+                    logger.info(f"Entry commission: ${comm:.4f}")
         except Exception as e:
             logger.error(f"Order exception: {e}")
             self.trade_number -= 1
@@ -351,6 +370,8 @@ class Executor:
             "extension_start_bar": 0,
             "running_mfe": 0.0,
             "mh_reduced": False,
+            "entry_order_id": entry_order_id,
+            "entry_commission": entry_commission,
         }
         self.positions[trade_id] = position
 
@@ -382,6 +403,9 @@ class Executor:
             "eth_24h_change_pct": round(eth_24h, 2) if eth_24h is not None else "",
         }
         recorder.record_trade_open(trade_record)
+
+        # 同步幣安實際餘額
+        self._sync_balance()
 
         # Telegram 通知
         env = "模擬" if PAPER_TRADING else "實戰"
@@ -427,15 +451,30 @@ class Executor:
         entry_price = pos["entry_price"]
 
         # 實際平倉
+        actual_exit_price = exit_price  # fallback: 策略計算價
+        exit_commission = 0.0
         try:
             import binance_trade
             close_side = "SELL" if side == "long" else "BUY"
             position_side = "LONG" if side == "long" else "SHORT"
-            binance_trade.place_order(
+            close_result = binance_trade.place_order(
                 SYMBOL, close_side, qty=pos["qty"], reduce_only=True,
                 strategy_id=f"eth_v10_{sub_strategy}",
                 position_side=position_side,
             )
+            # 使用實際成交價
+            if close_result:
+                avg = float(close_result.get("avgPrice", 0))
+                if avg > 0:
+                    actual_exit_price = avg
+                    logger.info(f"Actual exit price: ${avg:.4f} (strategy: ${exit_price:.4f})")
+                # 查詢實際手續費
+                close_order_id = close_result.get("orderId")
+                if close_order_id:
+                    comm = binance_trade.get_order_commission(SYMBOL, close_order_id)
+                    if comm is not None:
+                        exit_commission = comm
+                        logger.info(f"Exit commission: ${comm:.4f}")
             # 只有該方向最後一筆平倉時才取消該方向的 SL
             remaining = sum(1 for p in self.positions.values()
                            if p.get("trade_id") != trade_id
@@ -445,13 +484,21 @@ class Executor:
         except Exception as e:
             logger.error(f"Close order exception: {e}")
 
-        # 計算 PnL
-        pnl_usd, pnl_pct = strategy.compute_pnl(entry_price, exit_price, side)
-        gross_pnl = pnl_usd + strategy.FEE
+        # 使用實際成交價和手續費計算 PnL
+        exit_price = actual_exit_price
+        entry_commission = pos.get("entry_commission", 0.0)
+        total_commission = entry_commission + exit_commission
+        actual_qty = pos.get("qty", strategy.NOTIONAL / entry_price)
+        if side == "long":
+            gross_pnl = (exit_price - entry_price) * actual_qty
+        else:
+            gross_pnl = (entry_price - exit_price) * actual_qty
+        pnl_usd = round(gross_pnl - total_commission, 4)
+        pnl_pct = round(pnl_usd / strategy.MARGIN * 100, 4)
         bars_held = bar_counter - pos["entry_bar_counter"]
 
-        # 更新帳戶
-        self.account_balance += pnl_usd
+        # 同步幣安實際餘額
+        self._sync_balance()
         self.last_exits[sub_strategy] = bar_counter
 
         # 更新風控熔斷狀態
@@ -487,7 +534,7 @@ class Executor:
             "pnl_at_bar7": "",
             "pnl_at_bar12": "",
             "gross_pnl_usd": round(gross_pnl, 4),
-            "commission_usd": strategy.FEE,
+            "commission_usd": round(total_commission, 4),
             "net_pnl_usd": round(pnl_usd, 4),
             "net_pnl_pct": round(pnl_pct, 2),
             "win_loss": "WIN" if pnl_usd > 0 else ("LOSS" if pnl_usd < 0 else "BREAKEVEN"),
@@ -540,7 +587,8 @@ class Executor:
         self.save_state()
 
         return {"pnl_usd": pnl_usd, "pnl_pct": pnl_pct, "exit_reason": exit_reason,
-                "bars_held": bars_held, "trade_id": trade_id}
+                "bars_held": bars_held, "trade_id": trade_id,
+                "commission": total_commission}
 
     def update_tracking(self, trade_id: str, bar_data: dict, bar_counter: int):
         """每 bar 更新持倉追蹤：MAE/MFE。"""
@@ -611,9 +659,10 @@ class Executor:
         self._ensure_daily()
         self.daily_stats[self._today_key()]["trades_opened"] += 1
 
-    def record_close(self, pnl_usd: float, exit_reason: str, hold_bars: int):
+    def record_close(self, pnl_usd: float, exit_reason: str, hold_bars: int, commission: float = 0.0):
         self._ensure_daily()
         d = self.daily_stats[self._today_key()]
+        d["total_commission"] = d.get("total_commission", 0) + commission
         d["trades_closed"] += 1
         d["pnl"] += pnl_usd
         if pnl_usd > 0:
@@ -654,7 +703,7 @@ class Executor:
             "short_trades": "",
             "wins": d["wins"],
             "losses": d["losses"],
-            "gross_pnl": round(d["pnl"] + strategy.FEE * n_closed, 2),
+            "gross_pnl": round(d["pnl"] + d.get("total_commission", 0), 2),
             "net_pnl": round(d["pnl"], 2),
             "safenet_count": d["safenet_count"],
             "earlyStop_count": 0,

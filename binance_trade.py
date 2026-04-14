@@ -160,6 +160,41 @@ def get_positions(symbol=None):
         return []
 
 
+def get_wallet_balance():
+    """查詢 USDT 錢包餘額（含已用保證金，= 幣安顯示的帳戶餘額）"""
+    global client
+    _ensure_session()
+    try:
+        account = client.account()
+        for asset in account["assets"]:
+            if asset["asset"] == "USDT":
+                return float(asset["walletBalance"])
+        return 0.0
+    except Exception as e:
+        print(f"get_wallet_balance error: {e}")
+        send_telegram_message(f"查詢錢包餘額失敗: {e}")
+        client = new_session()
+        return 0.0
+
+
+def get_order_commission(symbol, order_id):
+    """查詢訂單的實際手續費（從 userTrades 加總）"""
+    global client
+    _ensure_session()
+    try:
+        trades = client.sign_request("GET", "/fapi/v1/userTrades", {
+            "symbol": symbol,
+            "orderId": int(order_id),
+        })
+        total_commission = 0.0
+        for t in trades:
+            total_commission += float(t.get("commission", 0))
+        return round(total_commission, 6)
+    except Exception as e:
+        print(f"get_order_commission error: {e}")
+        return None
+
+
 def set_leverage(symbol=None, leverage=None):
     """設定槓桿"""
     symbol = symbol or SYMBOL

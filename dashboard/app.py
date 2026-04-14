@@ -120,25 +120,48 @@ async def api_status(mode: str = Query("paper")):
         "health": None,
     }
 
-    # 讀 state
+    # ── 從幣安即時取得餘額和持倉 ──
+    try:
+        import binance_trade
+        wallet_bal = binance_trade.get_wallet_balance()
+        if wallet_bal > 0:
+            result["account_balance"] = round(wallet_bal, 4)
+
+        # 幣安實際持倉 → 建立 positionSide 索引（entry_price, unrealized_pnl）
+        binance_pos = binance_trade.get_positions("ETHUSDT")
+        _bp_map = {}
+        for bp in binance_pos:
+            ps = bp.get("position_side", "BOTH")
+            _bp_map[ps] = bp
+    except Exception:
+        _bp_map = {}
+
+    # 讀 state（策略內部狀態：bar_counter, bars_held, running_mfe 等）
     state_path = paths["state"]
     if os.path.exists(state_path):
         try:
             with open(state_path, "r", encoding="utf-8") as f:
                 state = json.load(f)
-            result["account_balance"] = state.get("account_balance", 0)
+            # 餘額 fallback：若幣安 API 沒拿到，用 state 檔
+            if result["account_balance"] == 0:
+                result["account_balance"] = state.get("account_balance", 0)
             result["bar_counter"] = state.get("bar_counter", 0)
             result["last_bar_time"] = state.get("last_bar_time")
 
-            # 持倉
+            # 持倉：strategy state + 幣安實際 entry_price 覆蓋
             positions = state.get("positions", {})
             details = []
             for tid, pos in positions.items():
+                sub = pos.get("sub_strategy")
+                ps = "LONG" if sub == "L" else "SHORT"
+                # 幣安實際 entry_price 覆蓋 state 檔的值
+                bp = _bp_map.get(ps)
+                actual_entry = bp["entry_price"] if bp and bp["entry_price"] > 0 else pos.get("entry_price")
                 details.append({
                     "trade_id": tid,
                     "side": pos.get("side"),
-                    "sub_strategy": pos.get("sub_strategy"),
-                    "entry_price": pos.get("entry_price"),
+                    "sub_strategy": sub,
+                    "entry_price": actual_entry,
                     "entry_time_utc8": pos.get("entry_time_utc8"),
                     "bars_held": pos.get("bars_held", 0),
                     "running_mfe": pos.get("running_mfe", 0.0),
