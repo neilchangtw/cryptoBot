@@ -157,6 +157,9 @@ async def api_status(mode: str = Query("paper")):
                 # 幣安實際 entry_price 覆蓋 state 檔的值
                 bp = _bp_map.get(ps)
                 actual_entry = bp["entry_price"] if bp and bp["entry_price"] > 0 else pos.get("entry_price")
+                # 幣安未實現損益
+                binance_unr_pnl = bp["unrealized_pnl"] if bp else None
+                binance_mark = bp["mark_price"] if bp else None
                 details.append({
                     "trade_id": tid,
                     "side": pos.get("side"),
@@ -166,6 +169,8 @@ async def api_status(mode: str = Query("paper")):
                     "bars_held": pos.get("bars_held", 0),
                     "running_mfe": pos.get("running_mfe", 0.0),
                     "mh_reduced": pos.get("mh_reduced", False),
+                    "unrealized_pnl": binance_unr_pnl,
+                    "mark_price": binance_mark,
                 })
             l_count = sum(1 for d in details if d["sub_strategy"] == "L")
             s_count = sum(1 for d in details if (d.get("sub_strategy") or "").startswith("S"))
@@ -265,39 +270,44 @@ async def api_status(mode: str = Query("paper")):
             last_close = clean_value(snap_df.iloc[-1].get("close"))
             result["last_close"] = last_close
 
-    # 為每筆持倉計算出場條件距離
-    if last_close and last_close > 0:
-        for d in result["positions"]["details"]:
-            ep = d.get("entry_price", 0)
-            if not ep or ep <= 0:
-                continue
-            bars = d.get("bars_held", 0)
-            sub = d.get("sub_strategy", "")
-            if sub == "L":
-                unr_pct = (last_close - ep) / ep * 100
-                safenet_dist = round(-3.5 - unr_pct, 2)  # 負值=已超過
-                tp_dist = round(3.5 - unr_pct, 2)
-                mh_reduced = d.get("mh_reduced", False)
-                effective_mh = 5 if mh_reduced else 6
-                running_mfe = d.get("running_mfe", 0.0)
-                d["exit_progress"] = {
-                    "unrealized_pct": round(unr_pct, 2),
-                    "safenet": {"threshold": -3.5, "current": round(unr_pct, 2), "distance": safenet_dist},
-                    "tp": {"threshold": 3.5, "current": round(unr_pct, 2), "distance": tp_dist},
-                    "mfe_trail": {"running_mfe": round(running_mfe * 100, 2), "act": 1.0, "dd": 0.8},
-                    "max_hold": {"threshold": effective_mh, "bars_held": bars, "remaining": max(0, effective_mh - bars)},
-                }
-            elif sub == "S":
-                unr_pct = (ep - last_close) / ep * 100  # 做空: 正=賺
-                safenet_dist = round(4.0 - abs(unr_pct), 2) if unr_pct < 0 else round(4.0 + unr_pct, 2)
-                tp_dist = round(2.0 - unr_pct, 2)
-                d["exit_progress"] = {
-                    "unrealized_pct": round(unr_pct, 2),
-                    "safenet": {"threshold": 4.0, "current": round(-unr_pct if unr_pct < 0 else 0, 2),
-                                "distance": round(4.0 - (-unr_pct if unr_pct < 0 else 0), 2)},
-                    "tp": {"threshold": 2.0, "current": round(unr_pct, 2), "distance": tp_dist},
-                    "max_hold": {"threshold": 10, "bars_held": bars, "remaining": max(0, 10 - bars)},
-                }
+    # 為每筆持倉計算出場條件距離（用幣安 mark price + unrealized_pnl）
+    for d in result["positions"]["details"]:
+        ep = d.get("entry_price", 0)
+        if not ep or ep <= 0:
+            continue
+        bars = d.get("bars_held", 0)
+        sub = d.get("sub_strategy", "")
+        mark = d.get("mark_price") or last_close  # fallback to last_close
+        if not mark or mark <= 0:
+            continue
+
+        if sub == "L":
+            unr_pct = (mark - ep) / ep * 100
+            safenet_dist = round(-3.5 - unr_pct, 2)
+            tp_dist = round(3.5 - unr_pct, 2)
+            mh_reduced = d.get("mh_reduced", False)
+            effective_mh = 5 if mh_reduced else 6
+            running_mfe = d.get("running_mfe", 0.0)
+            d["exit_progress"] = {
+                "unrealized_pct": round(unr_pct, 2),
+                "unrealized_pnl": d.get("unrealized_pnl"),
+                "safenet": {"threshold": -3.5, "current": round(unr_pct, 2), "distance": safenet_dist},
+                "tp": {"threshold": 3.5, "current": round(unr_pct, 2), "distance": tp_dist},
+                "mfe_trail": {"running_mfe": round(running_mfe * 100, 2), "act": 1.0, "dd": 0.8},
+                "max_hold": {"threshold": effective_mh, "bars_held": bars, "remaining": max(0, effective_mh - bars)},
+            }
+        elif sub == "S":
+            unr_pct = (ep - mark) / ep * 100
+            safenet_dist = round(4.0 - abs(unr_pct), 2) if unr_pct < 0 else round(4.0 + unr_pct, 2)
+            tp_dist = round(2.0 - unr_pct, 2)
+            d["exit_progress"] = {
+                "unrealized_pct": round(unr_pct, 2),
+                "unrealized_pnl": d.get("unrealized_pnl"),
+                "safenet": {"threshold": 4.0, "current": round(-unr_pct if unr_pct < 0 else 0, 2),
+                            "distance": round(4.0 - (-unr_pct if unr_pct < 0 else 0), 2)},
+                "tp": {"threshold": 2.0, "current": round(unr_pct, 2), "distance": tp_dist},
+                "max_hold": {"threshold": 10, "bars_held": bars, "remaining": max(0, 10 - bars)},
+            }
 
     # 最近 5 筆交易（給 Status 頁迷你表格用）
     trades_csv = paths["data_dir"] / "trades.csv"
