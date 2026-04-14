@@ -286,7 +286,7 @@ class Executor:
                                     if ("LONG" if p["side"] == "long" else "SHORT") == position_side)
             sl_price = safenet_price if existing_same_side == 0 else None
             result = binance_trade.place_order(
-                SYMBOL, order_side, stop_loss=sl_price,
+                SYMBOL, order_side, qty=qty, stop_loss=sl_price,
                 strategy_id=f"eth_v10_{sub_strategy}",
                 position_side=position_side,
             )

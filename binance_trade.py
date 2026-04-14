@@ -23,7 +23,7 @@ PRODUCTION_URL = "https://fapi.binance.com"
 
 # ── 倉位與風控參數 ───────────────────────────────────────────
 SYMBOL = os.getenv("SYMBOL", "BTCUSDT")
-MARGIN_PER_TRADE = float(os.getenv("MARGIN_PER_TRADE", 100))
+MARGIN_PER_TRADE = float(os.getenv("MARGIN_PER_TRADE", 200))
 LEVERAGE = int(os.getenv("LEVERAGE", 20))
 COOLDOWN_SECONDS = int(os.getenv("COOLDOWN_SECONDS", 60))
 
