@@ -1,5 +1,5 @@
 """
-ETH 1h V11-E 雙策略 L+S 主循環
+ETH 1h V13 雙策略 L+S 主循環
 
 單執行緒架構：每小時整點 + 10s 喚醒一次
   1. 取 K 線資料 + 計算指標
@@ -11,7 +11,7 @@ ETH 1h V11-E 雙策略 L+S 主循環
   7. 狀態持久化
   8. 定時心跳
 
-策略規格 V11-E，見 strategy.py。
+策略規格 V13，見 strategy.py。
 """
 import os
 import sys
@@ -31,7 +31,7 @@ load_dotenv()
 
 PAPER_TRADING = os.getenv("PAPER_TRADING", "true").lower() == "true"
 SYMBOL = os.getenv("SYMBOL_ETH", "ETHUSDT")
-HEARTBEAT_INTERVAL = 6  # 每 6 小時發一次心跳
+HEARTBEAT_INTERVAL = 1  # 每小時發一次心跳
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
@@ -140,6 +140,8 @@ def indicators_to_dict(df_row) -> dict:
     return {
         "gk_pctile": safe(df_row.get("gk_pctile")),
         "gk_ratio": safe(df_row.get("gk_ratio")),
+        "gk_pctile_s": safe(df_row.get("gk_pctile_s")),
+        "gk_ratio_s": safe(df_row.get("gk_ratio_s")),
         "ema20": safe(df_row.get("ema20")),
         "close": safe(df_row.get("close")),
         "close_shift1": safe(df_row.get("close_shift1")),
@@ -147,7 +149,8 @@ def indicators_to_dict(df_row) -> dict:
         "breakout_15bar_min": safe(df_row.get("breakout_15bar_min")),
         "breakout_long": bool(df_row.get("breakout_long", False)),
         "breakout_short": bool(df_row.get("breakout_short", False)),
-        "session_ok": bool(df_row.get("session_ok", False)),
+        "session_ok_l": bool(df_row.get("session_ok_l", False)),
+        "session_ok_s": bool(df_row.get("session_ok_s", False)),
         "hour_utc8": int(df_row.get("hour_utc8", -1)),
         "weekday_utc8": int(df_row.get("weekday_utc8", -1)),
     }
@@ -186,7 +189,7 @@ def main():
 
     mode = "PAPER" if PAPER_TRADING else "LIVE"
     logger.info(f"=" * 60)
-    logger.info(f"  ETH 1h V11-E 雙策略 L+S ({mode})")
+    logger.info(f"  ETH 1h V13 雙策略 L+S ({mode})")
     logger.info(f"  L: GK<{strategy.L_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.L_TP_PCT*100}% MH{strategy.L_MAX_HOLD} SN{strategy.L_SAFENET_PCT*100}%")
     logger.info(f"  S: GK<{strategy.S_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.S_TP_PCT*100}% MH{strategy.S_MAX_HOLD} SN{strategy.S_SAFENET_PCT*100}%")
     logger.info(f"  Symbol: {SYMBOL} | Notional: ${strategy.NOTIONAL} | Fee: ${strategy.FEE}")
@@ -218,7 +221,7 @@ def main():
     s_count = sum(1 for p in executor.positions.values() if p.get("sub_strategy") == "S")
     pos_text = f"L:{l_count} S:{s_count}" if (l_count + s_count) > 0 else "空手待命"
     startup_msg = (
-        f"<b>🖨 印鈔機開機！V11-E（{env}）</b>\n"
+        f"<b>🖨 印鈔機開機！V13（{env}）</b>\n"
         f"━━━━━━━━━━━━━━━\n"
         f"🔧 配方：L 做多 + S 做空（各最多1筆）\n"
         f"💼 口袋：${executor.account_balance:.2f}\n"
@@ -283,7 +286,10 @@ def main():
                 # 更新追蹤（MAE/MFE）
                 executor.update_tracking(trade_id, bar_data, executor.bar_counter)
 
-                # 按策略分派出場檢查
+                # 按策略分派出場檢查（V13: 傳入 extension 狀態）
+                ext_active = pos.get("extension_active", False)
+                ext_start = pos.get("extension_start_bar", 0)
+
                 if sub == "L":
                     exit_result = strategy.check_exit_long(
                         entry_price=pos["entry_price"],
@@ -292,6 +298,8 @@ def main():
                         bar_high=bar_data["high"],
                         bar_low=bar_data["low"],
                         bar_close=bar_data["close"],
+                        extension_active=ext_active,
+                        extension_start_bar=ext_start,
                     )
                 else:  # S
                     exit_result = strategy.check_exit_short(
@@ -301,7 +309,15 @@ def main():
                         bar_high=bar_data["high"],
                         bar_low=bar_data["low"],
                         bar_close=bar_data["close"],
+                        extension_active=ext_active,
+                        extension_start_bar=ext_start,
                     )
+
+                # V13: 處理延長期啟動
+                if exit_result.get("start_extension") and not ext_active:
+                    executor.positions[trade_id]["extension_active"] = True
+                    executor.positions[trade_id]["extension_start_bar"] = executor.bar_counter
+                    logger.info(f"Extension started for {trade_id} ({sub})")
 
                 # 記錄 lifecycle
                 recorder.record_position_bar(
@@ -393,7 +409,7 @@ def main():
             if short_sig:
                 any_signal = True
                 executor.record_signal(fired=True)
-                sig_logger.info(f"SIGNAL SELL S | {short_sig['reason']} | GK={ind.get('gk_pctile')}")
+                sig_logger.info(f"SIGNAL SELL S | {short_sig['reason']} | GK_S={ind.get('gk_pctile_s')}")
                 try:
                     fill_price = bar_data["close"]
                     trade_id = executor.open_position(
@@ -481,18 +497,24 @@ def main():
                 else:
                     pos_text = "空手中 🏖"
 
-                gk_val = ind.get('gk_pctile')
-                if gk_val is not None:
-                    if gk_val < 25:
-                        gk_status = f"🔥 {gk_val:.1f}（極度壓縮！）"
-                    elif gk_val < 30:
-                        gk_status = f"⚡ {gk_val:.1f}（壓縮中）"
-                    elif gk_val < 50:
-                        gk_status = f"👀 {gk_val:.1f}（快了…）"
+                gk_val_l = ind.get('gk_pctile')
+                gk_val_s = ind.get('gk_pctile_s')
+                gk_parts = []
+                if gk_val_l is not None:
+                    if gk_val_l < 25:
+                        gk_parts.append(f"L🔥{gk_val_l:.0f}")
+                    elif gk_val_l < 50:
+                        gk_parts.append(f"L👀{gk_val_l:.0f}")
                     else:
-                        gk_status = f"😴 {gk_val:.1f}（還在睡）"
-                else:
-                    gk_status = "N/A"
+                        gk_parts.append(f"L😴{gk_val_l:.0f}")
+                if gk_val_s is not None:
+                    if gk_val_s < 35:
+                        gk_parts.append(f"S🔥{gk_val_s:.0f}")
+                    elif gk_val_s < 50:
+                        gk_parts.append(f"S👀{gk_val_s:.0f}")
+                    else:
+                        gk_parts.append(f"S😴{gk_val_s:.0f}")
+                gk_status = " | ".join(gk_parts) if gk_parts else "N/A"
 
                 # 風控狀態
                 cb_info = ""
@@ -501,13 +523,64 @@ def main():
                 if executor.daily_pnl < 0:
                     cb_info += f"\n📊 今日：${executor.daily_pnl:.0f}"
 
+                # ── V13 自檢 ──
+                checks = []
+
+                # 1. 日誌健康：最近 24h 無 ERROR/WARNING
+                alerts_path = os.path.join(LOGS_DIR, "alerts.log")
+                alert_count = 0
+                try:
+                    if os.path.exists(alerts_path):
+                        cutoff = (t_utc8 - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
+                        with open(alerts_path, "r", encoding="utf-8") as af:
+                            for line in af:
+                                if line[:16] >= cutoff:
+                                    alert_count += 1
+                except Exception:
+                    pass
+                if alert_count == 0:
+                    checks.append("✅ 無 ERROR/WARNING")
+                else:
+                    checks.append(f"⚠️ 24h 內 {alert_count} 筆告警")
+
+                # 2. 持倉數正確（L ≤ 1，S ≤ 1）
+                if len(l_pos) <= 1 and len(s_pos) <= 1:
+                    checks.append(f"✅ 持倉正常 L:{len(l_pos)} S:{len(s_pos)}")
+                else:
+                    checks.append(f"🚨 持倉異常 L:{len(l_pos)} S:{len(s_pos)}")
+
+                # 3. GK L/S 值不同（確認兩套窗口生效）
+                if gk_val_l is not None and gk_val_s is not None:
+                    if abs(gk_val_l - gk_val_s) > 0.01:
+                        checks.append(f"✅ GK 雙窗口 L={gk_val_l:.1f} S={gk_val_s:.1f}")
+                    else:
+                        checks.append(f"⚠️ GK L=S={gk_val_l:.1f}（窗口可能異常）")
+                else:
+                    checks.append("⏳ GK 暖機中")
+
+                # 4. Extension 邏輯：檢查歷史出場是否出現 MH-ext/BE
+                ext_reasons = set()
+                for ds in executor.daily_stats.values():
+                    if ds.get("mh_ext_count", 0) > 0:
+                        ext_reasons.add("MH-ext")
+                    if ds.get("be_count", 0) > 0:
+                        ext_reasons.add("BE")
+                if ext_reasons:
+                    checks.append(f"✅ Extension 已驗證：{','.join(sorted(ext_reasons))}")
+                else:
+                    checks.append("⏳ Extension 待驗證（尚無 MH-ext/BE 出場）")
+
+                check_text = "\n".join(checks)
+
                 hb_msg = (
-                    f"<b>🖨 V11-E 運轉中…（第 {executor.bar_counter} 張）</b>\n"
+                    f"<b>🖨 V13 運轉中…（第 {executor.bar_counter} 張）</b>\n"
                     f"━━━━━━━━━━━━━━━\n"
                     f"💵 ETH：${bar_data['close']:.2f}\n"
                     f"🔋 壓縮能量：{gk_status}\n"
                     f"🎰 持倉：\n{pos_text}\n"
-                    f"💰 金庫：${executor.account_balance:.2f}{cb_info}"
+                    f"💰 金庫：${executor.account_balance:.2f}{cb_info}\n"
+                    f"━━━━━━━━━━━━━━━\n"
+                    f"🩺 自檢：\n{check_text}"
                 )
                 send_telegram_message(hb_msg)
 
@@ -518,12 +591,12 @@ def main():
             logger.info("Shutdown requested")
             executor.save_state()
             env = "模擬" if PAPER_TRADING else "實戰"
-            send_telegram_message(f"<b>🖨 V11-E 下班了（{env}）</b>\n💰 金庫：${executor.account_balance:.2f}\n🛏 明天繼續印！")
+            send_telegram_message(f"<b>🖨 V13 下班了（{env}）</b>\n💰 金庫：${executor.account_balance:.2f}\n🛏 明天繼續印！")
             break
 
         except Exception as e:
             logger.error(f"Cycle error: {e}\n{traceback.format_exc()}")
-            send_telegram_message(f"<b>🚨 V11-E 卡紙了！</b>\n🔧 故障原因：{str(e)[:200]}\n⏳ 60 秒後自動維修...")
+            send_telegram_message(f"<b>🚨 V13 卡紙了！</b>\n🔧 故障原因：{str(e)[:200]}\n⏳ 60 秒後自動維修...")
             # 等 60 秒再試，避免瘋狂重試
             time.sleep(60)
 

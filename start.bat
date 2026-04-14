@@ -1,12 +1,9 @@
 @echo off
 chcp 65001 >nul
-title CryptoBot V11-E - ETH 雙策略
+title CryptoBot V13 - 印鈔機監控台
 cd /d "%~dp0"
 
-:: 先啟動儀表板（獨立視窗）
-start "CryptoBot Dashboard" cmd /c "cd /d %CD% && call .venv\Scripts\activate && python dashboard\app.py"
-
-:: 啟動交易機器人（本視窗）
+:: 儀表板 = 控制中心，開啟時自動啟動機器人，關閉時自動停止
 call .venv\Scripts\activate
-python main_eth.py
+python dashboard\app.py
 pause

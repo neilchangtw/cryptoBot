@@ -12,6 +12,7 @@
 <div class="header">
     <h1>印鈔機<span>監控台</span></h1>
     <div class="header-right">
+        <span class="bot-status" id="bot-status" title="機器人狀態">BOT: --</span>
         <span class="conn-dot conn-online" id="conn-dot" title="API 連線狀態"></span>
         <div class="refresh-timer" id="refresh-timer"></div>
         <div class="mode-switch">
@@ -27,6 +28,7 @@
     <button class="tab-btn" data-tab="chart" onclick="switchTab('chart')">K 線圖 (Chart)</button>
     <button class="tab-btn" data-tab="trades" onclick="switchTab('trades')">交易記錄 (Trades)</button>
     <button class="tab-btn" data-tab="analytics" onclick="switchTab('analytics')">收益分析 (Analytics)</button>
+    <button class="tab-btn" data-tab="logs" onclick="switchTab('logs')">系統日誌 (Logs)</button>
 </div>
 
 <!-- Tab 1: Status -->
@@ -86,6 +88,31 @@
             <h3>策略比較 (L vs S)</h3>
             <div id="strat-compare"></div>
         </div>
+    </div>
+</div>
+
+<!-- Tab 5: Logs -->
+<div id="tab-logs" class="tab-content">
+    <div class="log-toolbar">
+        <div class="log-file-tabs">
+            <button class="log-tab active" data-file="system" onclick="switchLogFile('system')">系統日誌 (system)</button>
+            <button class="log-tab" data-file="signal" onclick="switchLogFile('signal')">信號日誌 (signal)</button>
+            <button class="log-tab" data-file="alerts" onclick="switchLogFile('alerts')">告警日誌 (alerts)</button>
+        </div>
+        <div class="log-controls">
+            <select id="log-lines" onchange="loadLogs()">
+                <option value="100">100 行</option>
+                <option value="200" selected>200 行</option>
+                <option value="500">500 行</option>
+                <option value="1000">1000 行</option>
+            </select>
+            <label class="log-auto-scroll">
+                <input type="checkbox" id="log-auto-scroll" checked> 自動捲動
+            </label>
+        </div>
+    </div>
+    <div class="log-viewer" id="log-viewer">
+        <div class="loading">載入中...</div>
     </div>
 </div>
 

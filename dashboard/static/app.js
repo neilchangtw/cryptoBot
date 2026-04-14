@@ -19,6 +19,7 @@ const S = {
     sortAsc: false,
     filters: { direction: '', sub: '', win: '', exit: '' },
     priceLines: [],
+    logFile: 'system',
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -102,6 +103,7 @@ function loadCurrentTab() {
     if (S.tab === 'chart') loadChart();
     if (S.tab === 'trades') loadTrades();
     if (S.tab === 'analytics') loadAnalytics();
+    if (S.tab === 'logs') loadLogs();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -228,24 +230,36 @@ function renderUnrealizedSummary(details, lastClose) {
 
 function renderGK(d) {
     const gk = d.gk_pctile;
-    let color = '#8888a0', label = '無資料 (No Data)', bg = '#8888a0';
+    let color = '#8888a0', label = '無資料 (No Data)', barZone = '', valZone = '', panelZone = '';
     if (gk != null) {
-        if (gk < 30) { color = 'var(--green)'; label = '壓縮中 (Compressed)'; bg = 'var(--green)'; }
-        else if (gk < 50) { color = 'var(--gold)'; label = '蓄勢中 (Building Up)'; bg = 'var(--gold)'; }
-        else { color = 'var(--text-dim)'; label = '正常波動 (Normal)'; bg = 'var(--text-dim)'; }
+        if (gk < 25) {
+            color = 'var(--green)'; label = '觸發區 — 心跳加速 (Trigger Zone)';
+            barZone = 'gk-zone-trigger'; valZone = 'gk-val-trigger'; panelZone = 'gk-panel-trigger';
+        } else if (gk < 35) {
+            color = '#06b6d4'; label = '待命區 — 蓄勢待發 (Ready Zone)';
+            barZone = 'gk-zone-ready'; valZone = 'gk-val-ready'; panelZone = 'gk-panel-ready';
+        } else if (gk < 50) {
+            color = 'var(--gold)'; label = '蓄勢中 — 緩慢脈動 (Building Up)';
+            barZone = 'gk-zone-building'; valZone = 'gk-val-building'; panelZone = 'gk-panel-building';
+        } else {
+            color = 'var(--text-dim)'; label = '正常波動 — 靜息 (Normal)';
+            barZone = 'gk-zone-normal'; valZone = 'gk-val-normal'; panelZone = '';
+        }
     }
     $('gk-section').innerHTML = `
-        <div class="gk-panel">
+        <div class="gk-panel ${panelZone}">
             <div class="gk-label">GK 壓縮指數 (Compression Index)</div>
-            <div class="gk-value" style="color:${color}">${gk != null ? gk.toFixed(1) : '-'}</div>
+            <div class="gk-value ${valZone}" style="color:${color}">${gk != null ? gk.toFixed(1) : '-'}</div>
             <div class="gk-label">${label}</div>
             <div class="gk-bar-wrap">
-                <div class="gk-bar"><div class="gk-bar-fill" style="width:${gk||0}%;background:${bg}"></div></div>
+                <div class="gk-bar"><div class="gk-bar-fill ${barZone}" style="width:${gk||0}%"></div></div>
                 <div class="gk-bar-ticks">
-                    <div class="gk-tick" style="left:30%"></div>
-                    <div class="gk-tick-label" style="left:30%">30</div>
-                    <div class="gk-tick" style="left:50%"></div>
-                    <div class="gk-tick-label" style="left:50%">50</div>
+                    <div class="gk-tick" style="left:25%;background:rgba(34,197,94,0.5)"></div>
+                    <div class="gk-tick-label" style="left:25%" data-zone="trigger">25</div>
+                    <div class="gk-tick" style="left:35%;background:rgba(6,182,212,0.5)"></div>
+                    <div class="gk-tick-label" style="left:35%" data-zone="ready">35</div>
+                    <div class="gk-tick" style="left:50%;background:rgba(234,179,8,0.4)"></div>
+                    <div class="gk-tick-label" style="left:50%" data-zone="building">50</div>
                 </div>
             </div>
         </div>
@@ -317,7 +331,7 @@ function renderEntryConditions(ec, positions) {
             <span>S 做空進場條件</span>
             <span class="entry-progress" style="color:${sColor}">${sPassed}/${sTotal}</span>
         </div>`;
-    if (sc.gk) sHtml += condRow('', sc.gk.pass, 'GK < 30（壓縮）', sc.gk.value != null ? sc.gk.value.toFixed(1) : '-');
+    if (sc.gk) sHtml += condRow('', sc.gk.pass, 'GK < 35（壓縮）', sc.gk.value != null ? sc.gk.value.toFixed(1) : '-');
     if (sc.breakout) sHtml += condRow('', sc.breakout.pass, '向下突破 15bar', '');
     if (sc.session) sHtml += condRow('', sc.session.pass, '時段允許', sessionTimeStr());
     sHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${sPct}%;background:${sColor}"></div></div>`;
@@ -331,10 +345,10 @@ function renderEntryConditions(ec, positions) {
 
 function renderGKExplainPanel(gk) {
     const rangeItems = [
-        { range: '0 – 30', label: '壓縮區', desc: '突破信號可觸發', cls: 'gk-range-green' },
-        { range: '30 – 40', label: '低波動', desc: 'S 策略門檻', cls: 'gk-range-gold' },
-        { range: '40 – 50', label: '過渡區', desc: '暫無信號', cls: 'gk-range-dim' },
-        { range: '50 – 70', label: '正常區', desc: '一般波動', cls: 'gk-range-dim' },
+        { range: '0 – 25', label: '觸發區', desc: 'L 進場 — 心跳急促', cls: 'gk-range-green' },
+        { range: '25 – 35', label: '待命區', desc: 'S 進場 — 脈搏穩定', cls: 'gk-range-cyan' },
+        { range: '35 – 50', label: '蓄勢區', desc: '尚未壓縮 — 緩慢脈動', cls: 'gk-range-gold' },
+        { range: '50 – 70', label: '正常區', desc: '一般波動 — 靜息', cls: 'gk-range-dim' },
         { range: '70 – 100', label: '擴張區', desc: '高波動', cls: 'gk-range-blue' },
     ];
     const rows = rangeItems.map(r => `
@@ -993,6 +1007,74 @@ function renderStratCompare(comp) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Tab 5: Logs
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function switchLogFile(file) {
+    S.logFile = file;
+    document.querySelectorAll('.log-tab').forEach(b =>
+        b.classList.toggle('active', b.dataset.file === file));
+    loadLogs();
+}
+
+async function loadLogs() {
+    const viewer = $('log-viewer');
+    if (!viewer) return;
+    const lines = $('log-lines') ? parseInt($('log-lines').value) : 200;
+    try {
+        const resp = await fetch(`/api/logs?file=${S.logFile}&lines=${lines}`);
+        const d = await resp.json();
+        if (!d.lines || d.lines.length === 0) {
+            viewer.innerHTML = '<div class="log-empty">暫無日誌</div>';
+            return;
+        }
+        viewer.innerHTML = d.lines.map(line => {
+            let cls = 'log-line';
+            if (line.includes(' ERROR ') || line.includes('ERROR')) cls += ' log-error';
+            else if (line.includes(' WARNING ') || line.includes('WARNING')) cls += ' log-warn';
+            else if (line.includes('SIGNAL') || line.includes('ENTRY') || line.includes('EXIT')) cls += ' log-signal';
+            return `<div class="${cls}">${escapeHtml(line)}</div>`;
+        }).join('');
+
+        // 自動捲動到底部
+        const autoScroll = $('log-auto-scroll');
+        if (autoScroll && autoScroll.checked) {
+            viewer.scrollTop = viewer.scrollHeight;
+        }
+        setConnStatus(true);
+    } catch (e) {
+        viewer.innerHTML = `<div class="log-empty">載入失敗: ${e.message}</div>`;
+    }
+}
+
+function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Bot Status
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function checkBotStatus() {
+    const el = $('bot-status');
+    if (!el) return;
+    try {
+        const resp = await fetch('/api/bot-status');
+        const d = await resp.json();
+        if (d.running) {
+            el.textContent = 'BOT: 運行中';
+            el.className = 'bot-status bot-running';
+            el.title = `機器人運行中 (PID: ${d.pid})`;
+        } else {
+            el.textContent = 'BOT: 已停止';
+            el.className = 'bot-status bot-stopped';
+            el.title = d.exit_code != null ? `已停止 (exit: ${d.exit_code})` : '已停止';
+        }
+    } catch {
+        el.textContent = 'BOT: --';
+        el.className = 'bot-status';
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Auto-refresh + Countdown Timer
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const REFRESH_INTERVAL = 60; // seconds
@@ -1032,6 +1114,9 @@ function onRefreshTick() {
     document.querySelectorAll('.mode-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.mode === S.mode));
     loadStatus();
+    checkBotStatus();
     updateTimerDisplay();
     setInterval(onRefreshTick, 1000);
+    // 每 10 秒更新 bot 狀態
+    setInterval(checkBotStatus, 10000);
 })();

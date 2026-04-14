@@ -8,14 +8,14 @@ ETH 1h Garman-Klass Compression-Breakout 自動交易機器人（Binance Futures
 ## 快速上手
 
 ```
-雙擊 start.bat      → 啟動交易機器人（模擬盤）
-雙擊 dashboard.bat   → 啟動監控儀表板（原生 Windows 視窗）
-雙擊 stop.bat        → 停止交易機器人
+雙擊 start.bat 或 dashboard.bat → 啟動儀表板 + 自動啟動機器人
+關閉儀表板視窗               → 自動停止機器人
+雙擊 stop.bat                → 強制停止（備用）
 ```
 
 - Python 環境在 `.venv/`，**不在系統 PATH**，所有指令必須透過 `.bat` 或先 `call .venv\Scripts\activate`
-- 機器人和儀表板是獨立程序，可以同時運行
-- 儀表板是**唯讀**的，不會控制機器人
+- **儀表板 = 控制中心**：開啟儀表板自動啟動機器人（subprocess），關閉儀表板自動停止
+- 儀表板可查看即時日誌（system.log / signal.log / alerts.log）
 
 ---
 
@@ -29,6 +29,8 @@ ETH 1h Garman-Klass Compression-Breakout 自動交易機器人（Binance Futures
 | [doc/v9_research.md](doc/v9_research.md) | V9 $1K 帳戶最佳可行策略研究（4 輪、2400+ 配置、3 組 8/8 PASS） |
 | [doc/v10_research.md](doc/v10_research.md) | V10 $1K 帳戶穩定獲利研究（6 輪 + 稽核、6700+ 配置、Short-only 4h-1h） |
 | [doc/v11_research.md](doc/v11_research.md) | V11 TP/MH 出場優化研究（R1 掃描 204 組、V11-E 冠軍 OOS $2,801 +28%） |
+| [doc/v12_research.md](doc/v12_research.md) | V12 全新 S 進場研究（8 輪、15+ 方向 — 結論：GK 壓縮突破無可取代） |
+| [doc/v13_research.md](doc/v13_research.md) | V13 全時框探索 + GK 窗口優化 + 出場增強（R5: OOS $3,526 +26%, 8/8 PASS） |
 
 ---
 
@@ -53,16 +55,16 @@ cryptoBot/
 │
 │  ── 儀表板（Dashboard） ──
 ├── dashboard/
-│   ├── app.py             # FastAPI 後端（5 個 API 端點）+ PyWebView 原生視窗啟動器
+│   ├── app.py             # FastAPI 後端（7 個 API 端點）+ 機器人子進程管理 + PyWebView
 │   └── static/
-│       ├── index.html     # SPA 主頁（4 個 tab）
-│       ├── app.js         # 前端邏輯（圖表、表格、篩選、自動刷新）
+│       ├── index.html     # SPA 主頁（5 個 tab：狀態/K線/交易/分析/日誌）
+│       ├── app.js         # 前端邏輯（圖表、表格、日誌查看、自動刷新）
 │       └── style.css      # 深色主題樣式
 │
 │  ── 啟動腳本 ──
-├── start.bat              # 一鍵啟動交易機器人
-├── stop.bat               # 一鍵停止交易機器人（按 PID/視窗標題）
-├── dashboard.bat          # 一鍵啟動儀表板
+├── start.bat              # 一鍵啟動儀表板（自動啟動機器人）
+├── stop.bat               # 一鍵停止（備用，關儀表板視窗即可）
+├── dashboard.bat          # 同 start.bat（啟動儀表板 + 機器人）
 │
 │  ── 狀態與設定 ──
 ├── .env                   # 環境變數（API key, Telegram token, PAPER_TRADING 開關）
@@ -115,22 +117,22 @@ cryptoBot/
 
 ## 目前狀態
 
-- **策略版本**：**V11-E** — 雙策略 L+S（GK 壓縮突破 + TP + MaxHold，出場優化）
+- **策略版本**：**V13** — 雙策略 L+S（GK 壓縮突破 + TP + MaxHold + 條件式延長 + BE trail）
 - **模式**：Paper Trading（模擬盤），Binance Testnet
 - **Hedge Mode**：已啟用（dualSidePosition=true），L/S 倉位互不影響
 - **帳戶**：$1,000 / $200 保證金 / 20x / $4,000 名目
-- **演進**：GK v1.1 → v6 L+S → V10 → **V11-E（L+S $2,801, 12/13 正月, worst -$8）**
+- **演進**：GK v1.1 → v6 L+S → V10 → V11-E → **V13（L+S $4,004, 11/13 正月, worst -$32）**
 - **Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗
 
 ---
 
-## 策略規格 V11-E（鎖定）
+## 策略規格 V13（鎖定）
 
-> V11-E 目標：V10 出場優化。L/S 各 maxTotal=1，純 1h 無 4h 前瞻。
-> 完整研究過程見 [doc/v11_research.md](doc/v11_research.md)。
-> V10 研究見 [doc/v10_research.md](doc/v10_research.md)。
+> V13 目標：V11-E GK 窗口優化 + 出場增強。L/S 各 maxTotal=1，純 1h 無 4h 前瞻。
+> 完整研究過程見 [doc/v13_research.md](doc/v13_research.md)。
+> V11-E 研究見 [doc/v11_research.md](doc/v11_research.md)。
 
-### L 策略（做多）— GK<25 壓縮突破 + TP 3.5% + MaxHold 6
+### L 策略（做多）— GK<25 壓縮突破 + TP 3.5% + MaxHold 6 + ext2 BE
 
 ```
 方向：Long-only
@@ -140,35 +142,39 @@ cryptoBot/
 進場：
   1. GK pctile < 25（波動壓縮）
      gk = 0.5×ln(H/L)² - (2ln2-1)×ln(C/O)²
-     ratio = mean(gk,5) / mean(gk,20)
+     ratio = mean(gk,5) / mean(gk,20)   ← L 用 5/20
      pctile = ratio.shift(1).rolling(100).apply(rank pctile)
   2. Close breakout 15 bar（c > c.shift(1).rolling(15).max()）
-  3. Session filter: block hours {0,1,2,12} UTC+8, block days {Mon,Sat,Sun}
+  3. Session filter: block hours {0,1,2,12} UTC+8, block days {Sat,Sun}  ← V13: 移除 Mon
   4. Exit Cooldown: 6 bar
   5. Monthly Entry Cap: 20
   6. maxTotal = 1
 
 出場（優先順序）：
   1. SafeNet -3.5%（含 25% 穿透模型，max 單筆虧損 ~$158）
-  2. TP +3.5%（固定止盈）← V10 為 2.0%
-  3. MaxHold: 6 bar（時間止損）← V10 為 5
+  2. TP +3.5%（固定止盈）
+  3. MaxHold 6 bar → 若正收益，延長 2 bar + BE trail
+     - Extension: 額外 2 bar，期間若 low ≤ entry_price → BE 出場
+     - ext 超時 → MH-ext 收盤出場
+     - 負收益 → 直接 MaxHold 收盤出場
 
 風控熔斷：
   日虧 -$200 停 / 月虧 -$75 停 / 連虧 4 筆 → 24 bar 冷卻
 
-OOS: $+1,473, WR ~59%, PF ~1.68
-IS:  $+326
-WF:  5/6, 7/8
+OOS: $+1,596, WR 43%, MDD $231
+WF:  6/6, 7/8
 ```
 
-### S 策略（做空）— GK<30 壓縮突破 + TP 2.0% + MaxHold 7
+### S 策略（做空）— GK_S<35 壓縮突破 + TP 2.0% + MaxHold 10 + ext2 BE
 
 ```
 方向：Short-only（純 1h，無 4h 數據）
 帳戶：$1,000 / $200 margin / 20x / $4,000 notional / $4 fee
 
 進場：
-  1. GK pctile < 30（波動壓縮）
+  1. GK pctile_S < 35（波動壓縮）  ← V13: S 用獨立 GK，閾值 30→35
+     ratio_S = mean(gk,10) / mean(gk,30)   ← S 用 10/30
+     pctile_S = ratio_S.shift(1).rolling(100).apply(rank pctile)
   2. Close breakout 15 bar（c < c.shift(1).rolling(15).min()）
   3. Session filter: block hours {0,1,2,12} UTC+8, block days {Mon,Sat,Sun}
   4. Exit Cooldown: 8 bar
@@ -176,24 +182,25 @@ WF:  5/6, 7/8
 
 出場（優先順序）：
   1. SafeNet +4.0%（含 25% 穿透模型，max 單筆虧損 ~$200）
-  2. TP -2.0%（固定止盈）← V10 為 1.5%
-  3. MaxHold: 7 bar（時間止損）← V10 為 5
+  2. TP -2.0%（固定止盈）
+  3. MaxHold 10 bar → 若正收益，延長 2 bar + BE trail  ← V13: 7→10
+     - Extension: 額外 2 bar，期間若 high ≥ entry_price → BE 出場
+     - ext 超時 → MH-ext 收盤出場
+     - 負收益 → 直接 MaxHold 收盤出場
 
 風控熔斷：
   日虧 -$200 停 / 月虧 -$150 停 / 連虧 4 筆 → 24 bar 冷卻
 
-OOS: $+1,328, WR ~71%, PF ~2.65
-IS:  $+709
+OOS: $+2,408, WR 62%, MDD $313
 WF:  5/6, 7/8
 ```
 
 ### L+S 合併績效 (OOS)
 
 ```
-合計：$2,801, 12/13 正月, worst month -$8
+合計：$4,004, 11/13 正月, worst month -$32
 L+S 互補：S 弱月有 L 撐，L 弱月有 S 撐
-MDD: $186
-V10 對比：$2,190→$2,801（+28%），PM 10/13→12/13，worst -$137→-$8
+V11-E 對比：$2,801→$4,004（+43%）
 ```
 
 ### 風控
@@ -215,6 +222,9 @@ L 月虧上限 -$75，S 月虧上限 -$150
 - L 用 EMAcross 出場（WR 22-28%，MDD 無法控制）
 - L 用 Pullback 進場（0/306 pass）
 - 4h 數據（V10-S v1 的 4h EMA20 前瞻偏差已證實無效）
+- 替換 S 進場信號（V12 8 輪研究證實 GK 壓縮突破無可取代）
+- 均值回歸做空（EMA overext / RSI overbought / SMA dev — ETH 趨勢性太強）
+- 月相交易信號（統計不顯著 p>0.3）
 
 ---
 
@@ -278,28 +288,32 @@ dashboard/app.py:
   FastAPI 後端 (port 8050) + PyWebView 原生 Windows 視窗
   啟動時自動 kill_port(8050) 防止 port 衝突
   等 server 就緒後才開視窗
+  啟動 main_eth.py 作為子進程（subprocess），關閉視窗自動停止
 
   API 端點（所有端點支援 ?mode=paper|live）：
-    GET /api/status    → 餘額、持倉、今日PnL、GK pctile、健康度
-    GET /api/klines    → 1500 根 K 線 + EMA20 + GK pctile（不分 mode）
-    GET /api/trades    → 全部交易記錄
-    GET /api/daily     → 每日彙總
-    GET /api/analytics → 收益統計（勝率、PF、equity curve、出場分佈）
+    GET /api/status     → 餘額、持倉、今日PnL、GK pctile、健康度
+    GET /api/klines     → 1500 根 K 線 + EMA20 + GK pctile（不分 mode）
+    GET /api/trades     → 全部交易記錄
+    GET /api/daily      → 每日彙總
+    GET /api/analytics  → 收益統計（勝率、PF、equity curve、出場分佈）
+    GET /api/bot-status → 機器人運行狀態（PID、running/stopped）
+    GET /api/logs       → 日誌檔案最後 N 行（system/signal/alerts）
 
   路徑切換：
     Paper: eth_state.json + data/
     Live:  eth_state_live.json + data_live/
 
 dashboard/static/:
-  index.html — SPA 4 個 tab
-  app.js     — 前端邏輯：TradingView LW Charts v4.2 + 表格 + 篩選 + 自動刷新
+  index.html — SPA 5 個 tab
+  app.js     — 前端邏輯：TradingView LW Charts v4.2 + 表格 + 日誌 + 自動刷新
   style.css  — 深色主題（bg #0f0f1a, card #1a1a2e, green #26a69a, red #ef5350, gold #f0b90b）
 
-  4 個頁面：
+  5 個頁面：
     1. 即時狀態：餘額、持倉、今日PnL、GK 壓縮指數（含區間說明）、策略健康度
     2. K 線圖：互動式 K 線 + EMA20 + GK 副圖 + 進出場標記
     3. 交易記錄：可排序/篩選表格，點擊行跳轉圖表
     4. 收益分析：統計卡片、equity curve、每日PnL、出場分佈、策略比較
+    5. 系統日誌：即時查看 system.log / signal.log / alerts.log
 
   介面語言：繁體中文（英文）格式，例如「勝率 (Win Rate)」
   時間顯示：UTC+8（直接用 calendar.timegm，不做時區轉換）
@@ -324,14 +338,14 @@ TELEGRAM_CHAT_ID=<id>
 
 ```bash
 # 透過 .bat 啟動（推薦，不需手動 activate）
-雙擊 start.bat              # 啟動機器人
-雙擊 dashboard.bat           # 啟動儀表板
-雙擊 stop.bat                # 停止機器人
+雙擊 start.bat 或 dashboard.bat  # 啟動儀表板 + 機器人
+關閉儀表板視窗                    # 自動停止機器人
+雙擊 stop.bat                    # 強制停止（備用）
 
 # 或手動（需先 activate）
 call .venv\Scripts\activate
-python main_eth.py              # 啟動模擬盤
-python dashboard/app.py         # 啟動儀表板
+python dashboard/app.py         # 啟動儀表板（自動啟動機器人）
+python main_eth.py              # 單獨啟動機器人（不開儀表板）
 python check_health.py --days 30  # 健康報告
 python compare_backtest.py       # 回測 vs 實盤對比
 python verify_strategy.py        # 驗證策略一致性
@@ -368,6 +382,12 @@ python verify_strategy.py        # 驗證策略一致性
 - Kaufman Efficiency Ratio / TTM Squeeze / Body Ratio（無 edge）
 - Keltner / Choppiness / MultiScale Volatility Cone（均不如 GK）
 - GK thresh=40（稽核發現 data-mining 風險，pass rate 66% 過鬆）
+- V12: 所有非 GK 的 S 做空進場信號（8 輪 15+ 方向全部不如 V11-E S）
+  - 動量衰竭 / RSI 過買 / EMA 過延伸 / MACD 背離 / Donchian（ALL FAILED）
+  - 成交量異常 / BB / ATR（有微弱 edge 但只有 V11-E S 的 37-39%）
+  - BTC-ETH 背離 + TP+MaxHold（$337，-75%）
+  - 複合/Score/GK Expansion 反轉（均不可取）
+  - 月相（p>0.3，NOT SIGNIFICANT）
 
 ---
 

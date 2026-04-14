@@ -1,5 +1,5 @@
 """
-V11-E 執行引擎 — 持倉管理 + 狀態持久化 + 風控熔斷
+V13 執行引擎 — 持倉管理 + 狀態持久化 + 風控熔斷
 
 支持雙策略：
   L（做多）：sub_strategy="L", maxTotal=1
@@ -12,6 +12,7 @@ Live mode:  呼叫 binance_trade.py 下單
   日虧 -$200 停 / L 月虧 -$75 停 / S 月虧 -$150 停
   連虧 4 筆 → 24 bar 冷卻
 
+V13 新增：持倉支持 extension_active / extension_start_bar 欄位。
 狀態持久化到 eth_state.json，重啟後可恢復。
 """
 import os
@@ -302,9 +303,13 @@ class Executor:
             self.trade_number -= 1
             return None
 
-        # 計算進場指標
-        gk_pctile = signal_indicators.get("gk_pctile")
-        gk_ratio = signal_indicators.get("gk_ratio")
+        # 計算進場指標（V13: S 用自己的 GK）
+        if sub_strategy == "S":
+            gk_pctile = signal_indicators.get("gk_pctile_s")
+            gk_ratio = signal_indicators.get("gk_ratio_s")
+        else:
+            gk_pctile = signal_indicators.get("gk_pctile")
+            gk_ratio = signal_indicators.get("gk_ratio")
         ema20 = signal_indicators.get("ema20")
         signal_close = signal_indicators.get("close")
         brk_max = signal_indicators.get("breakout_15bar_max")
@@ -327,7 +332,7 @@ class Executor:
         # 更新月度進場計數
         self.monthly_entries[sub_strategy] = self.monthly_entries.get(sub_strategy, 0) + 1
 
-        # 建立持倉記錄
+        # 建立持倉記錄（V13: 含 extension 欄位）
         position = {
             "trade_id": trade_id,
             "side": side,
@@ -342,6 +347,8 @@ class Executor:
             "mfe_pct": 0.0,
             "mae_time_bar": 0,
             "mfe_time_bar": 0,
+            "extension_active": False,
+            "extension_start_bar": 0,
         }
         self.positions[trade_id] = position
 
@@ -492,6 +499,8 @@ class Executor:
             "SafeNet": "🆘 安全網接住了",
             "TP": "🎯 精準止盈，完美收割",
             "MaxHold": "⏰ 時間到，強制下課",
+            "MH-ext": "⏰ 延長賽結束，收工",
+            "BE": "🔄 平保出場，保本離場",
         }
         exit_text = exit_map.get(exit_reason, exit_reason)
         if pnl_usd > 0:
@@ -583,6 +592,7 @@ class Executor:
                 "pnl": 0.0, "signals_fired": 0, "signals_blocked": 0,
                 "safenet_count": 0,
                 "tp_count": 0, "maxhold_count": 0,
+                "mh_ext_count": 0, "be_count": 0,
                 "hold_hours_sum": 0, "max_hold_hours": 0,
             }
 
@@ -611,6 +621,8 @@ class Executor:
             "SafeNet": "safenet_count",
             "TP": "tp_count",
             "MaxHold": "maxhold_count",
+            "MH-ext": "mh_ext_count",
+            "BE": "be_count",
         }
         reason_key = reason_map.get(exit_reason)
         if reason_key and reason_key in d:
@@ -643,6 +655,10 @@ class Executor:
             "safenet_count": d["safenet_count"],
             "earlyStop_count": 0,
             "trail_count": 0,
+            "tp_count": d.get("tp_count", 0),
+            "maxhold_count": d.get("maxhold_count", 0),
+            "mh_ext_count": d.get("mh_ext_count", 0),
+            "be_count": d.get("be_count", 0),
             "avg_hold_hours": round(avg_hold, 1),
             "longest_hold_hours": d["max_hold_hours"],
             "account_balance": round(self.account_balance, 2),

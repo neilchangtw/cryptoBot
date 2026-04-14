@@ -1,8 +1,11 @@
 """
 CryptoBot Dashboard — FastAPI 後端 + PyWebView 桌面視窗
 
-純看盤模式：只讀取 CSV / eth_state.json，不控制機器人。
-支援 Paper / Live 帳戶切換（?mode=paper|live）。
+V13: 儀表板 = 控制中心。
+  開啟儀表板 → 自動啟動交易機器人（subprocess）
+  關閉儀表板 → 自動停止交易機器人
+  支援日誌即時查看（system.log / signal.log / alerts.log）
+  支援 Paper / Live 帳戶切換（?mode=paper|live）
 """
 import sys
 import os
@@ -10,6 +13,7 @@ import json
 import math
 import time
 import threading
+import subprocess
 from pathlib import Path
 
 # 加入專案根目錄，讓 import data_feed / strategy / check_health 可用
@@ -50,6 +54,7 @@ def read_csv_safe(filepath, **kwargs):
     """安全讀取 CSV，檔案不存在或出錯時回傳空 DataFrame"""
     try:
         if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+            kwargs.setdefault("on_bad_lines", "skip")
             return pd.read_csv(filepath, **kwargs)
     except Exception:
         pass
@@ -180,10 +185,14 @@ async def api_status(mode: str = Query("paper")):
                 ema20_val = None  # 不合理的值（可能是 ratio）
         last_ema20 = ema20_val
 
-        # Session: 直接用當前時間計算（CSV 欄位可能因新舊格式錯位不準確）
+        # Session: 直接用當前時間計算（V13: L/S 各自 block_days）
         from datetime import datetime as _dt
         _now = _dt.now()  # 本機 = UTC+8
-        session_ok = _now.hour not in {0, 1, 2, 12} and _now.weekday() not in {0, 5, 6}
+        session_ok_l = _now.hour not in {0, 1, 2, 12} and _now.weekday() not in {5, 6}
+        session_ok_s = _now.hour not in {0, 1, 2, 12} and _now.weekday() not in {0, 5, 6}
+
+        # S 用自己的 GK pctile
+        gk_s = clean_value(last.get("gk_pctile_s"))
 
         # breakout: 可能是 bool 或 float（突破強度）
         def _brk_pass(v):
@@ -195,19 +204,19 @@ async def api_status(mode: str = Query("paper")):
                 return v.lower() not in ('false', '0', '')
             return bool(v) if v is not None else False
 
-        # L 進場條件（V10: GK<25 + BRK15 + Session）
+        # L 進場條件（V13: GK<25 + BRK15 + Session_L）
         l_conds = {
             "gk": {"label": "GK < 25", "value": gk, "threshold": 25, "pass": bool(gk is not None and gk < 25)},
             "breakout": {"label": "向上突破 15bar", "pass": bool(_brk_pass(brk_long))},
-            "session": {"label": "時段允許", "pass": bool(session_ok)},
+            "session": {"label": "時段允許", "pass": bool(session_ok_l)},
         }
         l_total = sum([l_conds["gk"]["pass"], l_conds["breakout"]["pass"], l_conds["session"]["pass"]])
 
-        # S 進場條件（V10: GK<30 + BRK15 + Session）
+        # S 進場條件（V13: GK_S<35 + BRK15 + Session_S）
         s_conds = {
-            "gk": {"label": "GK < 30", "value": gk, "threshold": 30, "pass": bool(gk is not None and gk < 30)},
+            "gk": {"label": "GK < 35", "value": gk_s, "threshold": 35, "pass": bool(gk_s is not None and gk_s < 35)},
             "breakout": {"label": "向下突破 15bar", "pass": bool(_brk_pass(brk_short))},
-            "session": {"label": "時段允許", "pass": bool(session_ok)},
+            "session": {"label": "時段允許", "pass": bool(session_ok_s)},
         }
         s_total = sum([s_conds["gk"]["pass"], s_conds["breakout"]["pass"], s_conds["session"]["pass"]])
 
@@ -241,23 +250,23 @@ async def api_status(mode: str = Query("paper")):
             if sub == "L":
                 unr_pct = (last_close - ep) / ep * 100
                 safenet_dist = round(-3.5 - unr_pct, 2)  # 負值=已超過
-                tp_dist = round(2.0 - unr_pct, 2)
+                tp_dist = round(3.5 - unr_pct, 2)
                 d["exit_progress"] = {
                     "unrealized_pct": round(unr_pct, 2),
                     "safenet": {"threshold": -3.5, "current": round(unr_pct, 2), "distance": safenet_dist},
-                    "tp": {"threshold": 2.0, "current": round(unr_pct, 2), "distance": tp_dist},
-                    "max_hold": {"threshold": 5, "bars_held": bars, "remaining": max(0, 5 - bars)},
+                    "tp": {"threshold": 3.5, "current": round(unr_pct, 2), "distance": tp_dist},
+                    "max_hold": {"threshold": 6, "bars_held": bars, "remaining": max(0, 6 - bars)},
                 }
             elif sub == "S":
                 unr_pct = (ep - last_close) / ep * 100  # 做空: 正=賺
                 safenet_dist = round(4.0 - abs(unr_pct), 2) if unr_pct < 0 else round(4.0 + unr_pct, 2)
-                tp_dist = round(1.5 - unr_pct, 2)
+                tp_dist = round(2.0 - unr_pct, 2)
                 d["exit_progress"] = {
                     "unrealized_pct": round(unr_pct, 2),
                     "safenet": {"threshold": 4.0, "current": round(-unr_pct if unr_pct < 0 else 0, 2),
                                 "distance": round(4.0 - (-unr_pct if unr_pct < 0 else 0), 2)},
-                    "tp": {"threshold": 1.5, "current": round(unr_pct, 2), "distance": tp_dist},
-                    "max_hold": {"threshold": 5, "bars_held": bars, "remaining": max(0, 5 - bars)},
+                    "tp": {"threshold": 2.0, "current": round(unr_pct, 2), "distance": tp_dist},
+                    "max_hold": {"threshold": 10, "bars_held": bars, "remaining": max(0, 10 - bars)},
                 }
 
     # 最近 5 筆交易（給 Status 頁迷你表格用）
@@ -476,6 +485,94 @@ async def api_analytics(mode: str = Query("paper")):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 機器人子進程管理
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+bot_process: subprocess.Popen = None
+
+
+def start_bot():
+    """啟動 main_eth.py 作為子進程"""
+    global bot_process
+    if bot_process and bot_process.poll() is None:
+        return  # 已在運行
+
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    bot_process = subprocess.Popen(
+        [sys.executable, str(ROOT_DIR / "main_eth.py")],
+        cwd=str(ROOT_DIR),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        env=env,
+    )
+
+    # 背景 thread 持續 drain stdout，防止 pipe buffer 滿導致 deadlock
+    def _drain():
+        try:
+            for _ in bot_process.stdout:
+                pass
+        except Exception:
+            pass
+
+    threading.Thread(target=_drain, daemon=True).start()
+
+
+def stop_bot():
+    """停止機器人子進程"""
+    global bot_process
+    if bot_process is None:
+        return
+    if bot_process.poll() is not None:
+        bot_process = None
+        return
+
+    bot_process.terminate()
+    try:
+        bot_process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        bot_process.kill()
+        bot_process.wait(timeout=5)
+    bot_process = None
+
+
+@app.get("/api/bot-status")
+async def api_bot_status():
+    """機器人運行狀態"""
+    if bot_process is None:
+        return {"running": False, "pid": None}
+    rc = bot_process.poll()
+    if rc is not None:
+        return {"running": False, "pid": None, "exit_code": rc}
+    return {"running": True, "pid": bot_process.pid}
+
+
+@app.get("/api/logs")
+async def api_logs(file: str = Query("system"), lines: int = Query(200, ge=10, le=2000)):
+    """讀取日誌檔案最後 N 行"""
+    LOGS_DIR = ROOT_DIR / "logs"
+    file_map = {
+        "system": LOGS_DIR / "system.log",
+        "signal": LOGS_DIR / "signal.log",
+        "alerts": LOGS_DIR / "alerts.log",
+    }
+    log_path = file_map.get(file)
+    if not log_path or not log_path.exists():
+        return {"file": file, "lines": [], "total": 0}
+
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            all_lines = f.readlines()
+        tail = all_lines[-lines:]
+        return {
+            "file": file,
+            "lines": [l.rstrip("\n") for l in tail],
+            "total": len(all_lines),
+        }
+    except Exception as e:
+        return {"file": file, "lines": [f"Error: {e}"], "total": 0}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 啟動
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -507,6 +604,7 @@ if __name__ == "__main__":
     kill_port(port)
     time.sleep(0.5)
 
+    # 啟動 FastAPI server
     server = threading.Thread(target=start_server, args=(port,), daemon=True)
     server.start()
 
@@ -519,6 +617,10 @@ if __name__ == "__main__":
         except Exception:
             time.sleep(0.5)
 
+    # 啟動交易機器人（子進程）
+    start_bot()
+
+    # 開啟桌面視窗（阻塞直到視窗關閉）
     webview.create_window(
         "印鈔機監控台",
         f"http://127.0.0.1:{port}",
@@ -527,3 +629,6 @@ if __name__ == "__main__":
         min_size=(1100, 700),
     )
     webview.start()
+
+    # 視窗關閉 → 停止機器人
+    stop_bot()

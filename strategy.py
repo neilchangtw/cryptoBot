@@ -1,19 +1,20 @@
 """
-ETH 1h V11-E 雙策略 — 純指標計算 + 信號判斷（無副作用）
+ETH 1h V13 雙策略 — 純指標計算 + 信號判斷（無副作用）
 
-策略 L（做多）：GK<25 壓縮突破 + TP 3.5% + MaxHold 6
-  OOS: $1,473, WR ~59%, PF ~1.68
+策略 L（做多）：GK(5/20)<25 壓縮突破 + TP 3.5% + MaxHold 6 + ext2 BE
+  OOS: $1,596, WR 43%, MDD $231, WF 6/6+7/8
 
-策略 S（做空）：GK<30 壓縮突破 + TP 2.0% + MaxHold 7
-  OOS: $1,328, WR ~71%, PF ~2.65
+策略 S（做空）：GK(10/30)<35 壓縮突破 + TP 2.0% + MaxHold 10 + ext2 BE
+  OOS: $2,408, WR 62%, MDD $313, WF 5/6+7/8
 
-L+S 合計：$2,801, 12/13 正月, worst -$8, WF 7/8
+L+S 合計：$4,004, 11/13 正月, worst -$32, WF L 6/6+7/8, S 5/6+7/8
 
-V10→V11-E 變更：
-  L TP 2.0%→3.5%, MH 5→6
-  S TP 1.5%→2.0%, MH 5→7
-  GK percentile: min-max → rank（對齊研究腳本）
-  Breakout: extra shift → current close（對齊研究腳本）
+V11-E→V13 變更：
+  S GK 窗口: mean(5)/mean(20) → mean(10)/mean(30)
+  S GK 閾值: <30 → <35
+  S MaxHold: 7 → 10
+  L/S MaxHold: 固定出場 → 條件式延長 + BE trail
+  L block_days: {Mon,Sat,Sun} → {Sat,Sun}
 """
 import numpy as np
 import pandas as pd
@@ -21,17 +22,20 @@ import pandas as pd
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 共用常數
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-GK_SHORT = 5               # GK 短期均值窗口
-GK_LONG = 20               # GK 長期均值窗口
+L_GK_SHORT = 5             # L GK 短期均值窗口
+L_GK_LONG = 20             # L GK 長期均值窗口
+S_GK_SHORT = 10            # S GK 短期均值窗口
+S_GK_LONG = 30             # S GK 長期均值窗口
 GK_WIN = 100               # GK percentile 滾動窗口
 BRK_LOOK = 15              # L/S 共用 breakout lookback（15 bar）
-BLOCK_H = {0, 1, 2, 12}    # UTC+8 封鎖時段
-BLOCK_D = {0, 5, 6}        # 封鎖星期（Mon=0, Sat=5, Sun=6）
+BLOCK_H = {0, 1, 2, 12}    # UTC+8 封鎖時段（L/S 共用）
+L_BLOCK_D = {5, 6}         # L 封鎖星期（Sat=5, Sun=6）
+S_BLOCK_D = {0, 5, 6}      # S 封鎖星期（Mon=0, Sat=5, Sun=6）
 FEE = 4.0                  # 每筆交易成本（含滑價）$4
 MARGIN = 200               # 每筆保證金 $200
 LEVERAGE = 20              # 槓桿倍數
 NOTIONAL = MARGIN * LEVERAGE  # $4,000 名目金額
-WARMUP_BARS = GK_WIN + GK_LONG + 20  # 140 bar 暖機期
+WARMUP_BARS = GK_WIN + S_GK_LONG + 20  # 150 bar 暖機期（取較大窗口）
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # L 策略常數（做多）
@@ -40,6 +44,7 @@ L_GK_THRESH = 25           # L 的 GK 壓縮閾值
 L_SAFENET_PCT = 0.035      # L SafeNet -3.5%
 L_TP_PCT = 0.035           # L 固定止盈 +3.5%（V11-E: 2.0%→3.5%）
 L_MAX_HOLD = 6             # L 最大持倉 6 bar（V11-E: 5→6）
+L_EXT_BARS = 2             # L MaxHold 延長 2 bar（V13 新增）
 L_EXIT_CD = 6              # L 出場後冷卻 6 bar
 L_MAX_TOTAL = 1            # L 最多同時 1 筆
 L_MONTHLY_ENTRY_CAP = 20   # L 每月最多 20 筆進場
@@ -48,10 +53,11 @@ L_MONTHLY_LOSS_CAP = -75   # L 月虧 -$75 停
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # S 策略常數（做空）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-S_GK_THRESH = 30           # S 的 GK 壓縮閾值
+S_GK_THRESH = 35           # S 的 GK 壓縮閾值（V13: 30→35）
 S_SAFENET_PCT = 0.04       # S SafeNet +4.0%
 S_TP_PCT = 0.02            # S 固定止盈 -2.0%（V11-E: 1.5%→2.0%）
-S_MAX_HOLD = 7             # S 最大持倉 7 bar（V11-E: 5→7）
+S_MAX_HOLD = 10            # S 最大持倉 10 bar（V13: 7→10）
+S_EXT_BARS = 2             # S MaxHold 延長 2 bar（V13 新增）
 S_EXIT_CD = 8              # S 出場後冷卻 8 bar
 S_MAX_TOTAL = 1            # S 最多同時 1 筆
 S_MONTHLY_ENTRY_CAP = 20   # S 每月最多 20 筆進場
@@ -67,7 +73,7 @@ CONSEC_LOSS_COOLDOWN = 24  # 連虧冷卻 24 bar
 
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
-    計算所有策略指標。
+    計算所有策略指標（V13: L/S 各自 GK 窗口 + 獨立 session filter）。
 
     Input:
         df: DataFrame with columns [open, high, low, close, volume, datetime]
@@ -84,16 +90,28 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     ln_hl = np.log(d["high"] / d["low"])
     ln_co = np.log(d["close"] / d["open"])
     gk = 0.5 * ln_hl ** 2 - (2 * np.log(2) - 1) * ln_co ** 2
-    gk_short = gk.rolling(GK_SHORT).mean()
-    gk_long = gk.rolling(GK_LONG).mean()
-    d["gk_ratio"] = gk_short / gk_long
+
+    # L: mean(5)/mean(20)
+    gk_short_l = gk.rolling(L_GK_SHORT).mean()
+    gk_long_l = gk.rolling(L_GK_LONG).mean()
+    d["gk_ratio"] = gk_short_l / gk_long_l
+
+    # S: mean(10)/mean(30)
+    gk_short_s = gk.rolling(S_GK_SHORT).mean()
+    gk_long_s = gk.rolling(S_GK_LONG).mean()
+    d["gk_ratio_s"] = gk_short_s / gk_long_s
 
     # GK Percentile: shift(1) BEFORE rolling — 防前瞻
     # ★ rank percentile（與研究腳本一致）
+    _rank_pctile = lambda s: (
+        ((s < s.iloc[-1]).sum()) / (len(s) - 1) * 100
+        if len(s) > 1 else 50
+    )
     d["gk_pctile"] = d["gk_ratio"].shift(1).rolling(GK_WIN).apply(
-        lambda s: ((s < s.iloc[-1]).sum()) / (len(s) - 1) * 100
-        if len(s) > 1 else 50,
-        raw=False
+        _rank_pctile, raw=False
+    )
+    d["gk_pctile_s"] = d["gk_ratio_s"].shift(1).rolling(GK_WIN).apply(
+        _rank_pctile, raw=False
     )
 
     # ── Breakout: L/S 共用 BL15 ──
@@ -103,10 +121,11 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     d["breakout_long"] = d["close"] > d["breakout_15bar_max"]
     d["breakout_short"] = d["close"] < d["breakout_15bar_min"]
 
-    # ── Session Filter ──
+    # ── Session Filter（V13: L/S 獨立） ──
     d["hour_utc8"] = d["datetime"].dt.hour
     d["weekday_utc8"] = d["datetime"].dt.weekday
-    d["session_ok"] = ~(d["hour_utc8"].isin(BLOCK_H) | d["weekday_utc8"].isin(BLOCK_D))
+    d["session_ok_l"] = ~(d["hour_utc8"].isin(BLOCK_H) | d["weekday_utc8"].isin(L_BLOCK_D))
+    d["session_ok_s"] = ~(d["hour_utc8"].isin(BLOCK_H) | d["weekday_utc8"].isin(S_BLOCK_D))
 
     return d
 
@@ -141,8 +160,8 @@ def evaluate_long_signal(df: pd.DataFrame, idx: int,
     if not _safe_bool(row.get("breakout_long")):
         return None
 
-    # Session
-    if not _safe_bool(row.get("session_ok")):
+    # Session（V13: L 獨立 session filter）
+    if not _safe_bool(row.get("session_ok_l")):
         return None
 
     # Cooldown
@@ -180,7 +199,7 @@ def evaluate_short_signal(df: pd.DataFrame, idx: int,
     """
     評估 S（做空）進場信號。
 
-    GK<30 AND breakout_short AND session AND cooldown AND maxTotal=1
+    GK_S<35 AND breakout_short AND session_s AND cooldown AND maxTotal=1
     AND monthly entry cap AND monthly loss cap
 
     Returns:
@@ -189,11 +208,11 @@ def evaluate_short_signal(df: pd.DataFrame, idx: int,
     row = df.iloc[idx]
     indicators = _collect_indicators(row)
 
-    gp = row["gk_pctile"]
+    gp = row["gk_pctile_s"]
     if pd.isna(gp):
         return None
 
-    # GK 壓縮
+    # GK 壓縮（V13: S 用自己的 GK pctile, 閾值 35）
     if gp >= S_GK_THRESH:
         return None
 
@@ -201,8 +220,8 @@ def evaluate_short_signal(df: pd.DataFrame, idx: int,
     if not _safe_bool(row.get("breakout_short")):
         return None
 
-    # Session
-    if not _safe_bool(row.get("session_ok")):
+    # Session（V13: S 獨立 session filter）
+    if not _safe_bool(row.get("session_ok_s")):
         return None
 
     # Cooldown
@@ -233,62 +252,118 @@ def evaluate_short_signal(df: pd.DataFrame, idx: int,
 
 def check_exit_long(entry_price: float,
                     entry_bar_counter: int, current_bar_counter: int,
-                    bar_high: float, bar_low: float, bar_close: float) -> dict:
+                    bar_high: float, bar_low: float, bar_close: float,
+                    extension_active: bool = False,
+                    extension_start_bar: int = 0) -> dict:
     """
-    L 策略出場條件：SafeNet 3.5% → TP 3.5% → MaxHold 6。
+    L 策略出場條件（V13: 條件式 MaxHold 延長 + BE trail）。
+
+    優先順序：SafeNet 3.5% → TP 3.5% → MaxHold 6（+ext2 BE）
 
     Returns:
-        {"exit": bool, "reason": str, "exit_price": float}
+        {"exit": bool, "reason": str, "exit_price": float,
+         "start_extension": bool}
     """
     bars_held = current_bar_counter - entry_bar_counter
 
     # 1. SafeNet: low <= entry*(1-3.5%)
     safenet_level = entry_price * (1 - L_SAFENET_PCT)
     if bar_low <= safenet_level:
-        # 25% 穿透模型
         ep = safenet_level - (safenet_level - bar_low) * 0.25
-        return {"exit": True, "reason": "SafeNet", "exit_price": ep}
+        return {"exit": True, "reason": "SafeNet", "exit_price": ep,
+                "start_extension": False}
 
     # 2. TP: high >= entry*(1+3.5%)
     tp_level = entry_price * (1 + L_TP_PCT)
     if bar_high >= tp_level:
-        return {"exit": True, "reason": "TP", "exit_price": tp_level}
+        return {"exit": True, "reason": "TP", "exit_price": tp_level,
+                "start_extension": False}
 
-    # 3. MaxHold: bars >= 6
+    # 3. Extension 階段：已進入延長期
+    if extension_active:
+        ext_bars = current_bar_counter - extension_start_bar
+        # BE trail: 價格回到進場價以下 → 平保出場
+        if bar_low <= entry_price:
+            return {"exit": True, "reason": "BE", "exit_price": entry_price,
+                    "start_extension": False}
+        # Extension 超時
+        if ext_bars >= L_EXT_BARS:
+            return {"exit": True, "reason": "MH-ext", "exit_price": bar_close,
+                    "start_extension": False}
+        return {"exit": False, "reason": "", "exit_price": 0.0,
+                "start_extension": False}
+
+    # 4. MaxHold: bars >= 6 → 判斷是否進入延長期
     if bars_held >= L_MAX_HOLD:
-        return {"exit": True, "reason": "MaxHold", "exit_price": bar_close}
+        pnl_pct = (bar_close - entry_price) / entry_price
+        if pnl_pct > 0:
+            # 正收益 → 啟動延長期
+            return {"exit": False, "reason": "", "exit_price": 0.0,
+                    "start_extension": True}
+        else:
+            return {"exit": True, "reason": "MaxHold", "exit_price": bar_close,
+                    "start_extension": False}
 
-    return {"exit": False, "reason": "", "exit_price": 0.0}
+    return {"exit": False, "reason": "", "exit_price": 0.0,
+            "start_extension": False}
 
 
 def check_exit_short(entry_price: float,
                      entry_bar_counter: int, current_bar_counter: int,
-                     bar_high: float, bar_low: float, bar_close: float) -> dict:
+                     bar_high: float, bar_low: float, bar_close: float,
+                     extension_active: bool = False,
+                     extension_start_bar: int = 0) -> dict:
     """
-    S 策略出場條件：SafeNet 4.0% → TP 2.0% → MaxHold 7。
+    S 策略出場條件（V13: 條件式 MaxHold 延長 + BE trail）。
+
+    優先順序：SafeNet 4.0% → TP 2.0% → MaxHold 10（+ext2 BE）
 
     Returns:
-        {"exit": bool, "reason": str, "exit_price": float}
+        {"exit": bool, "reason": str, "exit_price": float,
+         "start_extension": bool}
     """
     bars_held = current_bar_counter - entry_bar_counter
 
     # 1. SafeNet: high >= entry*(1+4.0%)
     safenet_level = entry_price * (1 + S_SAFENET_PCT)
     if bar_high >= safenet_level:
-        # 25% 穿透模型
         ep = safenet_level + (bar_high - safenet_level) * 0.25
-        return {"exit": True, "reason": "SafeNet", "exit_price": ep}
+        return {"exit": True, "reason": "SafeNet", "exit_price": ep,
+                "start_extension": False}
 
     # 2. TP: low <= entry*(1-2.0%)
     tp_level = entry_price * (1 - S_TP_PCT)
     if bar_low <= tp_level:
-        return {"exit": True, "reason": "TP", "exit_price": tp_level}
+        return {"exit": True, "reason": "TP", "exit_price": tp_level,
+                "start_extension": False}
 
-    # 3. MaxHold: bars >= 7
+    # 3. Extension 階段：已進入延長期
+    if extension_active:
+        ext_bars = current_bar_counter - extension_start_bar
+        # BE trail: 價格回到進場價以上 → 平保出場
+        if bar_high >= entry_price:
+            return {"exit": True, "reason": "BE", "exit_price": entry_price,
+                    "start_extension": False}
+        # Extension 超時
+        if ext_bars >= S_EXT_BARS:
+            return {"exit": True, "reason": "MH-ext", "exit_price": bar_close,
+                    "start_extension": False}
+        return {"exit": False, "reason": "", "exit_price": 0.0,
+                "start_extension": False}
+
+    # 4. MaxHold: bars >= 10 → 判斷是否進入延長期
     if bars_held >= S_MAX_HOLD:
-        return {"exit": True, "reason": "MaxHold", "exit_price": bar_close}
+        pnl_pct = (entry_price - bar_close) / entry_price
+        if pnl_pct > 0:
+            # 正收益 → 啟動延長期
+            return {"exit": False, "reason": "", "exit_price": 0.0,
+                    "start_extension": True}
+        else:
+            return {"exit": True, "reason": "MaxHold", "exit_price": bar_close,
+                    "start_extension": False}
 
-    return {"exit": False, "reason": "", "exit_price": 0.0}
+    return {"exit": False, "reason": "", "exit_price": 0.0,
+            "start_extension": False}
 
 
 def compute_pnl(entry_price: float, exit_price: float, side: str) -> tuple:
@@ -335,17 +410,20 @@ def _safe_bool(val):
 
 
 def _collect_indicators(row) -> dict:
-    """收集指標快照"""
+    """收集指標快照（V13: 含 L/S 獨立 GK 和 session）"""
     return {
         "gk_pctile": _safe_float(row.get("gk_pctile")),
         "gk_ratio": _safe_float(row.get("gk_ratio")),
+        "gk_pctile_s": _safe_float(row.get("gk_pctile_s")),
+        "gk_ratio_s": _safe_float(row.get("gk_ratio_s")),
         "ema20": _safe_float(row.get("ema20")),
         "close": _safe_float(row.get("close")),
         "breakout_15bar_max": _safe_float(row.get("breakout_15bar_max")),
         "breakout_15bar_min": _safe_float(row.get("breakout_15bar_min")),
         "breakout_long": _safe_bool(row.get("breakout_long")),
         "breakout_short": _safe_bool(row.get("breakout_short")),
-        "session_ok": _safe_bool(row.get("session_ok")),
+        "session_ok_l": _safe_bool(row.get("session_ok_l")),
+        "session_ok_s": _safe_bool(row.get("session_ok_s")),
         "hour_utc8": int(row.get("hour_utc8", -1)),
         "weekday_utc8": int(row.get("weekday_utc8", -1)),
     }

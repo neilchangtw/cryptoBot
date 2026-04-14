@@ -1,5 +1,5 @@
 """
-V10 4 層 CSV 記錄系統
+V13 4 層 CSV 記錄系統
 
 Layer 1: bar_snapshots.csv     — 每小時一行，所有指標 + 信號評估
 Layer 2: position_lifecycle.csv — 持倉期間每 bar 一行，MAE/MFE 追蹤
@@ -34,14 +34,15 @@ BAR_SNAPSHOT_FIELDS = [
     "bar_time_utc", "bar_time_utc8", "bar_weekday",
     # K 棒原始數據
     "open", "high", "low", "close", "volume", "taker_buy_volume",
-    # GK 指標
+    # GK 指標（V13: L/S 分開）
     "gk_ratio", "gk_pctile",
+    "gk_ratio_s", "gk_pctile_s",
     # Breakout 指標（BL15）
     "breakout_long", "breakout_short",
     # EMA
     "ema20",
-    # Session 狀態
-    "session_allowed",
+    # Session 狀態（V13: L/S 分開）
+    "session_ok_l", "session_ok_s",
     # 信號評估
     "long_signal", "short_signals", "signal_detail",
     # 當前持倉狀態
@@ -98,6 +99,7 @@ DAILY_SUMMARY_FIELDS = [
     "wins", "losses",
     "gross_pnl", "net_pnl",
     "safenet_count", "earlyStop_count", "trail_count", "tp_count", "maxhold_count",
+    "mh_ext_count", "be_count",
     "avg_hold_hours", "longest_hold_hours",
     "account_balance", "cumulative_pnl",
     "open_position", "system_alerts",
@@ -115,12 +117,27 @@ def _ensure_dirs():
 
 
 def _ensure_csv(filepath: str, headers: list):
-    """如果 CSV 不存在，建立空檔案並寫入 header"""
+    """如果 CSV 不存在或 header 已變更，建立/重建檔案"""
     _ensure_dirs()
     if not os.path.exists(filepath):
         with open(filepath, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
+        return
+    # 檢查現有 header 是否匹配
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            existing_header = f.readline().strip().split(",")
+        if existing_header != headers:
+            # header 變更 → 備份舊檔，重建新檔
+            import shutil
+            backup = filepath + ".bak"
+            shutil.copy2(filepath, backup)
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+    except Exception:
+        pass
 
 
 def _append_row(filepath: str, headers: list, row: dict):
@@ -171,10 +188,13 @@ def record_bar_snapshot(bar_data: dict, indicators: dict,
         "taker_buy_volume": _fmt(bar_data.get("taker_buy_volume"), 2),
         "gk_ratio": _fmt(indicators.get("gk_ratio"), 6),
         "gk_pctile": _fmt(indicators.get("gk_pctile"), 2),
+        "gk_ratio_s": _fmt(indicators.get("gk_ratio_s"), 6),
+        "gk_pctile_s": _fmt(indicators.get("gk_pctile_s"), 2),
         "breakout_long": indicators.get("breakout_long", False),
         "breakout_short": indicators.get("breakout_short", False),
         "ema20": _fmt(indicators.get("ema20")),
-        "session_allowed": indicators.get("session_ok", False),
+        "session_ok_l": indicators.get("session_ok_l", False),
+        "session_ok_s": indicators.get("session_ok_s", False),
         "long_signal": signal_result.get("long_signal", "HOLD"),
         "short_signals": signal_result.get("short_signals", "HOLD"),
         "signal_detail": signal_result.get("signal_detail", ""),

@@ -3579,3 +3579,52 @@ WF: 5/6, 7/8（= V10）
 | `v11_baseline.py` | V10 基線回測（研究指標版本） |
 | `v11_r1_tp_mh_sweep.py` | R1: TP/MH 參數掃描 |
 | `v11_r1b_validate.py` | R1b: 候選配置完整驗證 |
+
+## V12 研究：全新 S 做空進場邏輯（2026/04/13）
+
+完整研究過程見 [doc/v12_research.md](v12_research.md)。
+
+### 研究動機
+
+V11-E L+S 都使用 GK 壓縮突破信號。探索是否存在完全不同機制的 S 進場邏輯能取代或改善 V11-E S（OOS $1,328, PM 10/13, worst -$113）。
+
+### 研究範圍
+
+8 輪研究、15+ 方向、數千組配置的系統性搜索：
+
+| Round | 方向 | 結果 |
+|-------|------|------|
+| R1 | 月相統計驗證 | p=0.361/0.775, NOT SIGNIFICANT |
+| R2 | 動量衰竭 (streak+TBR) | ALL OOS 負 — FAILED |
+| R3 | EMA 過度延伸 / RSI 過買 | ALL OOS 負 — FAILED |
+| R3 | 成交量異常 (vol spike) | $+492, 最佳替代但 -63% |
+| R4 | BTC-ETH 背離 (RelDiv) | $+337, -75% |
+| R5 | Bollinger Band / ATR / N-bar high | $+314 / $+275 / 0 configs |
+| R5 | Volume Spike 擴展 | $+485, -63% |
+| R6 | 量價背離 (PV divergence) | $+825, IS=$2 不可靠 |
+| R6 | Failed breakout / MACD / Donchian / SMA | 全部 FAILED 或弱 |
+| R7 | 複合信號 (AND/Score/Triple) | $+665 max, PM 5/13 |
+| R8 | GK 擴張反轉 | Simple 全負, +Volume $+517 |
+
+### 結論
+
+**V11-E S（GK 壓縮突破）是 ETH 1h 上明確的最優 S 進場信號。**
+
+1. GK 壓縮突破捕捉波動率 regime 變化，其他指標無法複製
+2. 均值回歸做空在 ETH 1h 上不可行（趨勢性太強）
+3. 成交量異常是唯一有微弱 edge 的替代（$492-517），但只有 V11-E S 的 37-39%
+4. 複合信號未能超越單一最佳信號
+5. **保持 V11-E S 策略不變**
+
+### 研究腳本
+
+| 腳本 | 說明 |
+|------|------|
+| `v12_r1_lunar.py` | R1: 月相統計驗證 |
+| `v12_r2_momentum_exhaust.py` | R2: 動量衰竭做空 |
+| `v12_r3_overext_vol.py` | R3: 過度延伸 + 成交量 + RSI |
+| `v12_r4_btc_eth_div.py` | R4: BTC-ETH 背離做空 |
+| `v12_r5_bb_atr_high.py` | R5: BB + ATR + N-bar high + Volume |
+| `v12_r6_novel.py` | R6: 失敗突破 + 量價背離 + MACD + Donchian + SMA |
+| `v12_r7_composite.py` | R7: 複合信號做空 |
+| `v12_r8_gk_expansion.py` | R8: GK 擴張反轉做空 |
