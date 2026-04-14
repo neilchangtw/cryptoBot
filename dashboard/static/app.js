@@ -185,46 +185,41 @@ function renderStatusCards(d) {
 }
 
 function renderUnrealizedSummary(details, lastClose) {
-    if (!details || details.length === 0 || !lastClose) return '';
+    if (!details || details.length === 0) return '';
     let totalUnr = 0;
     let lines = [];
-    const longs = details.filter(p => p.sub_strategy === 'L');
-    const shorts = details.filter(p => (p.sub_strategy||'').startsWith('S'));
+    let markPrice = null;
 
     for (const p of details) {
         const ep = p.entry_price || 0;
         if (ep <= 0) continue;
         const sub = p.sub_strategy || '';
+        const unrPnl = p.unrealized_pnl;
+        if (unrPnl == null) continue;
+        totalUnr += unrPnl;
+        if (p.mark_price) markPrice = p.mark_price;
+
+        const mp = p.mark_price || lastClose || 0;
         let unrPct;
         if (sub === 'L') {
-            unrPct = (lastClose - ep) / ep * 100;
+            unrPct = mp > 0 ? (mp - ep) / ep * 100 : 0;
         } else {
-            unrPct = (ep - lastClose) / ep * 100;
+            unrPct = mp > 0 ? (ep - mp) / ep * 100 : 0;
         }
-        totalUnr += unrPct / 100 * 2000; // $2000 notional per position
+        const label = sub === 'L' ? 'L' : 'S';
+        const cls = unrPnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+        lines.push(`<span class="${cls}">${label}: ${unrPct >= 0 ? '+' : ''}${unrPct.toFixed(2)}% ($${unrPnl >= 0 ? '+' : ''}${unrPnl.toFixed(2)})</span>`);
     }
 
-    // L 均價 unrealized
-    if (longs.length > 0) {
-        const avgEp = longs.reduce((s, p) => s + (p.entry_price||0), 0) / longs.length;
-        const lUnrPct = (lastClose - avgEp) / avgEp * 100;
-        const lUnrUsd = longs.length * 2000 * lUnrPct / 100;
-        const cls = lUnrPct >= 0 ? 'pnl-pos' : 'pnl-neg';
-        lines.push(`<span class="${cls}">L: ${lUnrPct >= 0 ? '+' : ''}${lUnrPct.toFixed(2)}% ($${lUnrUsd >= 0 ? '+' : ''}${lUnrUsd.toFixed(0)})</span>`);
-    }
-    if (shorts.length > 0) {
-        const avgEp = shorts.reduce((s, p) => s + (p.entry_price||0), 0) / shorts.length;
-        const sUnrPct = (avgEp - lastClose) / avgEp * 100;
-        const sUnrUsd = shorts.length * 2000 * sUnrPct / 100;
-        const cls = sUnrPct >= 0 ? 'pnl-pos' : 'pnl-neg';
-        lines.push(`<span class="${cls}">S: ${sUnrPct >= 0 ? '+' : ''}${sUnrPct.toFixed(2)}% ($${sUnrUsd >= 0 ? '+' : ''}${sUnrUsd.toFixed(0)})</span>`);
-    }
+    if (lines.length === 0) return '';
 
     const totalCls = totalUnr >= 0 ? 'pnl-pos' : 'pnl-neg';
+    const mpNote = markPrice ? `<div style="margin-top:3px;color:var(--text-dim);font-size:11px">Mark: $${markPrice.toFixed(2)}</div>` : '';
     return `<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:12px">
-        <div style="margin-bottom:2px">未實現損益</div>
+        <div style="margin-bottom:2px">未實現損益 (Unrealized)</div>
         <div class="${totalCls}" style="font-size:16px;font-weight:700">$${totalUnr >= 0 ? '+' : ''}${totalUnr.toFixed(2)}</div>
         <div style="margin-top:2px;color:var(--text-dim)">${lines.join(' | ')}</div>
+        ${mpNote}
     </div>`;
 }
 
