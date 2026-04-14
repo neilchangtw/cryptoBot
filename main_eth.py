@@ -504,22 +504,28 @@ def main():
 
                 gk_val_l = ind.get('gk_pctile')
                 gk_val_s = ind.get('gk_pctile_s')
+
+                def gk_breath(val, thresh):
+                    """呼吸燈：越接近閾值越亮，緩慢漸變"""
+                    if val < thresh:
+                        return "🟢🟢🟢🟢🟢"
+                    elif val < thresh + 5:
+                        return "🟢🟢🟢🟢⚫"
+                    elif val < thresh + 15:
+                        return "🟢🟢🟢⚫⚫"
+                    elif val < thresh + 25:
+                        return "🟡🟡⚫⚫⚫"
+                    elif val < thresh + 40:
+                        return "🟠⚫⚫⚫⚫"
+                    else:
+                        return "⚫⚫⚫⚫⚫"
+
                 gk_parts = []
                 if gk_val_l is not None:
-                    if gk_val_l < 25:
-                        gk_parts.append(f"L🔥{gk_val_l:.0f}")
-                    elif gk_val_l < 50:
-                        gk_parts.append(f"L👀{gk_val_l:.0f}")
-                    else:
-                        gk_parts.append(f"L😴{gk_val_l:.0f}")
+                    gk_parts.append(f"L {gk_breath(gk_val_l, 25)} {gk_val_l:.0f}")
                 if gk_val_s is not None:
-                    if gk_val_s < 35:
-                        gk_parts.append(f"S🔥{gk_val_s:.0f}")
-                    elif gk_val_s < 50:
-                        gk_parts.append(f"S👀{gk_val_s:.0f}")
-                    else:
-                        gk_parts.append(f"S😴{gk_val_s:.0f}")
-                gk_status = " | ".join(gk_parts) if gk_parts else "N/A"
+                    gk_parts.append(f"S {gk_breath(gk_val_s, 35)} {gk_val_s:.0f}")
+                gk_status = "\n".join(gk_parts) if gk_parts else "N/A"
 
                 # 風控狀態
                 cb_info = ""
@@ -579,14 +585,24 @@ def main():
 
                 check_text = "\n".join(checks)
 
+                # 呼吸燈分隔線：根據 L GK 值漸變
+                if gk_val_l is not None and gk_val_l < 25:
+                    sep = "🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢"
+                elif gk_val_l is not None and gk_val_l < 35:
+                    sep = "🟢🟢🟢⚫⚫⚫⚫⚫⚫⚫⚫⚫🟢🟢🟢"
+                elif gk_val_l is not None and gk_val_l < 50:
+                    sep = "🟡⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫🟡"
+                else:
+                    sep = "⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫"
+
                 hb_msg = (
                     f"<b>🖨 V14 運轉中…（第 {executor.bar_counter} 張）</b>\n"
-                    f"━━━━━━━━━━━━━━━\n"
+                    f"{sep}\n"
                     f"💵 ETH：${bar_data['close']:.2f}\n"
-                    f"🔋 壓縮能量：{gk_status}\n"
+                    f"🔋 壓縮能量：\n{gk_status}\n"
                     f"🎰 持倉：\n{pos_text}\n"
                     f"💰 金庫：${executor.account_balance:.2f}{cb_info}\n"
-                    f"━━━━━━━━━━━━━━━\n"
+                    f"{sep}\n"
                     f"🩺 自檢：\n{check_text}"
                 )
                 send_telegram_message(hb_msg)
