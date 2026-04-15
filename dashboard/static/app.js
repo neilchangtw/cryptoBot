@@ -741,42 +741,45 @@ function updateChartData(kd, trades) {
     const markers = [];
     const lastCandleTime = candles.length > 0 ? candles[candles.length - 1].time : 0;
 
+    // 標記色系：藍=做多、橘=做空（避開 K 棒綠/紅）
+    const COLOR_L = '#42a5f5';   // 藍
+    const COLOR_S = '#ff9800';   // 橘
+
     for (const t of trades) {
         const isLong = (t.direction || '').toUpperCase() === 'LONG';
         const sub = t.sub_strategy || (isLong ? 'L' : 'S');
+        const dirColor = isLong ? COLOR_L : COLOR_S;
         const isClosed = t.exit_ts > 0 && t.exit_type;
         const pnl = t.net_pnl_usd;
-        const isWin = pnl != null && pnl >= 0;
 
         // 進場標記：箭頭 + 方向文字
         if (t.entry_ts > 0) {
             markers.push({
                 time: t.entry_ts,
                 position: isLong ? 'belowBar' : 'aboveBar',
-                color: isLong ? '#26a69a' : '#ef5350',
+                color: dirColor,
                 shape: isLong ? 'arrowUp' : 'arrowDown',
                 text: sub,
             });
         }
 
-        // 出場標記：圓點 + PnL 金額
+        // 出場標記：圓點 + PnL 金額（同方向色）
         if (isClosed) {
             const pnlText = pnl != null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(1) : '';
             markers.push({
                 time: t.exit_ts,
                 position: isLong ? 'aboveBar' : 'belowBar',
-                color: isWin ? '#26a69a' : '#ef5350',
+                color: dirColor,
                 shape: 'circle',
                 text: pnlText,
             });
         }
 
-        // 持倉期間進場價格線
+        // 持倉期間進場價格線（方向色半透明，持倉中用金色）
         const ep = t.entry_price;
         if (t.entry_ts > 0 && ep > 0) {
             const endTs = isClosed ? t.exit_ts : lastCandleTime;
             if (endTs > 0) {
-                // 收集持倉期間每根 bar 的時間點
                 const lineData = [];
                 for (const c of candles) {
                     if (c.time >= t.entry_ts && c.time <= endTs) {
@@ -784,7 +787,7 @@ function updateChartData(kd, trades) {
                     }
                 }
                 if (lineData.length >= 2) {
-                    const lineColor = !isClosed ? '#f0b90b88' : (isWin ? '#26a69a66' : '#ef535066');
+                    const lineColor = !isClosed ? '#f0b90b88' : (isLong ? '#42a5f566' : '#ff980066');
                     const ls = S.mainChart.addLineSeries({
                         color: lineColor,
                         lineWidth: 1,
