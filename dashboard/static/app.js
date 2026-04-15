@@ -777,8 +777,10 @@ function updateChartData(kd, trades) {
 
         // 持倉期間進場價格線（方向色半透明，持倉中用金色）
         const ep = t.entry_price;
+        console.log(`[TradeLine] trade=${t.trade_id} ep=${ep} entry_ts=${t.entry_ts} exit_ts=${t.exit_ts} isClosed=${isClosed}`);
         if (t.entry_ts > 0 && ep > 0) {
             const endTs = isClosed ? t.exit_ts : lastCandleTime;
+            console.log(`[TradeLine]   endTs=${endTs} lastCandleTime=${lastCandleTime}`);
             if (endTs > 0) {
                 const lineData = [];
                 for (const c of candles) {
@@ -786,18 +788,24 @@ function updateChartData(kd, trades) {
                         lineData.push({ time: c.time, value: ep });
                     }
                 }
+                console.log(`[TradeLine]   lineData.length=${lineData.length}`, lineData.length > 0 ? lineData[0] : 'empty');
                 if (lineData.length >= 2) {
                     const lineColor = !isClosed ? '#f0b90bcc' : (isLong ? '#42a5f5aa' : '#ff9800aa');
-                    const ls = S.mainChart.addLineSeries({
-                        color: lineColor,
-                        lineWidth: 2,
-                        lineStyle: 2,  // Dashed (0=Solid,1=Dotted,2=Dashed)
-                        crosshairMarkerVisible: false,
-                        lastValueVisible: false,
-                        priceLineVisible: false,
-                    });
-                    ls.setData(lineData);
-                    S.tradeLines.push(ls);
+                    try {
+                        const ls = S.mainChart.addLineSeries({
+                            color: lineColor,
+                            lineWidth: 2,
+                            lineStyle: 2,
+                            crosshairMarkerVisible: false,
+                            lastValueVisible: false,
+                            priceLineVisible: false,
+                        });
+                        ls.setData(lineData);
+                        S.tradeLines.push(ls);
+                        console.log(`[TradeLine]   ✓ line created, color=${lineColor}, points=${lineData.length}`);
+                    } catch (err) {
+                        console.error(`[TradeLine]   ✗ ERROR creating line:`, err);
+                    }
                 }
             }
         }
