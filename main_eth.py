@@ -542,7 +542,8 @@ def main():
                         cutoff = (t_utc8 - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
                         with open(alerts_path, "r", encoding="utf-8") as af:
                             for line in af:
-                                if line[:16] >= cutoff:
+                                # 只計算以日期開頭的行（跳過 Traceback/堆疊等續行）
+                                if len(line) >= 16 and line[0] == '2' and line[:16] >= cutoff:
                                     alert_count += 1
                 except Exception:
                     pass
