@@ -787,11 +787,11 @@ function updateChartData(kd, trades) {
                     }
                 }
                 if (lineData.length >= 2) {
-                    const lineColor = !isClosed ? '#f0b90b88' : (isLong ? '#42a5f566' : '#ff980066');
+                    const lineColor = !isClosed ? '#f0b90bcc' : (isLong ? '#42a5f5aa' : '#ff9800aa');
                     const ls = S.mainChart.addLineSeries({
                         color: lineColor,
-                        lineWidth: 1,
-                        lineStyle: LightweightCharts.LineStyle.Dotted,
+                        lineWidth: 2,
+                        lineStyle: 2,  // Dashed (0=Solid,1=Dotted,2=Dashed)
                         crosshairMarkerVisible: false,
                         lastValueVisible: false,
                         priceLineVisible: false,
