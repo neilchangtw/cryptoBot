@@ -19,6 +19,7 @@ const S = {
     sortAsc: false,
     filters: { direction: '', sub: '', win: '', exit: '' },
     priceLines: [],
+    tradeLines: [],   // 持倉期間進場價格線 series
     logFile: 'system',
 };
 
@@ -730,29 +731,72 @@ function updateChartData(kd, trades) {
     });
     S.gkSeries.setData(gkFull);
 
-    // Trade markers — 圓點標記（無文字）
-    // 多單進場: 綠色 | 多單出場: 金色 | 空單進場: 紅色 | 空單出場: 紫色
+    // ── 清除舊的持倉線 ──
+    for (const ls of S.tradeLines) {
+        S.mainChart.removeSeries(ls);
+    }
+    S.tradeLines = [];
+
+    // ── Trade markers + 持倉期間進場價格線 ──
     const markers = [];
+    const lastCandleTime = candles.length > 0 ? candles[candles.length - 1].time : 0;
+
     for (const t of trades) {
         const isLong = (t.direction || '').toUpperCase() === 'LONG';
+        const sub = t.sub_strategy || (isLong ? 'L' : 'S');
+        const isClosed = t.exit_ts > 0 && t.exit_type;
+        const pnl = t.net_pnl_usd;
+        const isWin = pnl != null && pnl >= 0;
 
+        // 進場標記：箭頭 + 方向文字
         if (t.entry_ts > 0) {
             markers.push({
                 time: t.entry_ts,
                 position: isLong ? 'belowBar' : 'aboveBar',
                 color: isLong ? '#26a69a' : '#ef5350',
-                shape: 'circle',
-                text: '',
+                shape: isLong ? 'arrowUp' : 'arrowDown',
+                text: sub,
             });
         }
-        if (t.exit_ts > 0 && t.exit_type) {
+
+        // 出場標記：圓點 + PnL 金額
+        if (isClosed) {
+            const pnlText = pnl != null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(1) : '';
             markers.push({
                 time: t.exit_ts,
                 position: isLong ? 'aboveBar' : 'belowBar',
-                color: isLong ? '#f0b90b' : '#b39ddb',
+                color: isWin ? '#26a69a' : '#ef5350',
                 shape: 'circle',
-                text: '',
+                text: pnlText,
             });
+        }
+
+        // 持倉期間進場價格線
+        const ep = t.entry_price;
+        if (t.entry_ts > 0 && ep > 0) {
+            const endTs = isClosed ? t.exit_ts : lastCandleTime;
+            if (endTs > 0) {
+                // 收集持倉期間每根 bar 的時間點
+                const lineData = [];
+                for (const c of candles) {
+                    if (c.time >= t.entry_ts && c.time <= endTs) {
+                        lineData.push({ time: c.time, value: ep });
+                    }
+                }
+                if (lineData.length >= 2) {
+                    const lineColor = !isClosed ? '#f0b90b88' : (isWin ? '#26a69a66' : '#ef535066');
+                    const ls = S.mainChart.addLineSeries({
+                        color: lineColor,
+                        lineWidth: 1,
+                        lineStyle: LightweightCharts.LineStyle.Dotted,
+                        crosshairMarkerVisible: false,
+                        lastValueVisible: false,
+                        priceLineVisible: false,
+                    });
+                    ls.setData(lineData);
+                    S.tradeLines.push(ls);
+                }
+            }
         }
     }
     markers.sort((a, b) => a.time - b.time);
