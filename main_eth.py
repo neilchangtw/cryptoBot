@@ -190,8 +190,8 @@ def main():
     mode = "PAPER" if PAPER_TRADING else "LIVE"
     logger.info(f"=" * 60)
     logger.info(f"  ETH 1h V14 雙策略 L+S ({mode})")
-    logger.info(f"  L: GK<{strategy.L_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.L_TP_PCT*100}% MH{strategy.L_MAX_HOLD} SN{strategy.L_SAFENET_PCT*100}%")
-    logger.info(f"  S: GK<{strategy.S_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.S_TP_PCT*100}% MH{strategy.S_MAX_HOLD} SN{strategy.S_SAFENET_PCT*100}%")
+    logger.info(f"  L: GK<{strategy.L_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.L_TP_PCT*100:.1f}% MH{strategy.L_MAX_HOLD} SN{strategy.L_SAFENET_PCT*100:.1f}%")
+    logger.info(f"  S: GK<{strategy.S_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.S_TP_PCT*100:.1f}% MH{strategy.S_MAX_HOLD} SN{strategy.S_SAFENET_PCT*100:.1f}%")
     logger.info(f"  Symbol: {SYMBOL} | Notional: ${strategy.NOTIONAL} | Fee: ${strategy.FEE}")
     logger.info(f"=" * 60)
 
