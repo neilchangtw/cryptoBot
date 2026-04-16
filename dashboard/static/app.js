@@ -606,7 +606,7 @@ function initCharts() {
     gc.innerHTML = '';
 
     const baseOpts = {
-        layout: { background: { color: '#1a1a2e' }, textColor: '#d1d4dc' },
+        layout: { background: { color: '#000000' }, textColor: '#d1d4dc' },
         grid: { vertLines: { color: '#2B2B43' }, horzLines: { color: '#2B2B43' } },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         rightPriceScale: { borderColor: '#2B2B43', minimumWidth: 80 },
@@ -1038,7 +1038,7 @@ function renderEquityCurve(data) {
     el.innerHTML = '';
     const chart = LightweightCharts.createChart(el, {
         width: el.clientWidth, height: 250,
-        layout: { background: { color: '#1a1a2e' }, textColor: '#d1d4dc' },
+        layout: { background: { color: '#000000' }, textColor: '#d1d4dc' },
         grid: { vertLines: { color: '#2B2B43' }, horzLines: { color: '#2B2B43' } },
         timeScale: { borderColor: '#2B2B43' },
         rightPriceScale: { borderColor: '#2B2B43' },
@@ -1072,7 +1072,7 @@ function renderDailyChart(daily) {
     el.innerHTML = '';
     const chart = LightweightCharts.createChart(el, {
         width: el.clientWidth, height: 250,
-        layout: { background: { color: '#1a1a2e' }, textColor: '#d1d4dc' },
+        layout: { background: { color: '#000000' }, textColor: '#d1d4dc' },
         grid: { vertLines: { color: '#2B2B43' }, horzLines: { color: '#2B2B43' } },
         timeScale: { borderColor: '#2B2B43' },
         rightPriceScale: { borderColor: '#2B2B43' },
