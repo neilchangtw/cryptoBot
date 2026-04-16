@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>V14-印鈔機</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>$</text></svg>">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -95,6 +96,7 @@
             <button class="log-tab" data-file="alerts" onclick="switchLogFile('alerts')">告警日誌 (alerts)</button>
         </div>
         <div class="log-controls">
+            <input type="text" id="log-search" placeholder="搜尋關鍵字..." oninput="loadLogs()" class="log-search-input">
             <select id="log-lines" onchange="loadLogs()">
                 <option value="100">100 行</option>
                 <option value="200" selected>200 行</option>

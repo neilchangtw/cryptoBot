@@ -14,10 +14,16 @@ const S = {
     gkChart: null,
     gkSeries: null,
     equityChart: null,
+    equitySeries: null,
+    equityRO: null,
     dailyChart: null,
+    dailySeries: null,
+    dailyRO: null,
     sortCol: 'entry_ts',
     sortAsc: false,
     filters: { direction: '', sub: '', win: '', exit: '' },
+    tradePage: 0,
+    tradePageSize: 20,
     priceLines: [],
     tradeLines: [],   // 持倉期間進場價格線 series
     logFile: 'system',
@@ -284,19 +290,19 @@ function isInRange(val, rangeStr) {
     return val >= parts[0] && (parts[1] === 100 ? val <= 100 : val < parts[1]);
 }
 
-function sessionTimeStr() {
-    // 封鎖: UTC+8 0,1,2,12 點 + 一/六/日
+function sessionTimeStr(side) {
     const now = new Date();
-    const h = now.getHours();  // 本機 = UTC+8
+    const h = now.getHours();
     const d = now.getDay();    // 0=Sun
     const blockH = [0, 1, 2, 12];
-    const blockD = [0, 1, 6];  // Sun=0, Mon=1, Sat=6
+    // L: block Sat,Sun | S: block Mon,Sat,Sun
+    const blockD = side === 'S' ? [0, 1, 6] : [0, 6];
     const inBlock = blockH.includes(h) || blockD.includes(d);
     const dayNames = ['日','一','二','三','四','五','六'];
     if (inBlock) {
-        return `現在 ${dayNames[d]} ${h}:00（封鎖中）`;
+        return `${dayNames[d]} ${h}:00（封鎖中）`;
     }
-    return `二~五 3-11,13-23點`;
+    return side === 'S' ? '二~五 3-11,13-23' : '二~六 3-11,13-23';
 }
 
 function renderEntryConditions(ec, positions) {
@@ -328,7 +334,7 @@ function renderEntryConditions(ec, positions) {
         </div>`;
     if (lc.gk) lHtml += condRow('', lc.gk.pass, 'GK < 25（壓縮）', lc.gk.value != null ? lc.gk.value.toFixed(1) : '-');
     if (lc.breakout) lHtml += condRow('', lc.breakout.pass, '向上突破 15bar', '');
-    if (lc.session) lHtml += condRow('', lc.session.pass, '時段允許', sessionTimeStr());
+    if (lc.session) lHtml += condRow('', lc.session.pass, '時段允許', sessionTimeStr('L'));
     lHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${lPct}%;background:${lColor}"></div></div>`;
     lHtml += '</div>';
 
@@ -346,7 +352,7 @@ function renderEntryConditions(ec, positions) {
         </div>`;
     if (sc.gk) sHtml += condRow('', sc.gk.pass, 'GK < 35（壓縮）', sc.gk.value != null ? sc.gk.value.toFixed(1) : '-');
     if (sc.breakout) sHtml += condRow('', sc.breakout.pass, '向下突破 15bar', '');
-    if (sc.session) sHtml += condRow('', sc.session.pass, '時段允許', sessionTimeStr());
+    if (sc.session) sHtml += condRow('', sc.session.pass, '時段允許', sessionTimeStr('S'));
     sHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${sPct}%;background:${sColor}"></div></div>`;
     sHtml += '</div>';
 
@@ -529,13 +535,13 @@ const HEALTH_NAME_MAP = {
 };
 const HEALTH_DESC_MAP = {
     'Monthly trade count': '每月平倉交易筆數，正常範圍 10-30 筆',
-    'SafeNet trigger rate': '安全網（-5.5% 止損）觸發比率，低於 15% 為正常',
-    '24-48h hold WR': '持倉 24-48 小時的交易勝率，目標 ≥70%',
-    'Avg hold time': '平均每筆交易持倉時間，目標 ≥18 小時',
+    'SafeNet trigger rate': '安全網（L -3.5% / S +4.0%）觸發比率，低於 15% 為正常',
+    '24-48h hold WR': '長持倉交易勝率（L 6h / S 10h MaxHold）',
+    'Avg hold time': '平均每筆交易持倉時間',
     'MFE/MAE ratio': '最大順行 vs 最大逆行比值，>1.5 表示趨勢捕捉良好',
     'Total PnL': '期間內已平倉交易的總損益',
     'Profit Factor': '總獲利 / 總虧損，≥1.5 為健康',
-    'Max Drawdown': '期間內最大回撤金額，目標 > -$500',
+    'Max Drawdown': '期間內最大回撤金額',
 };
 const HEALTH_STATUS_MAP = {
     'OK': '正常 (OK)',
@@ -579,16 +585,14 @@ function renderHealth(h) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function loadChart() {
     try {
-        const [kd, td, st] = await Promise.all([
+        const [kd, td] = await Promise.all([
             fetch('/api/klines?limit=1500').then(r => r.json()),
             api('/api/trades'),
-            api('/api/status'),
         ]);
         setConnStatus(true);
         if (!S.chartReady) initCharts();
         S.trades = td.trades || [];
         updateChartData(kd, S.trades);
-        updatePositionLines(st.positions ? st.positions.details : []);
     } catch (e) {
         setConnStatus(false);
         $('main-chart').innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
@@ -610,7 +614,7 @@ function initCharts() {
 
     // 主圖：隱藏底部時間軸（由 GK 副圖統一顯示）
     S.mainChart = LightweightCharts.createChart(mc, {
-        ...baseOpts, width: mc.clientWidth, height: 480,
+        ...baseOpts, width: mc.clientWidth, height: mc.clientHeight || 480,
         timeScale: { visible: false, borderColor: '#2B2B43' },
     });
     S.candleSeries = S.mainChart.addCandlestickSeries({
@@ -644,7 +648,7 @@ function initCharts() {
 
     // Resize
     const ro = new ResizeObserver(() => {
-        S.mainChart.applyOptions({ width: mc.clientWidth });
+        S.mainChart.applyOptions({ width: mc.clientWidth, height: mc.clientHeight || 480 });
         S.gkChart.applyOptions({ width: gc.clientWidth });
     });
     ro.observe(mc);
@@ -777,10 +781,8 @@ function updateChartData(kd, trades) {
 
         // 持倉期間進場價格線（方向色半透明，持倉中用金色）
         const ep = t.entry_price;
-        console.log(`[TradeLine] trade=${t.trade_id} ep=${ep} entry_ts=${t.entry_ts} exit_ts=${t.exit_ts} isClosed=${isClosed}`);
         if (t.entry_ts > 0 && ep > 0) {
             const endTs = isClosed ? t.exit_ts : lastCandleTime;
-            console.log(`[TradeLine]   endTs=${endTs} lastCandleTime=${lastCandleTime}`);
             if (endTs > 0) {
                 const lineData = [];
                 for (const c of candles) {
@@ -788,24 +790,18 @@ function updateChartData(kd, trades) {
                         lineData.push({ time: c.time, value: ep });
                     }
                 }
-                console.log(`[TradeLine]   lineData.length=${lineData.length}`, lineData.length > 0 ? lineData[0] : 'empty');
                 if (lineData.length >= 2) {
                     const lineColor = !isClosed ? '#f0b90bcc' : (isLong ? '#42a5f5aa' : '#ff9800aa');
-                    try {
-                        const ls = S.mainChart.addLineSeries({
-                            color: lineColor,
-                            lineWidth: 2,
-                            lineStyle: 2,
-                            crosshairMarkerVisible: false,
-                            lastValueVisible: false,
-                            priceLineVisible: false,
-                        });
-                        ls.setData(lineData);
-                        S.tradeLines.push(ls);
-                        console.log(`[TradeLine]   ✓ line created, color=${lineColor}, points=${lineData.length}`);
-                    } catch (err) {
-                        console.error(`[TradeLine]   ✗ ERROR creating line:`, err);
-                    }
+                    const ls = S.mainChart.addLineSeries({
+                        color: lineColor,
+                        lineWidth: 2,
+                        lineStyle: 2,
+                        crosshairMarkerVisible: false,
+                        lastValueVisible: false,
+                        priceLineVisible: false,
+                    });
+                    ls.setData(lineData);
+                    S.tradeLines.push(ls);
                 }
             }
         }
@@ -817,9 +813,6 @@ function updateChartData(kd, trades) {
     S.mainChart.timeScale().applyOptions({ rightOffset: 5 });
     S.mainChart.timeScale().scrollToRealTime();
 }
-
-// 持倉水平價格線（已停用，會遮住 K 線）
-function updatePositionLines(positions) {}
 
 function scrollChartTo(ts) {
     switchTab('chart');
@@ -879,7 +872,21 @@ function renderFilters() {
             <option value="BE" ${sel(f.exit,'BE')}>平保 (BE)</option>
             <option value="SafeNet" ${sel(f.exit,'SafeNet')}>安全網 (SafeNet)</option>
         </select>
+        <button class="export-btn" onclick="exportTradesCSV()">匯出 CSV</button>
     `;
+}
+
+function exportTradesCSV() {
+    if (!S.trades || S.trades.length === 0) return;
+    const cols = ['trade_number','entry_time_utc8','direction','sub_strategy','entry_price','exit_price','exit_type','net_pnl_usd','net_pnl_pct','hold_bars','gk_pctile_at_entry'];
+    const header = cols.join(',');
+    const rows = S.trades.map(t => cols.map(c => t[c] != null ? t[c] : '').join(','));
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `trades_${S.mode}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
 }
 
 function renderTradesTable() {
@@ -901,27 +908,34 @@ function renderTradesTable() {
         return S.sortAsc ? va - vb : vb - va;
     });
 
+    // Pagination
+    const total = data.length;
+    const ps = S.tradePageSize;
+    const maxPage = Math.max(0, Math.ceil(total / ps) - 1);
+    if (S.tradePage > maxPage) S.tradePage = maxPage;
+    const pageData = data.slice(S.tradePage * ps, (S.tradePage + 1) * ps);
+
     const sortIcon = (col) => S.sortCol === col ? (S.sortAsc ? ' ▲' : ' ▼') : '';
 
     let html = `<table><thead><tr>
         <th onclick="sortBy('trade_number')">#${sortIcon('trade_number')}</th>
-        <th onclick="sortBy('entry_time_utc8')">進場時間 (Entry)${sortIcon('entry_time_utc8')}</th>
-        <th onclick="sortBy('direction')">方向 (Dir)${sortIcon('direction')}</th>
-        <th onclick="sortBy('sub_strategy')">策略 (Strat)${sortIcon('sub_strategy')}</th>
-        <th onclick="sortBy('entry_price')">進場價 (Entry$)${sortIcon('entry_price')}</th>
-        <th onclick="sortBy('exit_price')">出場價 (Exit$)${sortIcon('exit_price')}</th>
-        <th onclick="sortBy('exit_type')">出場原因 (Exit)${sortIcon('exit_type')}</th>
-        <th onclick="sortBy('net_pnl_usd')">損益 $ (PnL)${sortIcon('net_pnl_usd')}</th>
-        <th onclick="sortBy('net_pnl_pct')">損益 % (PnL)${sortIcon('net_pnl_pct')}</th>
-        <th onclick="sortBy('hold_bars')">持倉時數 (Hold h)${sortIcon('hold_bars')}</th>
+        <th onclick="sortBy('entry_time_utc8')">進場時間${sortIcon('entry_time_utc8')}</th>
+        <th onclick="sortBy('direction')">方向${sortIcon('direction')}</th>
+        <th onclick="sortBy('sub_strategy')">策略${sortIcon('sub_strategy')}</th>
+        <th onclick="sortBy('entry_price')">進場價${sortIcon('entry_price')}</th>
+        <th onclick="sortBy('exit_price')">出場價${sortIcon('exit_price')}</th>
+        <th onclick="sortBy('exit_type')">出場原因${sortIcon('exit_type')}</th>
+        <th onclick="sortBy('net_pnl_usd')">損益 $${sortIcon('net_pnl_usd')}</th>
+        <th onclick="sortBy('net_pnl_pct')">損益 %${sortIcon('net_pnl_pct')}</th>
+        <th onclick="sortBy('hold_bars')">持倉h${sortIcon('hold_bars')}</th>
         <th onclick="sortBy('gk_pctile_at_entry')">GK${sortIcon('gk_pctile_at_entry')}</th>
-        <th onclick="sortBy('ema20_distance_pct')">EMA距離%${sortIcon('ema20_distance_pct')}</th>
-        <th onclick="sortBy('breakout_strength_pct')">突破力%${sortIcon('breakout_strength_pct')}</th>
+        <th onclick="sortBy('ema20_distance_pct')">EMA%${sortIcon('ema20_distance_pct')}</th>
+        <th onclick="sortBy('breakout_strength_pct')">突破%${sortIcon('breakout_strength_pct')}</th>
         <th onclick="sortBy('max_adverse_excursion_pct')">MAE%${sortIcon('max_adverse_excursion_pct')}</th>
         <th onclick="sortBy('max_favorable_excursion_pct')">MFE%${sortIcon('max_favorable_excursion_pct')}</th>
     </tr></thead><tbody>`;
 
-    for (const t of data) {
+    for (const t of pageData) {
         const dirCls = (t.direction||'') === 'LONG' ? 'dir-long' : 'dir-short';
         const pCls = pnlClass(t.net_pnl_usd);
         html += `<tr class="clickable" onclick="scrollChartTo(${t.entry_ts||0})">
@@ -943,7 +957,23 @@ function renderTradesTable() {
         </tr>`;
     }
     html += '</tbody></table>';
+
+    // 分頁控制
+    if (total > ps) {
+        html += `<div class="pagination">
+            <button onclick="tradePageGo(0)" ${S.tradePage===0?'disabled':''}>«</button>
+            <button onclick="tradePageGo(${S.tradePage-1})" ${S.tradePage===0?'disabled':''}>‹</button>
+            <span>${S.tradePage+1} / ${maxPage+1}（共 ${total} 筆）</span>
+            <button onclick="tradePageGo(${S.tradePage+1})" ${S.tradePage>=maxPage?'disabled':''}>›</button>
+            <button onclick="tradePageGo(${maxPage})" ${S.tradePage>=maxPage?'disabled':''}>»</button>
+        </div>`;
+    }
     $('trades-table-wrap').innerHTML = html;
+}
+
+function tradePageGo(page) {
+    S.tradePage = Math.max(0, page);
+    renderTradesTable();
 }
 
 function sortBy(col) {
@@ -997,11 +1027,15 @@ function renderAnalyticsCards(an) {
 
 function renderEquityCurve(data) {
     const el = $('equity-chart');
-    // 銷毀舊 chart 防止記憶體洩漏
-    if (S.equityChart) { try { S.equityChart.remove(); } catch {} S.equityChart = null; }
-    el.innerHTML = '';
     if (data.length === 0) { el.innerHTML = '<div class="loading">尚無資料 (No Data)</div>'; return; }
 
+    // 已有 chart → 只更新資料
+    if (S.equityChart && S.equitySeries) {
+        S.equitySeries.setData(data);
+        return;
+    }
+
+    el.innerHTML = '';
     const chart = LightweightCharts.createChart(el, {
         width: el.clientWidth, height: 250,
         layout: { background: { color: '#1a1a2e' }, textColor: '#d1d4dc' },
@@ -1009,38 +1043,46 @@ function renderEquityCurve(data) {
         timeScale: { borderColor: '#2B2B43' },
         rightPriceScale: { borderColor: '#2B2B43' },
     });
-    const series = chart.addAreaSeries({
+    S.equitySeries = chart.addAreaSeries({
         topColor: 'rgba(38,166,154,0.4)', bottomColor: 'rgba(38,166,154,0.0)',
         lineColor: '#26a69a', lineWidth: 2,
     });
-    series.setData(data);
+    S.equitySeries.setData(data);
     S.equityChart = chart;
-    new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth })).observe(el);
+    if (S.equityRO) S.equityRO.disconnect();
+    S.equityRO = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth }));
+    S.equityRO.observe(el);
 }
 
 function renderDailyChart(daily) {
     const el = $('daily-chart');
-    // 銷毀舊 chart 防止記憶體洩漏
-    if (S.dailyChart) { try { S.dailyChart.remove(); } catch {} S.dailyChart = null; }
-    el.innerHTML = '';
-    if (daily.length === 0) { el.innerHTML = '<div class="loading">尚無資料 (No Data)</div>'; return; }
-
-    const chart = LightweightCharts.createChart(el, {
-        width: el.clientWidth, height: 250,
-        layout: { background: { color: '#1a1a2e' }, textColor: '#d1d4dc' },
-        grid: { vertLines: { color: '#2B2B43' }, horzLines: { color: '#2B2B43' } },
-        timeScale: { borderColor: '#2B2B43' },
-        rightPriceScale: { borderColor: '#2B2B43' },
-    });
-    const series = chart.addHistogramSeries();
     const data = daily.filter(d => d.time && d.value != null).map(d => ({
         time: d.time,
         value: d.value,
         color: d.value >= 0 ? '#26a69a' : '#ef5350',
     }));
-    series.setData(data);
+    if (data.length === 0) { el.innerHTML = '<div class="loading">尚無資料 (No Data)</div>'; return; }
+
+    // 已有 chart → 只更新資料
+    if (S.dailyChart && S.dailySeries) {
+        S.dailySeries.setData(data);
+        return;
+    }
+
+    el.innerHTML = '';
+    const chart = LightweightCharts.createChart(el, {
+        width: el.clientWidth, height: 250,
+        layout: { background: { color: '#1a1a2e' }, textColor: '#d1d4dc' },
+        grid: { vertLines: { color: '#2B2B43' }, horzLines: { color: '#2B2B43' } },
+        timeScale: { borderColor: '#2B2B43' },
+        rightPriceScale: { borderColor: '#2B2B43' },
+    });
+    S.dailySeries = chart.addHistogramSeries();
+    S.dailySeries.setData(data);
     S.dailyChart = chart;
-    new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth })).observe(el);
+    if (S.dailyRO) S.dailyRO.disconnect();
+    S.dailyRO = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth }));
+    S.dailyRO.observe(el);
 }
 
 function renderExitDist(dist) {
@@ -1101,6 +1143,7 @@ async function loadLogs() {
     const viewer = $('log-viewer');
     if (!viewer) return;
     const lines = $('log-lines') ? parseInt($('log-lines').value) : 200;
+    const search = $('log-search') ? $('log-search').value.trim().toLowerCase() : '';
     try {
         const resp = await fetch(`/api/logs?file=${S.logFile}&lines=${lines}`);
         const d = await resp.json();
@@ -1108,7 +1151,12 @@ async function loadLogs() {
             viewer.innerHTML = '<div class="log-empty">暫無日誌</div>';
             return;
         }
-        viewer.innerHTML = d.lines.map(line => {
+        const filtered = search ? d.lines.filter(l => l.toLowerCase().includes(search)) : d.lines;
+        if (filtered.length === 0) {
+            viewer.innerHTML = `<div class="log-empty">無符合「${escapeHtml(search)}」的日誌</div>`;
+            return;
+        }
+        viewer.innerHTML = filtered.map(line => {
             let cls = 'log-line';
             if (line.includes(' ERROR ') || line.includes('ERROR')) cls += ' log-error';
             else if (line.includes(' WARNING ') || line.includes('WARNING')) cls += ' log-warn';
@@ -1116,7 +1164,6 @@ async function loadLogs() {
             return `<div class="${cls}">${escapeHtml(line)}</div>`;
         }).join('');
 
-        // 自動捲動到底部
         const autoScroll = $('log-auto-scroll');
         if (autoScroll && autoScroll.checked) {
             viewer.scrollTop = viewer.scrollHeight;
@@ -1198,6 +1245,10 @@ function onRefreshTick() {
     checkBotStatus();
     updateTimerDisplay();
     setInterval(onRefreshTick, 1000);
-    // 每 10 秒更新 bot 狀態
     setInterval(checkBotStatus, 10000);
+
+    // 瀏覽器 tab 隱藏時暫停動畫省 CPU
+    document.addEventListener('visibilitychange', () => {
+        document.body.style.animationPlayState = document.hidden ? 'paused' : 'running';
+    });
 })();
