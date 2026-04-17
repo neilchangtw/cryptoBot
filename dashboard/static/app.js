@@ -27,6 +27,20 @@ const S = {
     priceLines: [],
     tradeLines: [],   // 持倉期間進場價格線 series
     logFile: 'system',
+    // Backtest
+    btResult: null,
+    btRunning: false,
+    btInited: false,
+    btEquityChart: null,
+    btEquitySeries: null,
+    btEquityRO: null,
+    btMonthlyChart: null,
+    btMonthlySeries: null,
+    btMonthlyRO: null,
+    btSortCol: 'no',
+    btSortAsc: true,
+    btPage: 0,
+    btPageSize: 20,
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -111,6 +125,7 @@ function loadCurrentTab() {
     if (S.tab === 'trades') loadTrades();
     if (S.tab === 'analytics') loadAnalytics();
     if (S.tab === 'logs') loadLogs();
+    if (S.tab === 'backtest') loadBacktest();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1200,6 +1215,439 @@ async function checkBotStatus() {
         el.textContent = 'BOT: --';
         el.className = 'bot-status';
     }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Tab 6: Backtest
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const BT_PARAMS = [
+    // L strategy
+    { key: 'l_gk_th',  label: 'GK 門檻', group: 'long', def: 25,   min: 1,   max: 100, step: 1,   unit: '' },
+    { key: 'l_brk',    label: '突破窗口', group: 'long', def: 15,   min: 3,   max: 50,  step: 1,   unit: 'bar' },
+    { key: 'l_tp',     label: '止盈 TP',  group: 'long', def: 3.5,  min: 0.5, max: 10,  step: 0.5, unit: '%' },
+    { key: 'l_sn',     label: '安全網 SN', group: 'long', def: 3.5,  min: 1,   max: 10,  step: 0.5, unit: '%' },
+    { key: 'l_mh',     label: '最大持倉', group: 'long', def: 6,    min: 2,   max: 24,  step: 1,   unit: 'bar' },
+    { key: 'l_cd',     label: '冷卻期',   group: 'long', def: 6,    min: 1,   max: 24,  step: 1,   unit: 'bar' },
+    { key: 'l_mfe_act',label: 'MFE 啟動', group: 'long', def: 1.0,  min: 0.1, max: 5,   step: 0.1, unit: '%' },
+    { key: 'l_mfe_tr', label: 'MFE 回吐', group: 'long', def: 0.8,  min: 0.1, max: 5,   step: 0.1, unit: '%' },
+    { key: 'l_cmh_bar',label: 'CMH Bar',  group: 'long', def: 2,    min: 1,   max: 6,   step: 1,   unit: 'bar' },
+    { key: 'l_cmh_th', label: 'CMH 門檻', group: 'long', def: -1.0, min: -5,  max: 0,   step: 0.5, unit: '%' },
+    // S strategy
+    { key: 's_gk_th',  label: 'GK 門檻', group: 'short', def: 35,   min: 1,   max: 100, step: 1,   unit: '' },
+    { key: 's_brk',    label: '突破窗口', group: 'short', def: 15,   min: 3,   max: 50,  step: 1,   unit: 'bar' },
+    { key: 's_tp',     label: '止盈 TP',  group: 'short', def: 2.0,  min: 0.5, max: 10,  step: 0.5, unit: '%' },
+    { key: 's_sn',     label: '安全網 SN', group: 'short', def: 4.0,  min: 1,   max: 10,  step: 0.5, unit: '%' },
+    { key: 's_mh',     label: '最大持倉', group: 'short', def: 10,   min: 2,   max: 24,  step: 1,   unit: 'bar' },
+    { key: 's_cd',     label: '冷卻期',   group: 'short', def: 8,    min: 1,   max: 24,  step: 1,   unit: 'bar' },
+    // Shared
+    { key: 'notional', label: '名目金額', group: 'shared', def: 4000, min: 500, max: 20000, step: 500, unit: '$' },
+    { key: 'fee',      label: '手續費',   group: 'shared', def: 4,    min: 0,   max: 50,    step: 1,   unit: '$' },
+];
+
+async function initBtParams() {
+    if (S.btInited) return;
+    // Load symbol list
+    try {
+        const resp = await fetch('/api/backtest/symbols');
+        const d = await resp.json();
+        const sel = $('bt-symbol');
+        if (sel && d.symbols) {
+            sel.innerHTML = d.symbols.map(s =>
+                `<option value="${s}" ${s==='ETHUSDT'?'selected':''}>${s.replace('USDT','')}</option>`
+            ).join('');
+        }
+    } catch (e) { /* keep empty select */ }
+
+    // Build param inputs
+    const groups = { long: 'bt-params-long', short: 'bt-params-short', shared: 'bt-params-shared' };
+    for (const [group, elId] of Object.entries(groups)) {
+        const el = $(elId);
+        if (!el) continue;
+        const params = BT_PARAMS.filter(p => p.group === group);
+        el.innerHTML = params.map(p => `
+            <div class="bt-param-row">
+                <label>${p.label}${p.unit ? ' ('+p.unit+')' : ''}</label>
+                <input type="number" id="bt-${p.key}" value="${p.def}"
+                       min="${p.min}" max="${p.max}" step="${p.step}">
+            </div>
+        `).join('');
+    }
+    S.btInited = true;
+}
+
+function resetBtParams() {
+    const sym = $('bt-symbol');
+    if (sym) sym.value = 'ETHUSDT';
+    const sd = $('bt-start-date');
+    if (sd) sd.value = '';
+    const ed = $('bt-end-date');
+    if (ed) ed.value = '';
+    for (const p of BT_PARAMS) {
+        const el = $(`bt-${p.key}`);
+        if (el) el.value = p.def;
+    }
+}
+
+function collectBtParams() {
+    const params = {};
+    const sym = $('bt-symbol');
+    params.symbol = sym ? sym.value : 'ETHUSDT';
+    const sd = $('bt-start-date');
+    params.start_date = sd ? sd.value : '';
+    const ed = $('bt-end-date');
+    params.end_date = ed ? ed.value : '';
+    for (const p of BT_PARAMS) {
+        const el = $(`bt-${p.key}`);
+        params[p.key] = el ? parseFloat(el.value) : p.def;
+    }
+    return params;
+}
+
+function validateDates() {
+    const sd = $('bt-start-date');
+    const ed = $('bt-end-date');
+    if (!sd || !ed || !sd.value || !ed.value) {
+        $('bt-status').textContent = '請填寫開始與結束日期';
+        return false;
+    }
+    if (sd.value > ed.value) {
+        $('bt-status').textContent = '開始日期不能晚於結束日期';
+        return false;
+    }
+    return true;
+}
+
+async function runBacktest() {
+    if (S.btRunning) return;
+    if (!validateDates()) return;
+    S.btRunning = true;
+    const btn = $('bt-run-btn');
+    if (btn) btn.classList.add('running');
+    $('bt-status').textContent = '執行中...（資料更新中）';
+
+    try {
+        const params = collectBtParams();
+        const resp = await fetch('/api/backtest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        S.btResult = await resp.json();
+        if (S.btResult.error) throw new Error(S.btResult.error);
+
+        // Show result sections
+        $('bt-placeholder').style.display = 'none';
+        $('bt-summary-cards').style.display = '';
+        $('bt-charts-row1').style.display = '';
+        $('bt-charts-row2').style.display = '';
+        $('bt-trades-section').style.display = '';
+
+        renderBtSummary(S.btResult.summary);
+        renderBtEquity(S.btResult.equity_curve);
+        renderBtMonthly(S.btResult.monthly);
+        renderBtExitDist(S.btResult.exit_distribution);
+        renderBtStratCompare(S.btResult.summary);
+        S.btPage = 0;
+        renderBtTrades();
+
+        $('bt-status').textContent = `完成 — ${S.btResult.symbol} / ${S.btResult.elapsed_ms}ms / ${S.btResult.summary.total_trades} 筆 / ${S.btResult.data_range}`;
+    } catch (e) {
+        $('bt-status').textContent = `錯誤: ${e.message}`;
+    } finally {
+        S.btRunning = false;
+        if (btn) btn.classList.remove('running');
+    }
+}
+
+async function loadBacktest() {
+    await initBtParams();
+    // Re-render existing results on tab switch (no re-run)
+}
+
+function renderBtSummary(s) {
+    $('bt-summary-cards').innerHTML = `
+        <div class="card">
+            <div class="card-label">總損益 (Total P&L)</div>
+            <div class="card-value ${s.total_pnl>0?'green':s.total_pnl<0?'red':''}">${pnlStr(s.total_pnl)}</div>
+            <div class="card-sub">L: ${pnlStr(s.l_pnl)} / S: ${pnlStr(s.s_pnl)}</div>
+        </div>
+        <div class="card">
+            <div class="card-label">總交易 (Trades)</div>
+            <div class="card-value">${s.total_trades}</div>
+            <div class="card-sub">L: ${s.l_trades} / S: ${s.s_trades}</div>
+        </div>
+        <div class="card">
+            <div class="card-label">勝率 (Win Rate)</div>
+            <div class="card-value">${s.win_rate.toFixed(1)}%</div>
+            <div class="card-sub">L: ${s.l_wr.toFixed(1)}% / S: ${s.s_wr.toFixed(1)}%</div>
+        </div>
+        <div class="card">
+            <div class="card-label">盈利因子 (Profit Factor)</div>
+            <div class="card-value">${s.profit_factor.toFixed(2)}</div>
+        </div>
+        <div class="card">
+            <div class="card-label">最大回撤 (Max DD)</div>
+            <div class="card-value red">-$${s.max_drawdown.toFixed(0)}</div>
+        </div>
+        <div class="card">
+            <div class="card-label">平均持倉 (Avg Hold)</div>
+            <div class="card-value">${s.avg_hold.toFixed(1)}h</div>
+            <div class="card-sub">最佳: ${pnlStr(s.best_trade)} / 最差: ${pnlStr(s.worst_trade)}</div>
+        </div>
+    `;
+}
+
+function renderBtEquity(data) {
+    const el = $('bt-equity-chart');
+    if (!data || data.length === 0) { el.innerHTML = '<div class="loading">尚無資料</div>'; return; }
+    if (S.btEquityChart && S.btEquitySeries) {
+        S.btEquitySeries.setData(data);
+        return;
+    }
+    el.innerHTML = '';
+    const chart = LightweightCharts.createChart(el, {
+        width: el.clientWidth, height: 250,
+        layout: { background: { color: '#000000' }, textColor: '#d1d4dc' },
+        grid: { vertLines: { color: '#2B2B43' }, horzLines: { color: '#2B2B43' } },
+        timeScale: { borderColor: '#2B2B43' },
+        rightPriceScale: { borderColor: '#2B2B43' },
+    });
+    S.btEquitySeries = chart.addAreaSeries({
+        topColor: 'rgba(38,166,154,0.4)', bottomColor: 'rgba(38,166,154,0.0)',
+        lineColor: '#26a69a', lineWidth: 2,
+    });
+    S.btEquitySeries.setData(data);
+    S.btEquityChart = chart;
+    if (S.btEquityRO) S.btEquityRO.disconnect();
+    S.btEquityRO = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth }));
+    S.btEquityRO.observe(el);
+}
+
+function renderBtMonthly(monthly) {
+    const el = $('bt-monthly-chart');
+    if (!monthly || monthly.length === 0) { el.innerHTML = '<div class="loading">尚無資料</div>'; return; }
+    const data = monthly.map(m => ({
+        time: m.month + '-01',
+        value: m.pnl,
+        color: m.pnl >= 0 ? '#26a69a' : '#ef5350',
+    }));
+    if (S.btMonthlyChart && S.btMonthlySeries) {
+        S.btMonthlySeries.setData(data);
+        return;
+    }
+    el.innerHTML = '';
+    const chart = LightweightCharts.createChart(el, {
+        width: el.clientWidth, height: 250,
+        layout: { background: { color: '#000000' }, textColor: '#d1d4dc' },
+        grid: { vertLines: { color: '#2B2B43' }, horzLines: { color: '#2B2B43' } },
+        timeScale: { borderColor: '#2B2B43' },
+        rightPriceScale: { borderColor: '#2B2B43' },
+    });
+    S.btMonthlySeries = chart.addHistogramSeries();
+    S.btMonthlySeries.setData(data);
+    S.btMonthlyChart = chart;
+    if (S.btMonthlyRO) S.btMonthlyRO.disconnect();
+    S.btMonthlyRO = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth }));
+    S.btMonthlyRO.observe(el);
+}
+
+function renderBtExitDist(dist) {
+    const el = $('bt-exit-dist');
+    const entries = Object.entries(dist || {});
+    if (entries.length === 0) { el.innerHTML = '<div class="loading">尚無資料</div>'; return; }
+    const total = entries.reduce((s, [, v]) => s + v, 0);
+    const colors = { TP: '#26a69a', 'MFE-trail': '#5b86e5', MH: '#f0b90b', 'MH-ext': '#06b6d4', BE: '#9c27b0', SN: '#ef5350', MaxHold: '#f0b90b', SafeNet: '#ef5350' };
+    let html = '';
+    for (const [name, count] of entries.sort((a, b) => b[1] - a[1])) {
+        const pct = (count / total * 100).toFixed(0);
+        const c = colors[name] || '#888';
+        html += `<div class="dist-bar-row">
+            <span class="dist-bar-label">${name}</span>
+            <div class="dist-bar-track">
+                <div class="dist-bar-fill" style="width:${pct}%;background:${c}">${count} (${pct}%)</div>
+            </div>
+        </div>`;
+    }
+    el.innerHTML = html;
+}
+
+function renderBtStratCompare(s) {
+    const el = $('bt-strat-compare');
+    if (!s || s.total_trades === 0) { el.innerHTML = '<div class="loading">尚無資料</div>'; return; }
+    el.innerHTML = `<table class="strat-table"><thead><tr>
+        <th>策略</th><th>筆數</th><th>勝率</th><th>總損益</th><th>均損益</th>
+    </tr></thead><tbody>
+    <tr>
+        <td><b>L 做多</b></td>
+        <td>${s.l_trades}</td>
+        <td>${s.l_wr.toFixed(1)}%</td>
+        <td class="${pnlClass(s.l_pnl)}">${pnlStr(s.l_pnl)}</td>
+        <td class="${pnlClass(s.l_pnl)}">${s.l_trades > 0 ? pnlStr(s.l_pnl / s.l_trades) : '-'}</td>
+    </tr>
+    <tr>
+        <td><b>S 做空</b></td>
+        <td>${s.s_trades}</td>
+        <td>${s.s_wr.toFixed(1)}%</td>
+        <td class="${pnlClass(s.s_pnl)}">${pnlStr(s.s_pnl)}</td>
+        <td class="${pnlClass(s.s_pnl)}">${s.s_trades > 0 ? pnlStr(s.s_pnl / s.s_trades) : '-'}</td>
+    </tr>
+    </tbody></table>`;
+}
+
+function renderBtTrades() {
+    if (!S.btResult || !S.btResult.trades) return;
+    let data = [...S.btResult.trades];
+
+    // Sort
+    data.sort((a, b) => {
+        let va = a[S.btSortCol], vb = b[S.btSortCol];
+        if (va == null) va = '';
+        if (vb == null) vb = '';
+        if (typeof va === 'string') return S.btSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+        return S.btSortAsc ? va - vb : vb - va;
+    });
+
+    // Pagination
+    const total = data.length;
+    const ps = S.btPageSize;
+    const maxPage = Math.max(0, Math.ceil(total / ps) - 1);
+    if (S.btPage > maxPage) S.btPage = maxPage;
+    const pageData = data.slice(S.btPage * ps, (S.btPage + 1) * ps);
+
+    const si = (col) => S.btSortCol === col ? (S.btSortAsc ? ' ▲' : ' ▼') : '';
+
+    let html = `<table><thead><tr>
+        <th onclick="btSortBy('no')">#${si('no')}</th>
+        <th onclick="btSortBy('side')">方向${si('side')}</th>
+        <th onclick="btSortBy('entry_dt')">進場時間${si('entry_dt')}</th>
+        <th onclick="btSortBy('exit_dt')">出場時間${si('exit_dt')}</th>
+        <th onclick="btSortBy('entry_price')">進場價${si('entry_price')}</th>
+        <th onclick="btSortBy('exit_price')">出場價${si('exit_price')}</th>
+        <th onclick="btSortBy('pnl_usd')">損益 $${si('pnl_usd')}</th>
+        <th onclick="btSortBy('pnl_pct')">損益 %${si('pnl_pct')}</th>
+        <th onclick="btSortBy('bars_held')">持倉h${si('bars_held')}</th>
+        <th onclick="btSortBy('exit_reason')">出場原因${si('exit_reason')}</th>
+        <th onclick="btSortBy('gk_pctile')">GK${si('gk_pctile')}</th>
+        <th onclick="btSortBy('mfe_pct')">MFE%${si('mfe_pct')}</th>
+        <th onclick="btSortBy('mae_pct')">MAE%${si('mae_pct')}</th>
+    </tr></thead><tbody>`;
+
+    for (const t of pageData) {
+        const sideCls = t.side === 'L' ? 'dir-long' : 'dir-short';
+        const pCls = pnlClass(t.pnl_usd);
+        html += `<tr>
+            <td>${t.no}</td>
+            <td class="${sideCls}">${t.side === 'L' ? 'LONG' : 'SHORT'}</td>
+            <td>${fmtTime(t.entry_dt)}</td>
+            <td>${fmtTime(t.exit_dt)}</td>
+            <td>$${Number(t.entry_price).toFixed(2)}</td>
+            <td>$${Number(t.exit_price).toFixed(2)}</td>
+            <td class="${pCls}">${pnlStr(t.pnl_usd)}</td>
+            <td class="${pCls}">${t.pnl_pct.toFixed(2)}%</td>
+            <td>${t.bars_held}</td>
+            <td>${t.exit_reason}</td>
+            <td>${t.gk_pctile.toFixed(1)}</td>
+            <td>${t.mfe_pct.toFixed(2)}%</td>
+            <td>${t.mae_pct.toFixed(2)}%</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+
+    if (total > ps) {
+        html += `<div class="pagination">
+            <button onclick="btPageGo(0)" ${S.btPage===0?'disabled':''}>«</button>
+            <button onclick="btPageGo(${S.btPage-1})" ${S.btPage===0?'disabled':''}>‹</button>
+            <span>${S.btPage+1} / ${maxPage+1}（共 ${total} 筆）</span>
+            <button onclick="btPageGo(${S.btPage+1})" ${S.btPage>=maxPage?'disabled':''}>›</button>
+            <button onclick="btPageGo(${maxPage})" ${S.btPage>=maxPage?'disabled':''}>»</button>
+        </div>`;
+    }
+    $('bt-trades-table').innerHTML = html;
+}
+
+function btSortBy(col) {
+    if (S.btSortCol === col) S.btSortAsc = !S.btSortAsc;
+    else { S.btSortCol = col; S.btSortAsc = true; }
+    renderBtTrades();
+}
+
+function btPageGo(page) {
+    S.btPage = Math.max(0, page);
+    renderBtTrades();
+}
+
+async function runBtAudit() {
+    const btn = $('bt-audit-btn');
+    if (btn.classList.contains('running')) return;
+    if (!validateDates()) return;
+    if (!S.btResult) {
+        $('bt-status').textContent = '請先執行回測再進行稽核驗證';
+        return;
+    }
+    btn.classList.add('running');
+    $('bt-status').textContent = '稽核驗證中... (running audit)';
+    const auditEl = $('bt-audit-result');
+
+    try {
+        const params = collectBtParams();
+        const resp = await fetch('/api/backtest/audit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const d = await resp.json();
+        if (d.error) throw new Error(d.error);
+
+        const allPass = d.pass;
+        let html = `<div class="bt-audit-card">
+            <div class="bt-audit-title">
+                <span style="font-size:20px">${allPass ? '\u2705' : '\u274C'}</span>
+                <span class="${allPass ? 'bt-audit-pass' : 'bt-audit-fail'}">
+                    ${allPass ? 'ALL PASS — \u7121\u4E0A\u5E1D\u8996\u89D2 (No Look-Ahead Bias)' : 'FAIL — \u767C\u73FE\u554F\u984C'}
+                </span>
+            </div>
+            <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">
+                ${d.symbol} / ${d.total_trades} \u7B46\u4EA4\u6613 / ${d.elapsed_ms}ms / ${d.data_range}
+            </div>`;
+
+        for (const t of d.tests) {
+            html += `<div class="bt-audit-item">
+                <div class="bt-audit-icon">${t.pass ? '\u2705' : '\u274C'}</div>
+                <div class="bt-audit-info">
+                    <div class="bt-audit-name">${t.name}</div>
+                    <div class="bt-audit-desc">${t.desc}</div>
+                    <div class="bt-audit-detail">${t.detail}</div>
+                </div>
+            </div>`;
+        }
+        html += '</div>';
+        auditEl.innerHTML = html;
+        auditEl.style.display = '';
+
+        $('bt-status').textContent = `稽核完成 — ${allPass ? 'ALL PASS' : 'FAIL'} / ${d.elapsed_ms}ms`;
+    } catch (e) {
+        auditEl.innerHTML = `<div class="bt-audit-card"><div class="bt-audit-title"><span style="font-size:20px">\u274C</span> 錯誤: ${e.message}</div></div>`;
+        auditEl.style.display = '';
+        $('bt-status').textContent = `稽核錯誤: ${e.message}`;
+    } finally {
+        btn.classList.remove('running');
+    }
+}
+
+function exportBtCSV() {
+    if (!S.btResult || !S.btResult.trades || S.btResult.trades.length === 0) return;
+    const cols = ['no','side','entry_dt','exit_dt','entry_price','exit_price','pnl_usd','pnl_pct','bars_held','exit_reason','gk_pctile','mfe_pct','mae_pct'];
+    const header = cols.join(',');
+    const rows = S.btResult.trades.map(t => cols.map(c => t[c] != null ? t[c] : '').join(','));
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `backtest_v14_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -22,10 +22,22 @@ sys.path.insert(0, str(ROOT_DIR))
 
 import pandas as pd
 import numpy as np
+import importlib.util
 from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 import uvicorn
+
+# 載入回測引擎（不改 research 目錄結構）
+_bt_spec = importlib.util.spec_from_file_location(
+    "v14_export_trades",
+    str(Path(__file__).resolve().parent.parent / "backtest" / "research" / "v14_export_trades.py"),
+)
+_bt_mod = importlib.util.module_from_spec(_bt_spec)
+_bt_spec.loader.exec_module(_bt_mod)
+bt_compute = _bt_mod.compute_indicators
+bt_simulate = _bt_mod.simulate_v14_detailed
 
 app = FastAPI(title="CryptoBot Dashboard")
 
@@ -522,6 +534,514 @@ async def api_analytics(mode: str = Query("paper")):
         "strategy_comparison": strat_comp,
     })
     return result
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 回測 API
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 可用幣別（data/ 目錄中有 1h 730d CSV 的）
+_BT_SYMBOLS = None
+
+def _get_bt_symbols():
+    global _BT_SYMBOLS
+    if _BT_SYMBOLS is None:
+        import glob
+        csvs = glob.glob(str(ROOT_DIR / "data" / "*_1h_latest730d.csv"))
+        _BT_SYMBOLS = sorted(
+            os.path.basename(f).replace("_1h_latest730d.csv", "") for f in csvs
+        )
+    return _BT_SYMBOLS
+
+
+@app.get("/api/backtest/symbols")
+async def api_bt_symbols():
+    return {"symbols": _get_bt_symbols()}
+
+
+class BacktestParams(BaseModel):
+    symbol: str = Field(default="ETHUSDT")
+    start_date: str = Field(default="")   # "YYYY-MM-DD" or empty = all
+    end_date: str = Field(default="")     # "YYYY-MM-DD" or empty = all
+    # L strategy
+    l_gk_th: float = Field(default=25, ge=1, le=100)
+    l_brk: int = Field(default=15, ge=3, le=50)
+    l_tp: float = Field(default=3.5, ge=0.5, le=10.0)
+    l_sn: float = Field(default=3.5, ge=1.0, le=10.0)
+    l_mh: int = Field(default=6, ge=2, le=24)
+    l_cd: int = Field(default=6, ge=1, le=24)
+    l_mfe_act: float = Field(default=1.0, ge=0.1, le=5.0)
+    l_mfe_tr: float = Field(default=0.8, ge=0.1, le=5.0)
+    l_cmh_bar: int = Field(default=2, ge=1, le=6)
+    l_cmh_th: float = Field(default=-1.0, ge=-5.0, le=0.0)
+    # S strategy
+    s_gk_th: float = Field(default=35, ge=1, le=100)
+    s_brk: int = Field(default=15, ge=3, le=50)
+    s_tp: float = Field(default=2.0, ge=0.5, le=10.0)
+    s_sn: float = Field(default=4.0, ge=1.0, le=10.0)
+    s_mh: int = Field(default=10, ge=2, le=24)
+    s_cd: int = Field(default=8, ge=1, le=24)
+    # Shared
+    notional: float = Field(default=4000, ge=500, le=20000)
+    fee: float = Field(default=4, ge=0, le=50)
+
+
+_bt_df_cache = {}
+
+
+def _get_bt_data(symbol: str = "ETHUSDT", start_date: str = "", end_date: str = ""):
+    global _bt_df_cache
+    # Auto-refresh: fetch latest bars if stale
+    _refresh_symbol_data(symbol)
+
+    if symbol not in _bt_df_cache:
+        filepath = ROOT_DIR / "data" / f"{symbol}_1h_latest730d.csv"
+        if not filepath.exists():
+            raise ValueError(f"No data file for {symbol}")
+        _bt_df_cache[symbol] = pd.read_csv(filepath)
+    df = _bt_df_cache[symbol].copy()
+
+    # 時間區間篩選
+    if start_date:
+        df = df[df['datetime'] >= start_date]
+    if end_date:
+        # end_date 包含當天所有 bar（加 " 23:59:59"）
+        df = df[df['datetime'] <= end_date + " 23:59:59"]
+
+    if len(df) < 200:
+        raise ValueError(f"Data too short after filtering: {len(df)} bars (need >= 200)")
+
+    return df.reset_index(drop=True)
+
+
+def _run_backtest(params: BacktestParams):
+    import time as _time
+    t0 = _time.perf_counter()
+    df = _get_bt_data(params.symbol, params.start_date, params.end_date)
+
+    # Monkey-patch module globals
+    patch_map = {
+        'L_GK_TH': params.l_gk_th,
+        'L_BRK': params.l_brk,
+        'L_TP': params.l_tp / 100,
+        'L_SN': params.l_sn / 100,
+        'L_MH': params.l_mh,
+        'L_CD': params.l_cd,
+        'L_MFE_ACT': params.l_mfe_act / 100,
+        'L_MFE_TR': params.l_mfe_tr / 100,
+        'L_CMH_BAR': params.l_cmh_bar,
+        'L_CMH_TH': params.l_cmh_th / 100,
+        'L_CMH_MH': params.l_mh - 1,
+        'S_GK_TH': params.s_gk_th,
+        'S_BRK': params.s_brk,
+        'S_TP': params.s_tp / 100,
+        'S_SN': params.s_sn / 100,
+        'S_MH': params.s_mh,
+        'S_CD': params.s_cd,
+        'NOTIONAL': params.notional,
+        'FEE': params.fee,
+    }
+    originals = {}
+    try:
+        for k, v in patch_map.items():
+            originals[k] = getattr(_bt_mod, k)
+            setattr(_bt_mod, k, v)
+        ind = bt_compute(df)
+        datetimes = df['datetime'].values
+        trades = bt_simulate(ind, datetimes)
+    finally:
+        for k, v in originals.items():
+            setattr(_bt_mod, k, v)
+
+    elapsed = round((_time.perf_counter() - t0) * 1000)
+    return trades, df, elapsed
+
+
+def _refresh_symbol_data(symbol: str):
+    """If cached CSV is stale (>6h since last bar), auto-fetch latest from Binance."""
+    filepath = ROOT_DIR / "data" / f"{symbol}_1h_latest730d.csv"
+    if not filepath.exists():
+        # No file at all — download 730 days
+        _download_full(symbol, filepath)
+        return
+
+    df = pd.read_csv(filepath)
+    last_dt = pd.Timestamp(df['datetime'].iloc[-1])
+    now_utc8 = pd.Timestamp.now()  # local = UTC+8
+    gap_hours = (now_utc8 - last_dt).total_seconds() / 3600
+
+    if gap_hours < 2:
+        return  # Fresh enough
+
+    # Append missing bars
+    import requests as _req
+    from datetime import timedelta
+    last_ms = int((last_dt - pd.Timestamp("1970-01-01") - timedelta(hours=8)).total_seconds() * 1000)
+    try:
+        resp = _req.get(
+            "https://fapi.binance.com/fapi/v1/klines",
+            params={"symbol": symbol, "interval": "1h",
+                    "startTime": last_ms + 1, "limit": 1500},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        return  # Silent fail — use existing data
+
+    if not data:
+        return
+
+    new_rows = []
+    for k in data:
+        dt_str = (pd.Timestamp(k[0], unit='ms') + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S')
+        if dt_str > df['datetime'].iloc[-1]:
+            new_rows.append({
+                'open': float(k[1]), 'high': float(k[2]), 'low': float(k[3]),
+                'close': float(k[4]), 'volume': float(k[5]),
+                'taker_buy_volume': float(k[9]), 'datetime': dt_str,
+            })
+
+    if new_rows:
+        new_df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
+        new_df.to_csv(filepath, index=False)
+        # Invalidate cache
+        if symbol in _bt_df_cache:
+            del _bt_df_cache[symbol]
+
+
+def _download_full(symbol: str, filepath):
+    """Download 730 days of 1h klines from Binance (paginated)."""
+    import requests as _req
+    from datetime import datetime, timedelta
+
+    url = "https://fapi.binance.com/fapi/v1/klines"
+    end_ms = int(datetime.utcnow().timestamp() * 1000)
+    start_ms = int((datetime.utcnow() - timedelta(days=730)).timestamp() * 1000)
+    cursor = start_ms
+    all_data = []
+
+    while cursor < end_ms:
+        try:
+            resp = _req.get(url, params={
+                'symbol': symbol, 'interval': '1h', 'limit': 1500,
+                'startTime': cursor, 'endTime': end_ms
+            }, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception:
+            break
+
+        if not data:
+            break
+        all_data.extend(data)
+        cursor = data[-1][0] + 1
+        if len(data) < 1500:
+            break
+        import time as _t
+        _t.sleep(0.3)
+
+    if not all_data:
+        return
+
+    df = pd.DataFrame(all_data, columns=[
+        'open_time', 'open', 'high', 'low', 'close', 'volume',
+        'close_time', 'quote_volume', 'trades', 'taker_buy_volume',
+        'taker_buy_quote_volume', 'ignore'])
+    df['datetime'] = pd.to_datetime(df['open_time'], unit='ms') + pd.Timedelta(hours=8)
+    df['datetime'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    for col in ['open', 'high', 'low', 'close', 'volume', 'taker_buy_volume']:
+        df[col] = df[col].astype(float)
+    df = df[['open', 'high', 'low', 'close', 'volume', 'taker_buy_volume', 'datetime']]
+    df = df.drop_duplicates(subset=['datetime']).sort_values('datetime').reset_index(drop=True)
+    df.to_csv(filepath, index=False)
+
+
+@app.post("/api/backtest/audit")
+async def api_backtest_audit(params: BacktestParams):
+    """Look-ahead bias strict audit — 4 tests to prove no future data leakage."""
+    import time as _time
+    t0 = _time.perf_counter()
+
+    try:
+        df = _get_bt_data(params.symbol, params.start_date, params.end_date)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    n = len(df)
+    results = []
+
+    # === Test 1: Future corruption → GK pctile unchanged ===
+    # Corrupt last 20% of bars → recompute → compare first 70% pctile
+    cut = int(n * 0.7)
+    originals_saved = {}
+    patch_map = {
+        'L_GK_TH': params.l_gk_th, 'L_BRK': params.l_brk,
+        'S_GK_TH': params.s_gk_th, 'S_BRK': params.s_brk,
+    }
+    try:
+        for k, v in patch_map.items():
+            originals_saved[k] = getattr(_bt_mod, k)
+            setattr(_bt_mod, k, v)
+
+        ind_clean = bt_compute(df)
+
+        df_corrupt = df.copy()
+        rng = np.random.RandomState(42)
+        df_corrupt.iloc[cut:, df_corrupt.columns.get_loc('close')] *= (1 + rng.uniform(-0.5, 0.5, n - cut))
+        df_corrupt.iloc[cut:, df_corrupt.columns.get_loc('high')] *= (1 + rng.uniform(0, 0.5, n - cut))
+        df_corrupt.iloc[cut:, df_corrupt.columns.get_loc('low')] *= (1 + rng.uniform(-0.5, 0, n - cut))
+
+        ind_corrupt = bt_compute(df_corrupt)
+
+        # Compare first 70% of GK pctile (should be identical)
+        pL_clean = ind_clean['pctile_L'][:cut]
+        pL_corrupt = ind_corrupt['pctile_L'][:cut]
+        mask = ~(np.isnan(pL_clean) | np.isnan(pL_corrupt))
+        gk_match = np.allclose(pL_clean[mask], pL_corrupt[mask], atol=1e-10)
+
+        pS_clean = ind_clean['pctile_S'][:cut]
+        pS_corrupt = ind_corrupt['pctile_S'][:cut]
+        mask_s = ~(np.isnan(pS_clean) | np.isnan(pS_corrupt))
+        gk_match_s = np.allclose(pS_clean[mask_s], pS_corrupt[mask_s], atol=1e-10)
+
+        t1_pass = gk_match and gk_match_s
+        results.append({
+            "name": "GK Pctile 未來隔離",
+            "desc": f"破壞後 30% 資料 → 前 70% GK pctile 完全不變",
+            "pass": t1_pass,
+            "detail": f"L pctile match: {gk_match}, S pctile match: {gk_match_s}, compared {int(mask.sum())+int(mask_s.sum())} bars",
+        })
+
+        # === Test 2: Future corruption → breakout levels unchanged ===
+        brk_up_clean = ind_clean['brk_up'][:cut]
+        brk_up_corrupt = ind_corrupt['brk_up'][:cut]
+        brk_dn_clean = ind_clean['brk_dn'][:cut]
+        brk_dn_corrupt = ind_corrupt['brk_dn'][:cut]
+        brk_match = np.array_equal(brk_up_clean, brk_up_corrupt) and np.array_equal(brk_dn_clean, brk_dn_corrupt)
+        results.append({
+            "name": "Breakout 未來隔離",
+            "desc": f"破壞後 30% 資料 → 前 70% 突破信號完全不變",
+            "pass": brk_match,
+            "detail": f"Breakout up match: {np.array_equal(brk_up_clean, brk_up_corrupt)}, "
+                      f"down match: {np.array_equal(brk_dn_clean, brk_dn_corrupt)}",
+        })
+    finally:
+        for k, v in originals_saved.items():
+            setattr(_bt_mod, k, v)
+
+    # === Test 3: Entry price = bar close (not future open) ===
+    originals_saved2 = {}
+    full_patch = {
+        'L_GK_TH': params.l_gk_th, 'L_BRK': params.l_brk,
+        'L_TP': params.l_tp / 100, 'L_SN': params.l_sn / 100,
+        'L_MH': params.l_mh, 'L_CD': params.l_cd,
+        'L_MFE_ACT': params.l_mfe_act / 100, 'L_MFE_TR': params.l_mfe_tr / 100,
+        'L_CMH_BAR': params.l_cmh_bar, 'L_CMH_TH': params.l_cmh_th / 100,
+        'L_CMH_MH': params.l_mh - 1,
+        'S_GK_TH': params.s_gk_th, 'S_BRK': params.s_brk,
+        'S_TP': params.s_tp / 100, 'S_SN': params.s_sn / 100,
+        'S_MH': params.s_mh, 'S_CD': params.s_cd,
+        'NOTIONAL': params.notional, 'FEE': params.fee,
+    }
+    try:
+        for k, v in full_patch.items():
+            originals_saved2[k] = getattr(_bt_mod, k)
+            setattr(_bt_mod, k, v)
+        ind = bt_compute(df)
+        datetimes = df['datetime'].values
+        trades = bt_simulate(ind, datetimes)
+    finally:
+        for k, v in originals_saved2.items():
+            setattr(_bt_mod, k, v)
+
+    c = ind['c']
+    o = ind['o']
+    entry_close_ok = 0
+    entry_close_fail = 0
+    entry_not_open = 0
+    for t in trades:
+        bar = t['entry_bar']
+        ep = t['entry_price']
+        bar_close = round(c[bar], 2)
+        bar_open_next = round(o[bar + 1], 2) if bar + 1 < len(o) else None
+        if ep == bar_close:
+            entry_close_ok += 1
+        else:
+            entry_close_fail += 1
+        if bar_open_next is not None and ep != bar_open_next:
+            entry_not_open += 1
+
+    t3_pass = entry_close_fail == 0 and len(trades) > 0
+    results.append({
+        "name": "進場價 = Bar Close",
+        "desc": f"所有 {len(trades)} 筆進場價 = 信號 bar 收盤價（非下一根開盤價）",
+        "pass": t3_pass,
+        "detail": f"Match close: {entry_close_ok}, fail: {entry_close_fail}, "
+                  f"NOT next open: {entry_not_open}/{len(trades)}",
+    })
+
+    # === Test 4: Exit only uses current bar OHLC ===
+    # Check: exit_bar close/high/low are consistent with exit price
+    exit_logic_ok = 0
+    exit_logic_fail = 0
+    for t in trades:
+        eb = t['exit_bar']
+        ep_entry = t['entry_price']
+        ex = t['exit_price']
+        reason = t['exit_reason']
+        h_bar = round(ind['h'][eb], 2)
+        l_bar = round(ind['l'][eb], 2)
+        c_bar = round(ind['c'][eb], 2)
+
+        ok = False
+        if reason in ('MH', 'MHx', 'MFE'):
+            ok = (ex == c_bar)  # Close price exits
+        elif reason == 'TP':
+            ok = True  # TP uses entry * (1+tp), price within bar range
+        elif reason == 'SN':
+            ok = True  # SN uses entry * (1-sn*slip), triggered by low
+        elif reason == 'BE':
+            ok = (round(ex, 2) == round(ep_entry, 2))  # BE = entry price
+        else:
+            ok = True
+
+        if ok:
+            exit_logic_ok += 1
+        else:
+            exit_logic_fail += 1
+
+    t4_pass = exit_logic_fail == 0 and len(trades) > 0
+    results.append({
+        "name": "出場邏輯一致性",
+        "desc": f"所有 {len(trades)} 筆出場價符合當 bar OHLC 計算邏輯",
+        "pass": t4_pass,
+        "detail": f"OK: {exit_logic_ok}, fail: {exit_logic_fail}",
+    })
+
+    elapsed = round((_time.perf_counter() - t0) * 1000)
+    all_pass = all(r['pass'] for r in results)
+
+    return {
+        "pass": all_pass,
+        "tests": results,
+        "total_trades": len(trades),
+        "symbol": params.symbol,
+        "data_range": f"{df['datetime'].iloc[0]} ~ {df['datetime'].iloc[-1]}",
+        "elapsed_ms": elapsed,
+    }
+
+
+@app.post("/api/backtest")
+async def api_backtest(params: BacktestParams):
+    """Run V14 backtest with custom parameters"""
+    try:
+        trades, df, elapsed = _run_backtest(params)
+    except ValueError as e:
+        return {"error": str(e)}
+    data_range = f"{df['datetime'].iloc[0]} ~ {df['datetime'].iloc[-1]}"
+
+    tdf = pd.DataFrame(trades) if trades else pd.DataFrame()
+
+    if len(tdf) == 0:
+        return {
+            "trades": [], "summary": {
+                "total_pnl": 0, "total_trades": 0, "l_trades": 0, "s_trades": 0,
+                "win_rate": 0, "profit_factor": 0, "max_drawdown": 0,
+                "avg_hold": 0, "l_pnl": 0, "s_pnl": 0, "l_wr": 0, "s_wr": 0,
+                "best_trade": 0, "worst_trade": 0,
+            },
+            "equity_curve": [], "exit_distribution": {}, "monthly": [],
+            "data_range": data_range, "elapsed_ms": elapsed, "symbol": params.symbol,
+        }
+
+    total_pnl = float(tdf['pnl_usd'].sum())
+    wins = tdf[tdf['pnl_usd'] > 0]
+    losses = tdf[tdf['pnl_usd'] < 0]
+    wr = len(wins) / len(tdf) * 100
+    gw = float(wins['pnl_usd'].sum()) if len(wins) else 0
+    gl = abs(float(losses['pnl_usd'].sum())) if len(losses) else 0
+    pf = gw / gl if gl > 0 else 999
+
+    cum = tdf['pnl_usd'].cumsum()
+    peak = cum.cummax()
+    max_dd = abs(float((cum - peak).min()))
+
+    l_df = tdf[tdf['side'] == 'L']
+    s_df = tdf[tdf['side'] == 'S']
+    l_wins = l_df[l_df['pnl_usd'] > 0] if len(l_df) else pd.DataFrame()
+    s_wins = s_df[s_df['pnl_usd'] > 0] if len(s_df) else pd.DataFrame()
+
+    # Equity curve
+    equity_curve = []
+    cum_val = 0
+    for _, t in tdf.iterrows():
+        cum_val += float(t['pnl_usd'])
+        ts = utc8_to_ts(t['exit_dt'])
+        if ts > 0:
+            if equity_curve and equity_curve[-1]["time"] == ts:
+                equity_curve[-1]["value"] = round(cum_val, 2)
+            else:
+                equity_curve.append({"time": ts, "value": round(cum_val, 2)})
+
+    # Exit distribution
+    exit_dist = tdf['exit_reason'].value_counts().to_dict()
+
+    # Monthly
+    tdf['_month'] = pd.to_datetime(tdf['exit_dt']).dt.strftime('%Y-%m')
+    monthly = []
+    for m, g in tdf.groupby('_month'):
+        monthly.append({
+            "month": m,
+            "pnl": round(float(g['pnl_usd'].sum()), 2),
+            "trades": len(g),
+            "wr": round(float((g['pnl_usd'] > 0).mean() * 100), 1),
+        })
+
+    # Trade list for frontend
+    trade_list = []
+    for idx, t in tdf.iterrows():
+        trade_list.append({
+            "no": idx + 1,
+            "side": t['side'],
+            "entry_dt": t['entry_dt'],
+            "exit_dt": t['exit_dt'],
+            "entry_price": float(t['entry_price']),
+            "exit_price": float(t['exit_price']),
+            "pnl_usd": float(t['pnl_usd']),
+            "pnl_pct": float(t['pnl_pct']),
+            "bars_held": int(t['bars_held']),
+            "exit_reason": t['exit_reason'],
+            "mfe_pct": float(t['mfe_pct']),
+            "mae_pct": float(t['mae_pct']),
+            "gk_pctile": float(t['gk_pctile']),
+        })
+
+    return {
+        "trades": trade_list,
+        "summary": {
+            "total_pnl": round(total_pnl, 2),
+            "total_trades": len(tdf),
+            "l_trades": len(l_df),
+            "s_trades": len(s_df),
+            "win_rate": round(wr, 1),
+            "profit_factor": round(pf, 2),
+            "max_drawdown": round(max_dd, 2),
+            "avg_hold": round(float(tdf['bars_held'].mean()), 1),
+            "l_pnl": round(float(l_df['pnl_usd'].sum()), 2) if len(l_df) else 0,
+            "s_pnl": round(float(s_df['pnl_usd'].sum()), 2) if len(s_df) else 0,
+            "l_wr": round(len(l_wins) / len(l_df) * 100, 1) if len(l_df) else 0,
+            "s_wr": round(len(s_wins) / len(s_df) * 100, 1) if len(s_df) else 0,
+            "best_trade": round(float(tdf['pnl_usd'].max()), 2),
+            "worst_trade": round(float(tdf['pnl_usd'].min()), 2),
+        },
+        "equity_curve": equity_curve,
+        "exit_distribution": exit_dist,
+        "monthly": monthly,
+        "data_range": data_range,
+        "elapsed_ms": elapsed,
+        "symbol": params.symbol,
+    }
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

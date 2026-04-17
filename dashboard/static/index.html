@@ -30,6 +30,7 @@
     <button class="tab-btn" data-tab="trades" onclick="switchTab('trades')">交易記錄 (Trades)</button>
     <button class="tab-btn" data-tab="analytics" onclick="switchTab('analytics')">收益分析 (Analytics)</button>
     <button class="tab-btn" data-tab="logs" onclick="switchTab('logs')">系統日誌 (Logs)</button>
+    <button class="tab-btn" data-tab="backtest" onclick="switchTab('backtest')">回測 (Backtest)</button>
 </div>
 
 <!-- Tab 1: Status -->
@@ -110,6 +111,76 @@
     </div>
     <div class="log-viewer" id="log-viewer">
         <div class="loading">載入中...</div>
+    </div>
+</div>
+
+<!-- Tab 6: Backtest -->
+<div id="tab-backtest" class="tab-content">
+    <div class="bt-layout">
+        <div class="bt-params-panel">
+            <div class="bt-params-title">回測參數 (Backtest Parameters)</div>
+            <div class="bt-section-label">標的 / 區間 (Symbol / Range)</div>
+            <div class="bt-param-grid">
+                <div class="bt-param-row bt-param-wide">
+                    <label>幣別 (Symbol)</label>
+                    <select id="bt-symbol" class="bt-select"></select>
+                </div>
+                <div class="bt-param-row">
+                    <label>開始日期 (Start) *</label>
+                    <input type="date" id="bt-start-date" required>
+                </div>
+                <div class="bt-param-row">
+                    <label>結束日期 (End) *</label>
+                    <input type="date" id="bt-end-date" required>
+                </div>
+            </div>
+            <div class="bt-section-label">L 做多 (Long)</div>
+            <div class="bt-param-grid" id="bt-params-long"></div>
+            <div class="bt-section-label">S 做空 (Short)</div>
+            <div class="bt-param-grid" id="bt-params-short"></div>
+            <div class="bt-section-label">共用 (Shared)</div>
+            <div class="bt-param-grid" id="bt-params-shared"></div>
+            <div class="bt-actions">
+                <button class="bt-reset-btn" onclick="resetBtParams()">重置預設 (Reset)</button>
+                <button class="bt-run-btn" id="bt-run-btn" onclick="runBacktest()">執行回測 (Run)</button>
+            </div>
+            <div class="bt-actions" style="margin-top:6px">
+                <button class="bt-audit-btn" id="bt-audit-btn" onclick="runBtAudit()">稽核驗證 (Audit)</button>
+            </div>
+            <div id="bt-status" class="bt-status"></div>
+        </div>
+        <div class="bt-results" id="bt-results">
+            <div id="bt-audit-result" style="display:none"></div>
+            <div class="bt-placeholder" id="bt-placeholder">請設定參數並執行回測 (Set parameters and run backtest)</div>
+            <div id="bt-summary-cards" class="cards" style="display:none"></div>
+            <div class="analytics-row" id="bt-charts-row1" style="display:none">
+                <div class="analytics-panel">
+                    <h3>累計收益曲線 (Equity Curve)</h3>
+                    <div id="bt-equity-chart"></div>
+                </div>
+                <div class="analytics-panel">
+                    <h3>月度績效 (Monthly P&L)</h3>
+                    <div id="bt-monthly-chart"></div>
+                </div>
+            </div>
+            <div class="analytics-row" id="bt-charts-row2" style="display:none">
+                <div class="analytics-panel">
+                    <h3>出場原因分佈 (Exit Reasons)</h3>
+                    <div id="bt-exit-dist"></div>
+                </div>
+                <div class="analytics-panel">
+                    <h3>策略比較 (L vs S)</h3>
+                    <div id="bt-strat-compare"></div>
+                </div>
+            </div>
+            <div id="bt-trades-section" style="display:none">
+                <div class="bt-trades-header">
+                    <h3>交易明細 (Trade List)</h3>
+                    <button class="export-btn" onclick="exportBtCSV()">匯出 CSV</button>
+                </div>
+                <div class="table-wrap" id="bt-trades-table"></div>
+            </div>
+        </div>
     </div>
 </div>
 
