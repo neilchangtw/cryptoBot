@@ -1307,12 +1307,24 @@ function collectBtParams() {
 function validateDates() {
     const sd = $('bt-start-date');
     const ed = $('bt-end-date');
-    if (!sd || !ed || !sd.value || !ed.value) {
-        $('bt-status').textContent = '請填寫開始與結束日期';
+    sd.classList.remove('bt-input-error');
+    ed.classList.remove('bt-input-error');
+    const status = $('bt-status');
+
+    if (!sd.value || !ed.value) {
+        if (!sd.value) sd.classList.add('bt-input-error');
+        if (!ed.value) ed.classList.add('bt-input-error');
+        status.textContent = '!! 請填寫開始與結束日期';
+        status.classList.add('bt-status-error');
+        setTimeout(() => status.classList.remove('bt-status-error'), 3000);
         return false;
     }
     if (sd.value > ed.value) {
-        $('bt-status').textContent = '開始日期不能晚於結束日期';
+        sd.classList.add('bt-input-error');
+        ed.classList.add('bt-input-error');
+        status.textContent = '!! 開始日期不能晚於結束日期';
+        status.classList.add('bt-status-error');
+        setTimeout(() => status.classList.remove('bt-status-error'), 3000);
         return false;
     }
     return true;

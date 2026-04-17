@@ -1161,6 +1161,15 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
     color: var(--text-dim);
     font-family: 'Consolas', 'Courier New', monospace;
     min-height: 16px;
+    transition: color 0.2s;
+}
+.bt-status-error {
+    color: var(--red) !important;
+    font-weight: 700;
+}
+.bt-input-error {
+    border-color: var(--red) !important;
+    box-shadow: 0 0 0 1px var(--red), 0 0 8px rgba(239,68,68,0.25);
 }
 .bt-placeholder {
     text-align: center;
