@@ -1217,6 +1217,28 @@ async function checkBotStatus() {
     }
 }
 
+async function restartBot() {
+    const btn = $('restart-btn');
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = '重啟中...';
+    btn.classList.add('restarting');
+    try {
+        await fetch('/api/bot/restart', { method: 'POST' });
+        // 等一下再刷新狀態，讓子進程啟動
+        setTimeout(async () => {
+            await checkBotStatus();
+            btn.disabled = false;
+            btn.textContent = '重啟';
+            btn.classList.remove('restarting');
+        }, 3000);
+    } catch {
+        btn.disabled = false;
+        btn.textContent = '重啟';
+        btn.classList.remove('restarting');
+    }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Tab 6: Backtest
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

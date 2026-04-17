@@ -851,6 +851,31 @@ tbody tr:hover td { background: var(--bg-hover) !important; }
     animation: blink-dot 1.5s infinite;
 }
 
+/* ── Restart Button ── */
+.restart-btn {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(234,179,8,0.10);
+    color: var(--gold);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Inter', system-ui, sans-serif;
+    letter-spacing: 0.3px;
+}
+.restart-btn:hover {
+    background: rgba(234,179,8,0.22);
+    border-color: var(--gold);
+    box-shadow: 0 0 8px rgba(234,179,8,0.15);
+}
+.restart-btn:disabled, .restart-btn.restarting {
+    opacity: 0.5;
+    cursor: not-allowed;
+    animation: shimmer 1s ease-in-out infinite;
+}
+
 /* ── Log Viewer ── */
 .log-toolbar {
     display: flex;

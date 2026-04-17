@@ -28,6 +28,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 import uvicorn
+from dotenv import load_dotenv
+from telegram_notify import send_telegram_message as _tg_send
+
+load_dotenv(ROOT_DIR / ".env")
 
 # 載入回測引擎（不改 research 目錄結構）
 _bt_spec = importlib.util.spec_from_file_location(
@@ -1051,6 +1055,49 @@ async def api_backtest(params: BacktestParams):
 bot_process: subprocess.Popen = None
 
 
+def _read_bot_state():
+    """從 state JSON 讀取餘額與持倉資訊，用於 Telegram 通知"""
+    try:
+        paper = os.getenv("PAPER_TRADING", "true").lower() == "true"
+        sf = ROOT_DIR / ("eth_state.json" if paper else "eth_state_live.json")
+        if sf.exists():
+            state = json.loads(sf.read_text(encoding="utf-8"))
+            bal = state.get("account_balance", 0)
+            positions = state.get("positions", {})
+            lc = sum(1 for p in positions.values() if p.get("sub_strategy") == "L")
+            sc = sum(1 for p in positions.values() if p.get("sub_strategy") == "S")
+            return bal, lc, sc, "模擬" if paper else "實戰"
+    except Exception:
+        pass
+    return 0, 0, 0, "模擬"
+
+
+def _send_bot_tg(action: str):
+    """發送機器人啟停 Telegram 通知（背景執行，不阻塞）"""
+    def _do():
+        bal, lc, sc, env = _read_bot_state()
+        pos_text = f"L:{lc} S:{sc}" if (lc + sc) > 0 else "空手"
+        if action == "stop":
+            msg = (f"<b>🖨 V14 關機（{env}）</b>\n"
+                   f"━━━━━━━━━━━━━━━\n"
+                   f"💰 金庫：${bal:.2f}\n"
+                   f"📊 持倉：{pos_text}\n"
+                   f"🛏 印鈔機已停止")
+        elif action == "restart":
+            msg = (f"<b>🔄 V14 重啟中（{env}）</b>\n"
+                   f"━━━━━━━━━━━━━━━\n"
+                   f"💰 金庫：${bal:.2f}\n"
+                   f"📊 持倉：{pos_text}\n"
+                   f"⏳ 印鈔機重新啟動...")
+        else:
+            return
+        try:
+            _tg_send(msg)
+        except Exception:
+            pass
+    threading.Thread(target=_do, daemon=True).start()
+
+
 def start_bot():
     """啟動 main_eth.py 作為子進程"""
     global bot_process
@@ -1077,14 +1124,17 @@ def start_bot():
     threading.Thread(target=_drain, daemon=True).start()
 
 
-def stop_bot():
-    """停止機器人子進程"""
+def stop_bot(notify: str = ""):
+    """停止機器人子進程。notify="stop"|"restart" 時發 Telegram"""
     global bot_process
     if bot_process is None:
         return
     if bot_process.poll() is not None:
         bot_process = None
         return
+
+    if notify:
+        _send_bot_tg(notify)
 
     bot_process.terminate()
     try:
@@ -1104,6 +1154,16 @@ async def api_bot_status():
     if rc is not None:
         return {"running": False, "pid": None, "exit_code": rc}
     return {"running": True, "pid": bot_process.pid}
+
+
+@app.post("/api/bot/restart")
+async def api_bot_restart():
+    """重啟機器人：停止 → Telegram 通知 → 啟動"""
+    was_running = bot_process is not None and bot_process.poll() is None
+    stop_bot(notify="restart")
+    time.sleep(1)  # 等進程完全退出
+    start_bot()
+    return {"ok": True, "was_running": was_running}
 
 
 @app.get("/api/logs")
@@ -1190,5 +1250,5 @@ if __name__ == "__main__":
     )
     webview.start()
 
-    # 視窗關閉 → 停止機器人
-    stop_bot()
+    # 視窗關閉 → 停止機器人 + 發 Telegram 關機通知
+    stop_bot(notify="stop")
