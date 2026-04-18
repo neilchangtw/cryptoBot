@@ -760,6 +760,15 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
 
     /* 進場條件 grid */
     .entry-grid { grid-template-columns: 1fr !important; }
+
+    /* 最近交易：可橫滑 */
+    .recent-section { padding: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .recent-table { font-size: 11px; min-width: 500px; }
+
+    /* 策略健康度：單欄 */
+    .health-grid { grid-template-columns: 1fr; }
+    .health-item { padding: 10px 12px; }
+    .health-name { font-size: 12px; }
 }
 
 /* ── Connection indicator ── */
