@@ -3628,3 +3628,384 @@ V11-E L+S 都使用 GK 壓縮突破信號。探索是否存在完全不同機制
 | `v12_r6_novel.py` | R6: 失敗突破 + 量價背離 + MACD + Donchian + SMA |
 | `v12_r7_composite.py` | R7: 複合信號做空 |
 | `v12_r8_gk_expansion.py` | R8: GK 擴張反轉做空 |
+
+## V13 研究：全時框探索 + GK 窗口優化 + 出場增強（2026/04/14）
+
+完整研究過程見 [doc/v13_research.md](v13_research.md)。
+
+### 研究動機
+
+在 ETH 上找到比 V11-E（OOS $2,801）更好的策略。時框、範式、出場方式全部開放探索。
+
+### 研究範圍
+
+| Round | 方向 | 結果 |
+|-------|------|------|
+| R0 | 時框特性分析 | 1h 最佳，5m/15m fee 太高 |
+| R1 | 全時框 GK 壓縮突破 | 1h 確認最佳時框 |
+| R2 | GK 窗口參數掃描 | S: GK(10/30) > GK(5/20)，+$187 |
+| R3 | S GK 閾值 + Session filter | S: GK<35+block Mon，+$340 |
+| R4 | L 出場增強 | Extension 2 bar + BE trail |
+| R5 | L GK 窗口 + 出場優化 | L: 保持 GK(5/20)，加 extension |
+
+### 結果
+
+```
+V13 L+S OOS: $4,004（+43% vs V11-E）
+  L: $1,741 (85t, WR 44%, MDD $231), WF 6/6+7/8
+  S: $2,515 (93t, WR 62%, MDD $281), WF 5/6+7/8
+  正月: 12/13, worst -$32
+```
+
+### 研究腳本
+
+| 腳本 | 說明 |
+|------|------|
+| `v13_r0_timeframe.py` | R0: 時框特性分析 |
+| `v13_r1_all_timeframe.py` | R1: 全時框 GK 掃描 |
+| `v13_r2_gk_window.py` | R2: GK 窗口參數掃描 |
+| `v13_r3_s_filters.py` | R3: S GK 閾值 + Session |
+| `v13_r4_l_exit.py` | R4: L 出場增強 |
+| `v13_r5_final.py` | R5: 最終驗證 |
+
+## V14 研究：出場機制創新（2026/04/14）
+
+完整研究過程見 [doc/v14_research.md](v14_research.md)。
+
+### 研究動機
+
+在不改變 V13 進場邏輯的前提下，純粹透過出場機制創新提升績效。目標：改善 L 的 MH 出場拖累。
+
+### 研究範圍
+
+| Round | 方向 | 結果 |
+|-------|------|------|
+| R1 | L MFE Trailing 概念 | MFE trail 1.0%/0.8% 有效 |
+| R2 | S MFE Trailing 掃描 | 45 種配置全部更差，S 不動 |
+| R3 | S Conditional MH | 57 種配置全部更差，S 不動 |
+| R4 | S 出場參數微調 | 70+ 種調整全部更差 |
+| R5 | L Conditional MH | bar 2 虧 ≥1% → MH 5 |
+| R6 | L+S 合併最終驗證 | WF 6/6, 12/13 正月 |
+
+### 結果
+
+```
+V14 L+S OOS: $4,549（+14% vs V13）
+  L: $2,034 (88t, WR 60%, MDD $228), WF 6/6
+  S: $2,408 (86t, WR 62%, MDD $313), WF 5/6+7/8
+  正月: 12/13, worst -$91
+
+V14 新出場機制（L only）：
+  MFE Trailing: running_mfe ≥ 1.0% 後回吐 0.8% → bar_close 出場
+  Conditional MH: bar 2 虧 ≥1.0% → MH 從 6 縮短為 5
+```
+
+### 研究腳本
+
+| 腳本 | 說明 |
+|------|------|
+| `v14_r1_mfe_trail.py` | R1: L MFE Trailing 概念 |
+| `v14_r2_s_mfe.py` | R2: S MFE Trailing（全部更差） |
+| `v14_r3_s_cond_mh.py` | R3: S Conditional MH（全部更差） |
+| `v14_r4_s_exit_tune.py` | R4: S 出場微調（全部更差） |
+| `v14_r5_l_cond_mh.py` | R5: L Conditional MH |
+| `v14_r6_final.py` | R6: 最終合併驗證 |
+
+## V15 研究：進場過濾優化 — 10-Gate 稽核 REJECTED（2026/04/15）
+
+完整研究過程見 [doc/v15_research.md](v15_research.md)。
+
+### 研究動機
+
+在 V14 框架內加入進場過濾器（ATR、GK pctile 門檻），嘗試改善弱月。
+
+### 研究範圍
+
+| Round | 方向 | 結果 |
+|-------|------|------|
+| R0 | V14 弱月診斷 | Jan 2026 最差 -$225 |
+| R1 | 三大過濾掃描（ATR/GK/Hybrid） | Config D: OOS $5,458 (+23.7%) |
+| R2 | Deep Validation | ATR+GK ratio 2.7（可接受） |
+| R3 | 動態出場 + 進場動量 | ATR-scaled TP 有效但新增參數 |
+| R4 | 最終候選驗證 | Config D 推薦 |
+| **10-Gate 稽核** | **懷疑論稽核** | **REJECTED** |
+
+### 稽核結果
+
+| Gate | 測試 | 結果 |
+|------|------|------|
+| 1 | ATR 事後選擇 | **FAIL** — OOS 觀察設計，非 IS 獨立推導 |
+| 2 | IS/OOS 比率 | PASS — ratio 2.7 |
+| 3 | 過濾器直接效果 | CONDITIONAL — 移除交易正收益 +$133 |
+| 4 | Threshold 穩定性 | PASS |
+| 5 | Cascade 效果 | **FAIL** — 100x 隨機模擬排 100th percentile |
+| 6 | WF 驗證 | PASS |
+| 7 | Swap test | CONDITIONAL — 129% 衰退 |
+| 8-10 | 其他 | PASS |
+
+**結論：REJECTED。V14 維持為最佳策略。**
+
+## V16 研究：TBR Flow Reversal — APPROVED w/ downgrade（2026/04/15）
+
+完整研究過程見 [doc/v16_research.md](v16_research.md)。
+
+### 研究動機
+
+找到與 V14 GK 壓縮突破完全不同 edge source 的策略作為 backup。
+
+### 研究範圍
+
+| Round | 方向 | 結果 |
+|-------|------|------|
+| R1 | TBR Flow Reversal 概念 | S2(40/50) IS/OOS 同向 |
+| R2 | OOS 驗證 + WF | S2 OOS $8,252, WF 7/7 |
+| R3 | Full V14 exit calibration | Engine ~2.13x inflation confirmed |
+| **10-Gate 稽核** | **懷疑論稽核** | **APPROVED w/ downgrade** |
+
+### 10-Gate 稽核結果
+
+| Gate | 測試 | 結果 |
+|------|------|------|
+| 1 | TBR vs 動量獨立性 | **CONDITIONAL** — TBR 殘差 p=0.265 (不顯著) |
+| 2 | IS/OOS ratio | PASS |
+| 3 | Engine inflation | PASS — 相對比較有效 |
+| 4 | Threshold 穩定性 | PASS — L 穩定, S-side TBR>50 passes 50% bars |
+| 5 | Breakout 共享成分 | **CONDITIONAL** — 核心 alpha 在 breakout, 非 TBR |
+| 6 | WF 驗證 | PASS |
+| 7 | 獨立交易品質 | PASS — 72% unique trades |
+| 8 | TBR 數據品質 | PASS |
+| 9 | Swap + 時序翻轉 | **CONDITIONAL** — S2 時序翻轉 -$3,582 |
+| 10 | 執行可行性 | PASS |
+
+**結論：APPROVED，但 downgrade。核心 alpha 在 15-bar breakout，GK/TBR 只是 quality filter。**
+
+### 關鍵發現
+
+- Pure breakout OOS $11,138 > V14 $8,269 ≈ S2 $8,252
+- GK/TBR 各降 PnL 26%，但減半 MDD → 是 risk/return tradeoff
+- S-side TBR > 50 passes 49.9% bars — 幾乎不過濾
+
+### 研究腳本
+
+| 腳本 | 說明 |
+|------|------|
+| `v16_r1_tbr_concept.py` | R1: TBR Flow Reversal 概念 |
+| `v16_r2_oos_wf.py` | R2: OOS + WF 驗證 |
+| `v16_r3_calibration.py` | R3: Engine calibration |
+| `v16_audit_gate1to5.py` | 稽核 Gate 1-5 |
+| `v16_audit_gate6to10.py` | 稽核 Gate 6-10 |
+
+## V17 研究：非 Breakout Alpha 探索（2026/04/16）
+
+完整研究過程見 [doc/v17_research.md](v17_research.md)。
+
+### 研究動機
+
+V16 稽核證明所有 V6-V16 策略共享同一核心 alpha（15-bar breakout）。V17 目標：找到 ETH 1h 上完全不依賴 breakout 的 alpha。
+
+### 研究範圍
+
+| Round | 方向 | 配置數 | 結果 |
+|-------|------|--------|------|
+| R0 | 非 breakout bar 特徵分析 | — | 均值回歸偏向存在但 MFE 極小 |
+| R1 | 均值回歸掃描 | 420 | ALL IS 負（MFE 0.1-0.4% < $4 fee） |
+| R2 | 趨勢跟隨 (rpos) | 36 | IS 正但 93% breakout overlap |
+| R3 | rpos 排除 breakout bars | 80 | ALL IS 負（零獨立 alpha） |
+| R4 | 最終掃描 (time/candle/vol/EMA) | 36 | 1 IS+ ($198), OOS -$2,253 |
+
+### 結論
+
+**ETH 1h 非 breakout alpha 不存在。** 572 配置全部失敗。
+
+所有非 breakout 信號落入三類：
+1. **Breakout 代理**（rpos, momentum percentile）— 93% 交易在 breakout bars
+2. **結構性不可行**（均值回歸 MFE < fee）
+3. **隨機噪音**（candle patterns, time-of-day, volume）
+
+### 研究腳本
+
+| 腳本 | 說明 |
+|------|------|
+| `v17_r0_non_breakout_analysis.py` | R0: 非 breakout bar 特徵分析 |
+| `v17_r1_mean_reversion_scan.py` | R1: 均值回歸掃描 (30×14=420) |
+| `v17_r2_trend_non_breakout.py` | R2: 趨勢跟隨 + breakout overlap |
+| `v17_r3_rpos_without_breakout.py` | R3: rpos 排除 breakout (80 configs) |
+| `v17_r4_final_scan.py` | R4: 最終 36 信號掃描 |
+
+## V18 研究：多時框非 Breakout Alpha 搜索（2026/04/16）
+
+完整研究過程見 [doc/v18_research.md](v18_research.md)。
+
+### 研究動機
+
+V17 在 1h 上證明非 breakout alpha 不存在。V18 延伸到 15m/30m，測試更短時框是否有不同微觀結構。
+
+### 關鍵發現：V13 R0 手續費估算偏保守
+
+| 時框 | V13 估算 | V18 實測 | 差異 |
+|------|----------|---------|------|
+| 15m | 57% | 41.9% | 好很多 |
+| 30m | 41% | 29.7% | 好很多 |
+| 1h | 29% | 20.9% | 一致 |
+
+**手續費不是瓶頸**（fee 只佔 avg 毛利 7-11%）。
+
+### 研究範圍
+
+| Round | 時框 | 信號數 | IS+ | 結果 |
+|-------|------|--------|-----|------|
+| R0 | 15m/30m/1h | — | — | MFE > fee 全時框可行 |
+| R1 | 30m | 35 | 0 | ALL IS 負 |
+| R2 | 15m | 37 | 1 ($+325) | OOS -$2,055, FAIL |
+
+### 結論
+
+**ETH 非 breakout alpha 在任何時框（15m/30m/1h）都不存在。**
+
+問題不是手續費，而是**方向預測力為零**。非 breakout bars 的 MFE 對稱（L MFE ≈ S MFE），沒有任何信號能預測方向。15-bar close breakout 是 ETH 唯一的 alpha source。
+
+### 研究腳本
+
+| 腳本 | 說明 |
+|------|------|
+| `v18_download_data.py` | 下載 ETH 15m/30m 730 天數據 |
+| `v18_r0_timeframe_feasibility.py` | R0: 多時框可行性分析 |
+| `v18_r1_30m_signal_scan.py` | R1: 30m 35 信號掃描 |
+| `v18_r2_15m_signal_scan.py` | R2: 15m 37 信號掃描 |
+
+---
+
+## V19 研究：跳脫框架自由探索（2026/04/16）
+
+> V19 目標：跳出 ETH OHLCV 技術分析框架，嘗試所有可取得的外部數據源和新方法論。
+> 完整記錄見 [doc/v19_research.md](doc/v19_research.md)
+
+### 背景
+
+V6-V18 共 25,000+ 配置窮舉了 OHLCV 時序分析的所有方向。V19 的問題是：引入 ETH 價格以外的信息（宏觀、情緒、持倉、選擇權、HMM 等），能否找到非 breakout 的 alpha？
+
+### R0: 數據下載與可用性評估
+
+嘗試下載 5 類外部數據：
+
+| 數據源 | 結果 |
+|--------|------|
+| Binance OI / L-S Ratio / Taker Volume | **僅 30 天歷史** — 不夠回測 |
+| SPX / DXY / VIX / US10Y（Yahoo Finance） | **501 天日線** ✓ |
+| Crypto Fear & Greed Index（Alternative.me） | **730 天日線** ✓ |
+| Deribit 選擇權 | 使用者無數據源 — 跳過 |
+
+Binance Futures 持倉數據（OI/LSR/Taker）只保留 30 天歷史。需要 CoinGlass 等付費 API 才能取得足夠歷史。方向 1 直接放棄。
+
+### R1: 跨市場宏觀 + 情緒可行性 (`v19_r1_macro_feasibility.py`)
+
+**8 個信號原型、7 個分析角度 — 結論：零預測力**
+
+核心發現：
+
+- **相關性**：所有 macro lag-1 vs ETH forward return: r < 0.08, 全部 p > 0.05
+- **SPX lag 結構**：lag-0 r=+0.106（同日，不可交易），lag-1~5 全部不顯著 → ETH 即時反應宏觀消息，無可交易的滯後
+- **FGI 極端值**：Extreme Fear N=100 fwd_1d=+0.17%, Extreme Greed N=25 fwd_1d=+0.49% — 不顯著且方向反直覺
+- **Risk-On/Off 多因子**：Risk-On vs Risk-Off p=0.38 — 不顯著
+- **信號原型 IS/OOS**：8 個信號中 0 個同時 IS+/OOS+ 且有經濟意義
+
+### R2: 統計結構 + HMM Regime Detection (`v19_r2_regime_detection.py`)
+
+**ACF、VR、HMM、5 組交易信號 — 結論：非 breakout bar 是 random walk**
+
+核心發現：
+
+**自相關結構：**
+- Return ACF: 全部 |r| < 0.02 — 報酬率序列相關為零
+- Sign ACF lag-1: r=-0.074 (t=-8.53) — 微弱均值回歸（52.4% 反轉率），太小無法覆蓋 fee
+- Variance Ratio: 全部 VR ≈ 1.0 — random walk
+- Squared ACF lag-1: r=+0.111 (t=14.67) — 波動率高度叢集（方向無關）
+
+**HMM Walk-Forward (3 state, non-breakout only)：**
+
+| State | N | Mean Fwd_1 | p-value |
+|-------|---|-----------|---------|
+| 0 | 4,985 | -0.0005% | 0.958 |
+| 1 | 4,403 | -0.0012% | 0.907 |
+| 2 | 3,450 | +0.0039% | 0.738 |
+
+所有 state 的 non-breakout forward return = 0（p > 0.7）。
+
+**交易信號：**
+- Momentum regime: IS -$3,602 ~ -$14,128, OOS -$850 ~ -$12,226（全部巨虧）
+- HMM best/worst state: IS -$14,356, OOS -$16,306（全部巨虧）
+- Skewness regime: IS -$11,123 ~ -$15,588, OOS -$13,543 ~ -$23,648（全部巨虧）
+- Vol compression |fwd|: IS +$22,138, OOS +$21,069（正數但無方向 — straddle 等價物）
+
+**MFE 對稱性（終極證明）：**
+
+| Hold | L_MFE/S_MFE | Mean Ret | Up% | p |
+|------|-------------|----------|-----|---|
+| 1h | 0.991 | +0.001% | 50.2% | 0.957 |
+| 6h | 0.977 | -0.015% | 49.9% | 0.490 |
+| 12h | 0.930 | -0.032% | 50.9% | 0.317 |
+
+L_MFE/S_MFE ≈ 1.0, mean return = 0, up% = 50%。非 breakout bar 是 random walk。
+
+### 最終結論
+
+**ETH 在所有可取得的免費數據源和分析方法下，唯一可交易的 alpha = 15-bar close breakout。**
+
+V14 是 globally optimal — 不是因為我們沒找到更好的策略，而是因為 breakout 以外的 alpha 在可取得的數據約束下不存在。
+
+可能存在但需要付費數據的方向：歷史 OI/LSR（CoinGlass）、選擇權 IV/GEX（Deribit/Laevitas）、鏈上數據（Glassnode）。
+
+### 研究腳本
+
+| 腳本 | 說明 |
+|------|------|
+| `v19_r0_download_data.py` | 下載外部數據（Binance OI、Yahoo Finance 宏觀、FGI） |
+| `v19_r1_macro_feasibility.py` | R1: 宏觀 + 情緒可行性（SPX/DXY/VIX/US10Y/FGI vs ETH） |
+| `v19_r2_regime_detection.py` | R2: 統計結構（ACF/VR）+ HMM 3-state regime detection |
+
+---
+
+## V20 研究：多標的 V14 框架測試（2026/04/16）
+
+> V20 目標：測試 V14 GK 壓縮突破框架在其他加密貨幣上的可行性。V14 參數 LOCKED，不允許重新優化。
+> 完整記錄見 [doc/v20_research.md](doc/v20_research.md)
+
+### R0: 候選標的 + Locked-Parameter 篩選
+
+10 個候選標的（SOL/BNB/XRP/DOGE/ADA/AVAX/LINK/MATIC/LTC/BCH），下載 730 天 1h 數據。MATIC 僅 148 天（遷移 POL）自動跳過，最終篩選 9 個。
+
+**篩選標準**：IS>0, OOS>0, Fee%<40, WF6>=3（全部通過才進入 R1）
+
+**結果：9/9 全部 FAIL**
+
+```
+Symbol       IS_PnL  OOS_PnL  OOS_WR  WF6  Grade  失敗原因
+ETHUSDT     +1,913   +4,180   60.1%   5/6    A     (baseline)
+SOLUSDT       -857      +38   50.7%   1/6    F     IS<0, WF<3
+BNBUSDT       -245   -1,037   38.9%   3/6    F     IS<0, OOS<0
+XRPUSDT     -1,377     +107   51.6%   1/6    F     IS<0, WF<3
+DOGEUSDT      -798      +74   51.5%   3/6    C     IS<0
+ADAUSDT     -1,661     -414   48.3%   2/6    F     IS<0, OOS<0, WF<3
+AVAXUSDT    -1,980   +1,045   51.1%   2/6    F     IS<0, WF<3
+LINKUSDT    -1,010   +1,751   59.3%   4/6    C     IS<0
+LTCUSDT     -1,221      -80   46.7%   2/6    F     IS<0, OOS<0, WF<3
+BCHUSDT       -295     -445   45.4%   2/6    F     IS<0, OOS<0, WF<3
+```
+
+### 最終結論
+
+**V14 GK 壓縮突破框架是 ETH-specific 的。**
+
+- Universal failure: IS < 0 — V14 參數在前 365 天對所有其他幣種全虧
+- LINK/AVAX OOS 正收益是 regime-dependent artifact（IS 負）
+- Fee% 不是瓶頸（altcoins 15-18% < ETH 21%）
+- Breakout 頻率相似（24-27%）但方向性 alpha 是 ETH 獨有
+- 不進入 R1 deep testing
+- **V14 on ETH = globally optimal under all testable markets and free data**
+
+### 研究腳本
+
+| 腳本 | 說明 |
+|------|------|
+| `v20_r0_download_multi.py` | 下載 10 個標的 730 天 1h K 線 |
+| `v20_r0_screening.py` | V14 locked-parameter 篩選（9 標的 + ETH baseline） |

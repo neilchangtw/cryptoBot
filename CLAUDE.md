@@ -32,6 +32,12 @@ ETH 1h Garman-Klass Compression-Breakout 自動交易機器人（Binance Futures
 | [doc/v12_research.md](doc/v12_research.md) | V12 全新 S 進場研究（8 輪、15+ 方向 — 結論：GK 壓縮突破無可取代） |
 | [doc/v13_research.md](doc/v13_research.md) | V13 全時框探索 + GK 窗口優化 + 出場增強（R5: OOS $3,526 +26%, 8/8 PASS） |
 | [doc/v14_research.md](doc/v14_research.md) | V14 出場機制創新（R6: L OOS +$293 +16.8%, MFE trail + Conditional MH, WF 6/6, 12/13 正月） |
+| [doc/v15_research.md](doc/v15_research.md) | V15 進場過濾優化（10-Gate 稽核 REJECTED：ATR 事後選擇 + Cascade 100th pctile 運氣，V14 維持最佳） |
+| [doc/v16_research.md](doc/v16_research.md) | V16 全新策略探索（TBR Flow Reversal APPROVED w/ downgrade：10-Gate 稽核 6P/4C/0F，核心 alpha 在 breakout 非 TBR，V14 backup） |
+| [doc/v17_research.md](doc/v17_research.md) | V17 非 breakout alpha 探索（4 輪、572 配置 — 結論：ETH 1h 非 breakout alpha 不存在，15-bar breakout 是唯一 alpha source） |
+| [doc/v18_research.md](doc/v18_research.md) | V18 多時框非 breakout 搜索（15m/30m/1h、644 配置 — 結論：ETH 非 breakout alpha 在任何時框都不存在，手續費非瓶頸） |
+| [doc/v19_research.md](doc/v19_research.md) | V19 跳脫框架探索（宏觀/情緒/HMM — 結論：所有可取得數據源下 ETH alpha = breakout only，非 BRK 是 random walk） |
+| [doc/v20_research.md](doc/v20_research.md) | V20 多標的 V14 框架測試（9 幣種 locked-parameter 篩選 — 結論：V14 是 ETH-specific，9/9 FAIL IS<0） |
 
 ---
 
@@ -239,6 +245,19 @@ L 月虧上限 -$75，S 月虧上限 -$150
 - S 出場參數調整（V14 R2/R3/R4 測試 70+ 種調整，全部更差，S 是 globally optimal）
 - S 加 MFE Trailing（V14 R2 測試 45 種配置全部更差）
 - S 加 Conditional MH（V14 R3 測試 57 種配置全部更差）
+- ATR 最低門檻進場過濾（V15 10-Gate 稽核 REJECTED：IS 中低 ATR 交易正收益，過濾器為事後選擇）
+- GK percentile 最低門檻進場過濾（V15 稽核：OOS 被移除交易正收益 +$133，改善全靠 cascade 運氣）
+- 任何依賴 cascade 效果的進場過濾器（V15 稽核：cascade 在 100x 隨機模擬排 100th percentile）
+- 把 breakout 過濾器（GK/TBR/其他）當成獨立 edge source（V16 稽核：核心 alpha 在 15-bar breakout，過濾器各降 PnL 26% 換 MDD 減半）
+- 同時運行 V14+S2 在 $1K 帳戶（V16 稽核：最多 4 持倉，帳戶無法承受）
+- 任何非 breakout 的 ETH 1h 進場信號（V17 4 輪 572 配置全部失敗：均值回歸 MFE 不足、rpos 是 breakout 代理 93%、candle/volume/EMA cross/time-of-day 全為噪音）
+- Range position (rpos) 作為獨立信號（V17 R2/R3：rpos>0.90 = breakout，去掉 breakout bars 後 ALL IS 負）
+- 在 15m/30m 上尋找非 breakout alpha（V18：30m 35 信號 ALL IS 負、15m 37 信號 1 IS+ OOS 失敗，手續費非瓶頸 fee%=7-11，問題是方向預測力為零）
+- 跨市場宏觀預測 ETH（V19 R1：SPX/DXY/VIX/US10Y 全部 r<0.08 p>0.05，ETH 即時反應無滯後）
+- Fear & Greed Index 做反向/順向交易（V19 R1：FGI 五分位 Q5-Q1 spread = +0.01% p=0.98）
+- HMM / regime detection 找非 breakout alpha（V19 R2：3-state HMM 所有 state 的 non-BRK fwd=0, p>0.7）
+- 動量/偏度 regime 交易非 breakout bars（V19 R2：IS/OOS 全部巨虧 -$3K~-$24K）
+- V14 框架直接套用其他加密貨幣（V20 R0：9 個主流幣 locked-parameter 篩選 9/9 FAIL，全部 IS<0，breakout 後方向性是 ETH-specific）
 
 ---
 
