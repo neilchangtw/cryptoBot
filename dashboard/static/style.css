@@ -1030,6 +1030,36 @@ tbody tr:hover td { background: var(--bg-hover) !important; }
     50% { opacity: 1; }
 }
 
+/* ── Backtest Overlay ── */
+.bt-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(9,9,11,0.82);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9000;
+    justify-content: center;
+    align-items: center;
+}
+.bt-overlay.active { display: flex; }
+.bt-overlay-content { text-align: center; }
+.bt-spinner {
+    width: 48px; height: 48px;
+    margin: 0 auto 18px;
+    border: 3px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: bt-spin 0.8s linear infinite;
+}
+@keyframes bt-spin { to { transform: rotate(360deg); } }
+.bt-overlay-text {
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
 /* ── Backtest Tab ── */
 .bt-layout {
     display: grid;

@@ -1352,13 +1352,22 @@ function validateDates() {
     return true;
 }
 
+function showBtOverlay(text) {
+    const ov = $('bt-overlay');
+    if (ov) { $('bt-overlay-text').textContent = text || '回測執行中...'; ov.classList.add('active'); }
+}
+function hideBtOverlay() {
+    const ov = $('bt-overlay');
+    if (ov) ov.classList.remove('active');
+}
+
 async function runBacktest() {
     if (S.btRunning) return;
     if (!validateDates()) return;
     S.btRunning = true;
     const btn = $('bt-run-btn');
     if (btn) btn.classList.add('running');
-    $('bt-status').textContent = '執行中...（資料更新中）';
+    showBtOverlay('回測執行中... (Running Backtest)');
 
     try {
         const params = collectBtParams();
@@ -1367,7 +1376,10 @@ async function runBacktest() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(params),
         });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok) {
+            const body = await resp.text();
+            throw new Error(`HTTP ${resp.status}: ${body.slice(0, 200)}`);
+        }
         S.btResult = await resp.json();
         if (S.btResult.error) throw new Error(S.btResult.error);
 
@@ -1389,9 +1401,11 @@ async function runBacktest() {
         $('bt-status').textContent = `完成 — ${S.btResult.symbol} / ${S.btResult.elapsed_ms}ms / ${S.btResult.summary.total_trades} 筆 / ${S.btResult.data_range}`;
     } catch (e) {
         $('bt-status').textContent = `錯誤: ${e.message}`;
+        alert(`回測執行失敗\n\n${e.message}`);
     } finally {
         S.btRunning = false;
         if (btn) btn.classList.remove('running');
+        hideBtOverlay();
     }
 }
 
@@ -1617,11 +1631,11 @@ async function runBtAudit() {
     if (btn.classList.contains('running')) return;
     if (!validateDates()) return;
     if (!S.btResult) {
-        $('bt-status').textContent = '請先執行回測再進行稽核驗證';
+        alert('請先執行回測再進行稽核驗證');
         return;
     }
     btn.classList.add('running');
-    $('bt-status').textContent = '稽核驗證中... (running audit)';
+    showBtOverlay('稽核驗證中... (Running Audit)');
     const auditEl = $('bt-audit-result');
 
     try {
@@ -1631,7 +1645,10 @@ async function runBtAudit() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(params),
         });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok) {
+            const body = await resp.text();
+            throw new Error(`HTTP ${resp.status}: ${body.slice(0, 200)}`);
+        }
         const d = await resp.json();
         if (d.error) throw new Error(d.error);
 
@@ -1666,8 +1683,10 @@ async function runBtAudit() {
         auditEl.innerHTML = `<div class="bt-audit-card"><div class="bt-audit-title"><span style="font-size:20px">\u274C</span> 錯誤: ${e.message}</div></div>`;
         auditEl.style.display = '';
         $('bt-status').textContent = `稽核錯誤: ${e.message}`;
+        alert(`稽核驗證失敗\n\n${e.message}`);
     } finally {
         btn.classList.remove('running');
+        hideBtOverlay();
     }
 }
 
