@@ -64,13 +64,15 @@ CB_CONSEC_CD = 24
 
 
 def rolling_pctile(vals, window):
+    """與 strategy.py _rank_pctile 完全一致：strict < 且 /（n-1）"""
     out = np.full(len(vals), np.nan)
     for i in range(window - 1, len(vals)):
         w = vals[i - window + 1: i + 1]
         valid = w[~np.isnan(w)]
-        if len(valid) < 10:
+        if len(valid) <= 1:
+            out[i] = 50.0  # fallback，與 strategy.py 一致
             continue
-        out[i] = np.sum(valid <= vals[i]) / len(valid) * 100
+        out[i] = np.sum(valid < vals[i]) / (len(valid) - 1) * 100
     return out
 
 
@@ -207,7 +209,7 @@ def simulate_v14_detailed(ind, datetimes):
 
             sn_lv = ep * (1 - L_SN)
             if li <= sn_lv:
-                ex_price = ep * (1 - L_SN * (1 + L_SN_SLIP))
+                ex_price = sn_lv - (sn_lv - li) * L_SN_SLIP
                 ex_reason = 'SN'
             elif hi >= ep * (1 + L_TP):
                 ex_price = ep * (1 + L_TP)
@@ -288,7 +290,7 @@ def simulate_v14_detailed(ind, datetimes):
 
             sn_lv = ep * (1 + S_SN)
             if hi >= sn_lv:
-                ex_price = ep * (1 + S_SN * (1 + S_SN_SLIP))
+                ex_price = sn_lv + (hi - sn_lv) * S_SN_SLIP
                 ex_reason = 'SN'
             elif li <= ep * (1 - S_TP):
                 ex_price = ep * (1 - S_TP)
