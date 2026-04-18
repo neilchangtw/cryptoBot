@@ -126,14 +126,22 @@ def compute_indicators(df):
     }
 
 
-def simulate_v14_detailed(ind, datetimes):
-    """Run V14 L+S simulation with full trade detail (MAE/MFE/GK pctile)."""
+def simulate_v14_detailed(ind, datetimes, start_bar=None):
+    """Run V14 L+S simulation with full trade detail (MAE/MFE/GK pctile).
+
+    Args:
+        start_bar: 從此 bar 開始交易（模擬機器人在該時間點啟動）。
+                   之前的 bar 不進場/出場，熔斷狀態從零開始。
+                   若為 None 則從 WARMUP 開始（完整回測模式）。
+    """
     o, h, l, c = ind['o'], ind['h'], ind['l'], ind['c']
     pL, pS = ind['pctile_L'], ind['pctile_S']
     brk_up, brk_dn = ind['brk_up'], ind['brk_dn']
     hours, dows = ind['hours'], ind['dows']
     months, days = ind['months'], ind['days']
     n = len(o)
+
+    sim_start = max(start_bar, WARMUP) if start_bar is not None else WARMUP
 
     trades = []
 
@@ -173,7 +181,7 @@ def simulate_v14_detailed(ind, datetimes):
     consec = 0
     consec_end = -999
 
-    for i in range(WARMUP, n):
+    for i in range(sim_start, n):
         oi, hi, li, ci = o[i], h[i], l[i], c[i]
         hr = hours[i]
         dw = dows[i]

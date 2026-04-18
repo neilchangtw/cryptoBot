@@ -640,15 +640,23 @@ def _run_backtest(params: BacktestParams):
             setattr(_bt_mod, k, v)
         ind = bt_compute(df)
         datetimes = df['datetime'].values
-        all_trades = bt_simulate(ind, datetimes)
+
+        # 若有 start_date，找到對應的 bar index，模擬從該時間點啟動
+        # （熔斷/cooldown 從零開始，與實盤啟動行為一致）
+        start_bar = None
+        if params.start_date:
+            for j, dt in enumerate(datetimes):
+                if str(dt) >= params.start_date:
+                    start_bar = j
+                    break
+
+        all_trades = bt_simulate(ind, datetimes, start_bar=start_bar)
     finally:
         for k, v in originals.items():
             setattr(_bt_mod, k, v)
 
-    # 日期範圍只過濾交易（指標和熔斷用全量歷史計算）
+    # end_date 過濾（start_date 已在 simulation 層處理）
     trades = all_trades
-    if params.start_date:
-        trades = [t for t in trades if t['entry_dt'] >= params.start_date]
     if params.end_date:
         trades = [t for t in trades if t['entry_dt'] <= params.end_date + " 23:59:59"]
 
