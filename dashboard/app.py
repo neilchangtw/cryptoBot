@@ -1221,7 +1221,7 @@ async def api_logs(file: str = Query("system"), lines: int = Query(200, ge=10, l
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def start_server(port=8050):
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
 
 
 def kill_port(port):
