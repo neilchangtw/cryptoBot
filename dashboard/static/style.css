@@ -704,10 +704,62 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
 .status-warning { background: var(--gold-dim); color: var(--gold); }
 .status-pause { background: var(--red-dim); color: var(--red); }
 
-/* ── Responsive ── */
+/* ── Responsive: Tablet ── */
 @media (max-width: 900px) {
     .analytics-row { grid-template-columns: 1fr; }
     .cards { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Responsive: Mobile ── */
+@media (max-width: 600px) {
+    /* Header: 改為兩行 */
+    .header {
+        flex-wrap: wrap;
+        padding: 10px 14px;
+        gap: 8px;
+    }
+    .header h1 { font-size: 15px; }
+    .header-right {
+        width: 100%;
+        justify-content: flex-start;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .refresh-timer { min-width: auto; }
+    .mode-switch { order: 10; }
+    .mode-btn { padding: 4px 10px; font-size: 11px; }
+
+    /* Tabs: 可橫滑，字縮小 */
+    .tabs { padding: 0 10px; }
+    .tab-btn { padding: 10px 12px; font-size: 11px; }
+
+    /* Content padding 縮減 */
+    .tab-content { padding: 14px 10px; }
+
+    /* Cards: 單欄 */
+    .cards { grid-template-columns: 1fr; gap: 10px; }
+    .card { padding: 12px 14px; }
+    .card-value { font-size: 22px; }
+
+    /* 表格可橫滑 */
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { font-size: 11px; }
+    th, td { padding: 6px 8px; }
+
+    /* Log viewer */
+    .log-toolbar { flex-direction: column; align-items: flex-start; }
+    .log-file-tabs { flex-wrap: wrap; }
+    .log-tab { padding: 5px 10px; font-size: 11px; }
+    .log-controls { flex-wrap: wrap; width: 100%; }
+    .log-search-input { width: 100%; }
+    .log-viewer { font-size: 11px; }
+
+    /* Analytics */
+    .analytics-panel { padding: 12px; }
+    .analytics-panel h3 { font-size: 11px; }
+
+    /* 進場條件 grid */
+    .entry-grid { grid-template-columns: 1fr !important; }
 }
 
 /* ── Connection indicator ── */
