@@ -593,9 +593,9 @@ class BacktestParams(BaseModel):
 _bt_df_cache = {}
 
 
-def _get_bt_data(symbol: str = "ETHUSDT", start_date: str = "", end_date: str = ""):
+def _get_bt_data(symbol: str = "ETHUSDT"):
+    """取得全量資料（不裁切日期），確保指標計算一致。"""
     global _bt_df_cache
-    # Auto-refresh: fetch latest bars if stale
     _refresh_symbol_data(symbol)
 
     if symbol not in _bt_df_cache:
@@ -603,27 +603,15 @@ def _get_bt_data(symbol: str = "ETHUSDT", start_date: str = "", end_date: str = 
         if not filepath.exists():
             raise ValueError(f"No data file for {symbol}")
         _bt_df_cache[symbol] = pd.read_csv(filepath)
-    df = _bt_df_cache[symbol].copy()
-
-    # 時間區間篩選
-    if start_date:
-        df = df[df['datetime'] >= start_date]
-    if end_date:
-        # end_date 包含當天所有 bar（加 " 23:59:59"）
-        df = df[df['datetime'] <= end_date + " 23:59:59"]
-
-    if len(df) < 200:
-        raise ValueError(f"Data too short after filtering: {len(df)} bars (need >= 200)")
-
-    return df.reset_index(drop=True)
+    return _bt_df_cache[symbol].copy()
 
 
 def _run_backtest(params: BacktestParams):
     import time as _time
     t0 = _time.perf_counter()
-    df = _get_bt_data(params.symbol, params.start_date, params.end_date)
+    df = _get_bt_data(params.symbol)
 
-    # Monkey-patch module globals
+    # 用全量資料計算指標 + 模擬，日期範圍只過濾交易結果
     patch_map = {
         'L_GK_TH': params.l_gk_th,
         'L_BRK': params.l_brk,
@@ -652,10 +640,17 @@ def _run_backtest(params: BacktestParams):
             setattr(_bt_mod, k, v)
         ind = bt_compute(df)
         datetimes = df['datetime'].values
-        trades = bt_simulate(ind, datetimes)
+        all_trades = bt_simulate(ind, datetimes)
     finally:
         for k, v in originals.items():
             setattr(_bt_mod, k, v)
+
+    # 日期範圍只過濾交易（指標和熔斷用全量歷史計算）
+    trades = all_trades
+    if params.start_date:
+        trades = [t for t in trades if t['entry_dt'] >= params.start_date]
+    if params.end_date:
+        trades = [t for t in trades if t['entry_dt'] <= params.end_date + " 23:59:59"]
 
     elapsed = round((_time.perf_counter() - t0) * 1000)
     return trades, df, elapsed
@@ -768,7 +763,7 @@ async def api_backtest_audit(params: BacktestParams):
     t0 = _time.perf_counter()
 
     try:
-        df = _get_bt_data(params.symbol, params.start_date, params.end_date)
+        df = _get_bt_data(params.symbol)
     except ValueError as e:
         return {"error": str(e)}
 
@@ -931,7 +926,7 @@ async def api_backtest_audit(params: BacktestParams):
         "tests": results,
         "total_trades": len(trades),
         "symbol": params.symbol,
-        "data_range": f"{df['datetime'].iloc[0]} ~ {df['datetime'].iloc[-1]}",
+        "data_range": f"{params.start_date or df['datetime'].iloc[0]} ~ {params.end_date or df['datetime'].iloc[-1]}",
         "elapsed_ms": elapsed,
     }
 
@@ -943,7 +938,10 @@ async def api_backtest(params: BacktestParams):
         trades, df, elapsed = _run_backtest(params)
     except ValueError as e:
         return {"error": str(e)}
-    data_range = f"{df['datetime'].iloc[0]} ~ {df['datetime'].iloc[-1]}"
+    # 顯示使用者請求的日期範圍（非全量資料範圍）
+    dr_start = params.start_date if params.start_date else df['datetime'].iloc[0]
+    dr_end = params.end_date if params.end_date else df['datetime'].iloc[-1]
+    data_range = f"{dr_start} ~ {dr_end}"
 
     tdf = pd.DataFrame(trades) if trades else pd.DataFrame()
 
