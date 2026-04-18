@@ -1156,14 +1156,38 @@ async def api_bot_status():
     return {"running": True, "pid": bot_process.pid}
 
 
-@app.post("/api/bot/restart")
-async def api_bot_restart():
-    """重啟機器人：停止 → Telegram 通知 → 啟動"""
-    was_running = bot_process is not None and bot_process.poll() is None
-    stop_bot(notify="restart")
-    time.sleep(1)  # 等進程完全退出
-    start_bot()
-    return {"ok": True, "was_running": was_running}
+_webview_window = None  # PyWebView 視窗參照（__main__ 時設定）
+
+
+@app.post("/api/dashboard/restart")
+async def api_dashboard_restart():
+    """重啟整個儀表板：停止機器人 → 啟動新儀表板進程 → 關閉當前視窗"""
+    def _do():
+        time.sleep(0.5)  # 讓 HTTP response 先回
+        stop_bot(notify="restart")
+        # 啟動新的儀表板進程（新進程有 kill_port 會接管 port）
+        subprocess.Popen(
+            [sys.executable, str(Path(__file__).resolve())],
+            cwd=str(ROOT_DIR),
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+        time.sleep(0.5)
+        if _webview_window:
+            _webview_window.destroy()
+    threading.Thread(target=_do, daemon=True).start()
+    return {"ok": True}
+
+
+@app.post("/api/dashboard/shutdown")
+async def api_dashboard_shutdown():
+    """關機：停止機器人 + 關閉儀表板"""
+    def _do():
+        time.sleep(0.5)  # 讓 HTTP response 先回
+        stop_bot(notify="stop")
+        if _webview_window:
+            _webview_window.destroy()
+    threading.Thread(target=_do, daemon=True).start()
+    return {"ok": True}
 
 
 @app.get("/api/logs")
@@ -1241,7 +1265,7 @@ if __name__ == "__main__":
     start_bot()
 
     # 開啟桌面視窗（阻塞直到視窗關閉）
-    webview.create_window(
+    _webview_window = webview.create_window(
         "印鈔機監控台",
         f"http://127.0.0.1:{port}",
         width=1400,
@@ -1250,5 +1274,6 @@ if __name__ == "__main__":
     )
     webview.start()
 
-    # 視窗關閉 → 停止機器人 + 發 Telegram 關機通知
+    # 視窗關閉 → 停止機器人（若尚未被 restart/shutdown 端點停止）
+    # 如果是 API 觸發的關閉，bot_process 已是 None，stop_bot 會直接 return
     stop_bot(notify="stop")

@@ -1217,26 +1217,14 @@ async function checkBotStatus() {
     }
 }
 
-async function restartBot() {
-    const btn = $('restart-btn');
-    if (!btn || btn.disabled) return;
-    btn.disabled = true;
-    btn.textContent = '重啟中...';
-    btn.classList.add('restarting');
-    try {
-        await fetch('/api/bot/restart', { method: 'POST' });
-        // 等一下再刷新狀態，讓子進程啟動
-        setTimeout(async () => {
-            await checkBotStatus();
-            btn.disabled = false;
-            btn.textContent = '重啟';
-            btn.classList.remove('restarting');
-        }, 3000);
-    } catch {
-        btn.disabled = false;
-        btn.textContent = '重啟';
-        btn.classList.remove('restarting');
-    }
+async function restartDashboard() {
+    if (!confirm('確定要重啟儀表板和機器人嗎？\n視窗會關閉並自動重新開啟。')) return;
+    try { await fetch('/api/dashboard/restart', { method: 'POST' }); } catch {}
+}
+
+async function shutdownDashboard() {
+    if (!confirm('確定要關閉儀表板和機器人嗎？')) return;
+    try { await fetch('/api/dashboard/shutdown', { method: 'POST' }); } catch {}
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
