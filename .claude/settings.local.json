@@ -136,7 +136,15 @@
       "Bash(echo \"exit code: $?\")",
       "Bash(python3:*)",
       "Bash(.venv/Scripts/pip install:*)",
-      "Bash(sort -k5 -n -r)"
+      "Bash(sort -k5 -n -r)",
+      "WebFetch(domain:www.coinglass.com)",
+      "WebFetch(domain:docs.coinglass.com)",
+      "Bash(call .venv\\\\\\\\Scripts\\\\\\\\activate)",
+      "Bash(curl -s http://localhost:8050/api/status)",
+      "Bash(curl -s http://localhost:8050/api/bot-status)",
+      "Bash(curl -s --connect-timeout 3 http://localhost:8050/api/status)",
+      "Bash(netstat -ano)",
+      "Bash(WMIC PROCESS WHERE \"Name='python.exe'\" GET ProcessId,CommandLine)"
     ]
   }
 }

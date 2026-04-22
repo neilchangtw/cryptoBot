@@ -38,6 +38,10 @@ ETH 1h Garman-Klass Compression-Breakout 自動交易機器人（Binance Futures
 | [doc/v18_research.md](doc/v18_research.md) | V18 多時框非 breakout 搜索（15m/30m/1h、644 配置 — 結論：ETH 非 breakout alpha 在任何時框都不存在，手續費非瓶頸） |
 | [doc/v19_research.md](doc/v19_research.md) | V19 跳脫框架探索（宏觀/情緒/HMM — 結論：所有可取得數據源下 ETH alpha = breakout only，非 BRK 是 random walk） |
 | [doc/v20_research.md](doc/v20_research.md) | V20 多標的 V14 框架測試（9 幣種 locked-parameter 篩選 — 結論：V14 是 ETH-specific，9/9 FAIL IS<0） |
+| [doc/v21_research.md](doc/v21_research.md) | V21 Path A 獨立 edge + Path B V14.1 改良（10 輪全 REJECTED — 結論：V14 局部最佳，OHLCV 已耗盡） |
+| [doc/v22_research.md](doc/v22_research.md) | V22 古典 TA 理論掃描（8 輪 Ichimoku/H&S/三角/Harmonic/Fib/Pivot/Elliott/Wyckoff 全 REJECTED — regime-dependent 或極端過擬合） |
+| [doc/v23_research.md](doc/v23_research.md) | V23 壓力測試 + 3 條 overlay（**Path R 非對稱 slope gate PROMOTED 12/13 gates**，V14+R: PnL +6%/MDD -11%/Sharpe +18%/Worst30d -35%；Path V/H REJECTED） |
+| [doc/v24_research.md](doc/v24_research.md) | V24 風險工程（B 槓桿線性可調 5x/10x/15x/20x；**A vol overlay REJECTED 0/23、C 多標的分散 REJECTED 0/10**；BEST = V14+R @ 可調槓桿，paper 建議 10x） |
 
 ---
 
@@ -124,12 +128,37 @@ cryptoBot/
 
 ## 目前狀態
 
-- **策略版本**：**V14** — 雙策略 L+S（GK 壓縮突破 + TP + MFE trail + MaxHold(cond) + 條件式延長 + BE trail）
+- **策略版本**：**V14**（線上運行版本）；**V14+R** 已完成研究 12/13 gates PASS，待部署（見 [doc/v23_research.md](doc/v23_research.md)）
+- **V14 稽核狀態（2026-04-21）**：G4 參數鄰域 20/20 PASS、G7 WF 5/6、G9 移除最佳月全正 — **參數穩健**；但 **G8 時序翻轉 FAIL**（反轉 OHLCV 後 $-4,627）→ V14 是 **regime-dependent**，依賴 ETH 多頭 drift + 壓縮突破結構，非 risk-neutral alpha。詳見 [doc/v22_research.md](doc/v22_research.md) V14 自稽核章節。
+- **V23 overlay 研究結果（2026-04-22）**：Path R 非對稱 per-side SMA200 斜率 gate 通過 12/13 gates（G5 cascade 97th percentile、G7 WF 4/6、G8 時序翻轉改善 +$438），V14+R 參數 TH_UP=0.045 / TH_SIDE=0.010，2 年回測 PnL +$380 / MDD -$54 / Sharpe +0.91 / Worst30d -$197
+- **V23 G6 驗證（2026-04-22）**：獨立驗證 V14 baseline G6 兩方向全 FAIL（Fwd -113.8% / Bwd +53.2%），V14+R 只 Fwd FAIL（-94.4%）且 Bwd 由 FAIL 轉 PASS（+48.6%）；overlay 貢獻 IS/OOS 同向（+$258 / +$121）但衰退率 52.9% 邊緣 → 情境 A 成立，V14+R 可部署但對 +$380 改善量級須降級信心至 +$120~$380 區間
 - **模式**：Paper Trading（模擬盤），Binance Testnet
 - **Hedge Mode**：已啟用（dualSidePosition=true），L/S 倉位互不影響
 - **帳戶**：$1,000 / $200 保證金 / 20x / $4,000 名目
 - **演進**：GK v1.1 → v6 L+S → V10 → V11-E → V13 → **V14（L+S $4,549, 12/13 正月, worst -$91）**
 - **Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗
+
+### 模擬盤運行狀態（2026-04-22 21:00 UTC+8 快照）
+
+- **線上策略**：V14（strategy.py，commit `f0c324d`）；V14+R 尚未部署（仍為研究結果）
+- **帳戶餘額**：$4,281.60（Testnet 起始非 $1K，cumulative_pnl $3,290 為 Testnet 基準值）
+- **本月（2026-04）**：L +$46.51（3 entries / 20 cap）/ S -$5.40（3 entries / 20 cap）/ 合計 +$41.11 已實現
+- **本日（2026-04-22）**：+$25.74（2 trades opened, 1 closed WIN）
+- **當前持倉**：1 筆 L @ $2,403.41（2026-04-22 20:00 開倉，qty 1.664 ≈ $4,000 notional）
+
+**已完成交易（5 筆，9 天，自 2026-04-14 起）**
+
+| # | 時間(UTC+8) | 方向 | 進場 | 出場 | 出場類型 | PnL | 結果 |
+|---|---|---|---:|---:|---|---:|---|
+| 1 | 04-14 14:00 | L | 2372.44 | 2389.20 | BE (ext) | +$12.52 | WIN |
+| 2 | 04-14 22:00 | S | 2359.06 | 2313.31 | TP | +$74.64 | WIN |
+| 3 | 04-16 21:00 | S | 2306.44 | 2346.92 | MaxHold | -$71.79 | LOSS |
+| 4 | 04-21 20:00 | S | 2307.51 | 2310.42 | MaxHold | -$8.25 | LOSS |
+| 5 | 04-22 10:00 | L | 2368.44 | 2390.48 | **MFE-trail** | +$33.99 | WIN |
+
+**早期績效（極短樣本，不代表 OOS）**：WR 3/5 = 60%、實現 PnL +$41.11、無 SafeNet 觸發、V14 新特性 MFE-trail 已在 trade #5 實戰觸發驗證
+**出場分佈**：MaxHold 2 / TP 1 / BE 1 / MFE-trail 1 / SafeNet 0
+**熔斷狀態**：未觸發（無連虧 4 冷卻、月虧 L/S 均遠未到上限）
 
 ---
 
@@ -258,6 +287,23 @@ L 月虧上限 -$75，S 月虧上限 -$150
 - HMM / regime detection 找非 breakout alpha（V19 R2：3-state HMM 所有 state 的 non-BRK fwd=0, p>0.7）
 - 動量/偏度 regime 交易非 breakout bars（V19 R2：IS/OOS 全部巨虧 -$3K~-$24K）
 - V14 框架直接套用其他加密貨幣（V20 R0：9 個主流幣 locked-parameter 篩選 9/9 FAIL，全部 IS<0，breakout 後方向性是 ETH-specific）
+- Weekly / Daily OR / Staircase / Prior Day HL / Monthly / Swing Pivot 的事件錨定 breakout（V21 Path A 7 輪全 REJECTED，edge 依賴 ETH 多頭方向，時序翻轉即消失）
+- V14 的 cooldown 擴展 / 早切 / L-only 連敗跳過（V21 Path B B1/B2/B3 全 REJECTED：V14 已是 tightly-optimized local maximum，動 IS 必降或過擬合）
+- Ichimoku Cloud 訊號（TK 交叉 / Cloud breakout / 3-confirm / 4-confirm — V22 R1 ALL OOS 負 -$225~-$2092）
+- Head & Shoulders / Inverse H&S 形態（V22 R2 iHS IS 73% WR $1458 → G6 Fwd +69%/Bwd -225% + G8 時序翻轉 -$343，regime-dependent）
+- 三角形態 breakout（Ascending / Descending / Symmetrical — V22 R3 ASC L IS $851/OOS $1614 看似正向但 G6 Fwd -89.7% + G8 -$834 + N×M 孤峰）
+- Harmonic XABCD patterns（Gartley / Bat / Butterfly / Crab — V22 R4 ETH 1h 2 年僅 1 match，樣本過稀）
+- Fibonacci retracement swing entry（38.2 / 50 / 61.8% — V22 R5 0 IS+ configs）
+- Classical Pivot Points 突破或均值回歸（Daily/Weekly PP/R1/R2/S1/S2 — V22 R6 brk_wS1 S IS 85% WR $2044 → OOS -$61，極端過擬合）
+- Elliott Wave 3-wave impulse trigger（V22 R7 EW3_S_N7 IS $747 → OOS $278 衰減 63%）
+- Wyckoff Spring / Upthrust via volume + wide-range bars（V22 R8 Upthrust top 8 配置 OOS 全部 -$552~-$2648，巨翻轉）
+- 對稱單一 regime gate 過濾 L+S（V23 R1-R3 SMA 斜率 / ATR pctile / ADX 全 REJECTED：V14 L 最弱 UP、S 最弱 SIDE，需 per-side 非對稱才有效）
+- Size scaling 做 regime 風險降低（V23 Path V 3 輪 R1-R3 soft scaling 全部劣於 Path R hard block：V14 是 binary edge，部分倉位無法選擇性避開輸家）
+- Inverse-volatility position sizing（V23 Path V R3：TARGET/ATR% 公式在 V14 系統上 PnL -$185、WF 0/6，最壞 30d 未改善因該段同時高 PnL 高 ATR）
+- BTC V14 作為 ETH V14 的 hedge（V23 Path H R1：BTC V14 標的 PnL -$1,762、月度相關 -0.016 但 7 個 ETH 負月中 BTC 僅 2 個月正收益，結構失敗）
+- 在 V14+R 之上疊加波動 overlay 改善尾端（V24 Direction A：ATR/RV/HL 23 配置全 FAIL，R gate 已吸收 vol 過濾可做的工作，overlay 只能移除好 trade）
+- 在 $300 子帳戶跑 crypto 獨立策略做分散（V24 Direction C：Donchian+trend filter 11 幣 × 3 TF × 166 配置，37 個通過 KPI 但 10/10 Top 候選 IS/OOS 失敗或 r>=0.3，crypto 在 bull regime 共漲結構性相關）
+- Mixed L/S 槓桿以為可改善 Sharpe（V24 Direction B：L/S 不對稱槓桿全部劣化 Sharpe 5.58-5.94 vs uniform 6.03，純風險偏好請用 uniform）
 
 ---
 
