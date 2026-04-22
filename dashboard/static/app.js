@@ -13,6 +13,8 @@ const S = {
     ema20Series: null,
     gkChart: null,
     gkSeries: null,
+    slopeChart: null,
+    slopeSeries: null,
     equityChart: null,
     equitySeries: null,
     equityRO: null,
@@ -104,6 +106,9 @@ function switchMode(mode) {
         b.classList.toggle('active', b.dataset.mode === mode));
     resetCountdown();
     loadCurrentTab();
+    // Mode 變動 → 重連 WS 帶新 mode
+    closeStatusWS();
+    if (S.tab === 'status') openStatusWS();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -117,6 +122,9 @@ function switchTab(tab) {
         c.classList.toggle('active', c.id === `tab-${tab}`));
     resetCountdown();
     loadCurrentTab();
+    // 離開 status → 關 WS 省資源；切回 → 重開
+    if (tab === 'status') openStatusWS();
+    else closeStatusWS();
 }
 
 function loadCurrentTab() {
@@ -139,6 +147,7 @@ async function loadStatus() {
         renderGK(d);
         renderEntryConditions(d.entry_conditions, d.positions);
         renderRecentTrades(d.recent_trades || [], d.positions);
+        renderBreakers(d.breakers);
         renderHealth(d.health);
         triggerValuePop();
     } catch (e) {
@@ -202,6 +211,37 @@ function renderStatusCards(d) {
             <div class="card-value">${d.last_close ? '$'+d.last_close.toFixed(2) : '-'}</div>
             <div class="card-sub">ETHUSDT 1h</div>
             ${renderUnrealizedSummary(pos.details, d.last_close)}
+        </div>
+        ${renderRegimeCard(d.regime)}
+    `;
+}
+
+function renderRegimeCard(rg) {
+    if (!rg) return '';
+    const labelColors = {
+        'UP': 'var(--red)', 'DOWN': 'var(--green)', 'SIDE': 'var(--gold)',
+        'MILD_UP': 'var(--green)', 'WARMUP': 'var(--text-dim)'
+    };
+    const clr = labelColors[rg.label] || 'var(--text)';
+    const slopeStr = rg.slope_pct != null ? (rg.slope_pct >= 0 ? '+' : '') + rg.slope_pct.toFixed(2) + '%' : '-';
+    // Badge 只在被擋時亮紅
+    const lBadge = rg.block_l ? `<span class="regime-badge regime-block">L 擋</span>` : `<span class="regime-badge regime-ok">L ✓</span>`;
+    const sBadge = rg.block_s ? `<span class="regime-badge regime-block">S 擋</span>` : `<span class="regime-badge regime-ok">S ✓</span>`;
+    // 距離門檻解說
+    let dist = '';
+    if (rg.slope_pct != null) {
+        const u = rg.dist_to_up, s = rg.dist_to_side;
+        const uStr = u >= 0 ? `距 +4.5% 還有 ${u.toFixed(2)}%` : `已越 +4.5%（${(-u).toFixed(2)}%）`;
+        const sStr = s >= 0 ? `離 ±1% 還有 ${s.toFixed(2)}%` : `進 ±1%（${(-s).toFixed(2)}%）`;
+        dist = `<div class="card-sub" style="font-size:11px;color:var(--text-dim);margin-top:4px">${uStr}<br>${sStr}</div>`;
+    }
+    return `
+        <div class="card">
+            <div class="card-label">Regime (V14+R SMA200 slope)</div>
+            <div class="card-value" style="color:${clr};font-size:1.5rem">${rg.label}</div>
+            <div class="card-sub">斜率 ${slopeStr} | ${rg.desc}</div>
+            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${lBadge}${sBadge}</div>
+            ${dist}
         </div>
     `;
 }
@@ -338,7 +378,7 @@ function renderEntryConditions(ec, positions) {
     // L 條件面板
     const lc = ec.L ? ec.L.conditions : {};
     const lPassed = ec.L ? ec.L.passed : 0;
-    const lTotal = ec.L ? ec.L.total : 3;
+    const lTotal = ec.L ? ec.L.total : 4;
     const lPct = Math.round(lPassed / lTotal * 100);
     const lColor = lPct >= 100 ? 'var(--green)' : lPct >= 50 ? 'var(--gold)' : 'var(--red)';
 
@@ -350,13 +390,14 @@ function renderEntryConditions(ec, positions) {
     if (lc.gk) lHtml += condRow('', lc.gk.pass, 'GK < 25（壓縮）', lc.gk.value != null ? lc.gk.value.toFixed(1) : '-');
     if (lc.breakout) lHtml += condRow('', lc.breakout.pass, '向上突破 15bar', '');
     if (lc.session) lHtml += condRow('', lc.session.pass, '時段允許', sessionTimeStr('L'));
+    if (lc.regime) lHtml += condRow('', lc.regime.pass, '非強多頭 (slope≤+4.5%)', lc.regime.value != null ? (lc.regime.value * 100).toFixed(2) + '%' : '-');
     lHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${lPct}%;background:${lColor}"></div></div>`;
     lHtml += '</div>';
 
     // S 條件面板
     const sc = ec.S ? ec.S.conditions : {};
     const sPassed = ec.S ? ec.S.passed : 0;
-    const sTotal = ec.S ? ec.S.total : 3;
+    const sTotal = ec.S ? ec.S.total : 4;
     const sPct = Math.round(sPassed / sTotal * 100);
     const sColor = sPct >= 100 ? 'var(--green)' : sPct >= 50 ? 'var(--gold)' : 'var(--red)';
 
@@ -368,6 +409,7 @@ function renderEntryConditions(ec, positions) {
     if (sc.gk) sHtml += condRow('', sc.gk.pass, 'GK < 35（壓縮）', sc.gk.value != null ? sc.gk.value.toFixed(1) : '-');
     if (sc.breakout) sHtml += condRow('', sc.breakout.pass, '向下突破 15bar', '');
     if (sc.session) sHtml += condRow('', sc.session.pass, '時段允許', sessionTimeStr('S'));
+    if (sc.regime) sHtml += condRow('', sc.regime.pass, '非橫盤 (|slope|≥1%)', sc.regime.value != null ? (sc.regime.value * 100).toFixed(2) + '%' : '-');
     sHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${sPct}%;background:${sColor}"></div></div>`;
     sHtml += '</div>';
 
@@ -564,6 +606,52 @@ const HEALTH_STATUS_MAP = {
     'ALERT': '警報 (Alert)',
 };
 
+function renderBreakers(bk) {
+    const el = $('breakers-section');
+    if (!el) return;
+    if (!bk) { el.innerHTML = ''; return; }
+
+    // 依使用率決定顏色：<40% 綠 / 40-70% 黃 / >=70% 橘 / 100% 紅
+    function barColor(pct, triggered) {
+        if (triggered) return 'var(--red)';
+        if (pct >= 70) return '#ff9800';
+        if (pct >= 40) return 'var(--gold)';
+        return 'var(--green)';
+    }
+    function bar(label, used, cap, unit, pct, triggered, note) {
+        const clr = barColor(pct, triggered);
+        const status = triggered ? '<span style="color:var(--red);font-weight:600">🚫 已觸發</span>'
+                     : pct >= 70 ? '<span style="color:#ff9800">⚠ 接近</span>'
+                     : '<span style="color:var(--green)">✓ 安全</span>';
+        return `<div class="bk-item">
+            <div class="bk-head">
+                <span class="bk-label">${label}</span>
+                <span class="bk-status">${status}</span>
+            </div>
+            <div class="bk-bar-track"><div class="bk-bar-fill" style="width:${pct}%;background:${clr}"></div></div>
+            <div class="bk-meta">${used}${unit} / ${cap}${unit}（${pct.toFixed(0)}%）${note ? '｜' + note : ''}</div>
+        </div>`;
+    }
+
+    const d = bk.daily, mL = bk.monthly_l, mS = bk.monthly_s, cs = bk.consec;
+    const pausedBadge = bk.paused ? '<span class="bk-paused">⏸ 已暫停</span>' : '';
+
+    let html = `<div class="breakers-wrap">
+        <div class="breakers-title">
+            <span>風控熔斷 (Circuit Breakers)</span>${pausedBadge}
+        </div>
+        <div class="breakers-grid">`;
+    html += bar('日虧 -$200', d.loss_used, 200, '$', d.used_pct, d.triggered, `今日 PnL ${d.pnl>=0?'+':''}$${d.pnl}`);
+    html += bar('月虧 L -$75', mL.loss_used, 75, '$', mL.used_pct, mL.triggered, `PnL ${mL.pnl>=0?'+':''}$${mL.pnl}`);
+    html += bar('月虧 S -$150', mS.loss_used, 150, '$', mS.used_pct, mS.triggered, `PnL ${mS.pnl>=0?'+':''}$${mS.pnl}`);
+    html += bar('L 月度進場額度', mL.entries, mL.entry_cap, '筆', mL.entry_pct, mL.entries >= mL.entry_cap, '');
+    html += bar('S 月度進場額度', mS.entries, mS.entry_cap, '筆', mS.entry_pct, mS.entries >= mS.entry_cap, '');
+    const cdNote = cs.cooldown_bars_remain > 0 ? `冷卻剩 ${cs.cooldown_bars_remain} bar` : '';
+    html += bar('連虧計數', cs.value, 4, '筆', cs.used_pct, cs.triggered, cdNote);
+    html += '</div></div>';
+    el.innerHTML = html;
+}
+
 function renderHealth(h) {
     if (!h || !h.checks) {
         $('health-section').innerHTML = '';
@@ -617,8 +705,10 @@ async function loadChart() {
 function initCharts() {
     const mc = $('main-chart');
     const gc = $('gk-chart');
+    const sc = $('slope-chart');
     mc.innerHTML = '';
     gc.innerHTML = '';
+    if (sc) sc.innerHTML = '';
 
     const baseOpts = {
         layout: { background: { color: '#000000' }, textColor: '#d1d4dc' },
@@ -639,32 +729,50 @@ function initCharts() {
     });
     S.ema20Series = S.mainChart.addLineSeries({ color: '#f0b90b', lineWidth: 2, title: 'EMA20' });
 
-    // GK 副圖：顯示時間軸，作為上下共用的時間標籤
+    // GK 副圖：隱藏時間軸（由 slope 副圖統一顯示）
     S.gkChart = LightweightCharts.createChart(gc, {
-        ...baseOpts, width: gc.clientWidth, height: 150,
-        timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2B2B43' },
+        ...baseOpts, width: gc.clientWidth, height: 130,
+        timeScale: { visible: false, borderColor: '#2B2B43' },
     });
     S.gkSeries = S.gkChart.addHistogramSeries({ color: '#5b86e5', title: 'GK 百分位 (Pctile)' });
 
+    // Slope 副圖：SMA200 斜率 (R gate)，作為最下方時間軸
+    if (sc) {
+        S.slopeChart = LightweightCharts.createChart(sc, {
+            ...baseOpts, width: sc.clientWidth, height: 130,
+            timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2B2B43' },
+        });
+        S.slopeSeries = S.slopeChart.addLineSeries({
+            color: '#ab47bc', lineWidth: 2, title: 'SMA200 斜率 %',
+        });
+        // 固定參考線：+4.5% (L block) / +1% (S block upper) / -1% (S block lower)
+        S.slopeSeries.createPriceLine({ price: 4.5, color: '#ef5350', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'L block' });
+        S.slopeSeries.createPriceLine({ price: 1.0, color: '#f0b90b', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S block ↑' });
+        S.slopeSeries.createPriceLine({ price: -1.0, color: '#f0b90b', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S block ↓' });
+        S.slopeSeries.createPriceLine({ price: 0, color: '#555', lineWidth: 1, lineStyle: 3, axisLabelVisible: false });
+    }
+
     // Sync time scales
     let syncing = false;
-    S.mainChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
-        if (syncing || !range) return;
-        syncing = true;
-        S.gkChart.timeScale().setVisibleLogicalRange(range);
-        syncing = false;
-    });
-    S.gkChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
-        if (syncing || !range) return;
-        syncing = true;
-        S.mainChart.timeScale().setVisibleLogicalRange(range);
-        syncing = false;
-    });
+    const syncFrom = (from, targets) => {
+        from.timeScale().subscribeVisibleLogicalRangeChange(range => {
+            if (syncing || !range) return;
+            syncing = true;
+            for (const t of targets) t.timeScale().setVisibleLogicalRange(range);
+            syncing = false;
+        });
+    };
+    const charts = [S.mainChart, S.gkChart];
+    if (S.slopeChart) charts.push(S.slopeChart);
+    for (const c of charts) {
+        syncFrom(c, charts.filter(x => x !== c));
+    }
 
     // Resize
     const ro = new ResizeObserver(() => {
-        S.mainChart.applyOptions({ width: mc.clientWidth, height: mc.clientHeight || 480 });
+        S.mainChart.applyOptions({ width: mc.clientWidth, height: mc.clientHeight || 300 });
         S.gkChart.applyOptions({ width: gc.clientWidth });
+        if (S.slopeChart && sc) S.slopeChart.applyOptions({ width: sc.clientWidth });
     });
     ro.observe(mc);
 
@@ -749,6 +857,11 @@ function updateChartData(kd, trades) {
         };
     });
     S.gkSeries.setData(gkFull);
+
+    // SMA200 斜率（V14+R regime gate）
+    if (S.slopeSeries && kd.sma_slope) {
+        S.slopeSeries.setData(kd.sma_slope);
+    }
 
     // ── 清除舊的持倉線 ──
     for (const ls of S.tradeLines) {
@@ -904,6 +1017,14 @@ function exportTradesCSV() {
     a.click();
 }
 
+function regimeTag(rg, slopePct) {
+    if (!rg) return '-';
+    const colors = { 'UP':'#ef5350', 'DOWN':'#26a69a', 'SIDE':'#f0b90b', 'MILD_UP':'#42a5f5' };
+    const c = colors[rg] || '#888';
+    const slopeStr = slopePct != null ? (slopePct >= 0 ? '+' : '') + slopePct.toFixed(2) + '%' : '';
+    return `<span style="color:${c};font-weight:600">${rg}</span> <span style="color:var(--text-dim);font-size:11px">${slopeStr}</span>`;
+}
+
 function renderTradesTable() {
     let data = [...S.trades];
 
@@ -943,6 +1064,7 @@ function renderTradesTable() {
         <th onclick="sortBy('net_pnl_usd')">損益 $${sortIcon('net_pnl_usd')}</th>
         <th onclick="sortBy('net_pnl_pct')">損益 %${sortIcon('net_pnl_pct')}</th>
         <th onclick="sortBy('hold_bars')">持倉h${sortIcon('hold_bars')}</th>
+        <th onclick="sortBy('entry_regime')">進場Regime${sortIcon('entry_regime')}</th>
         <th onclick="sortBy('gk_pctile_at_entry')">GK${sortIcon('gk_pctile_at_entry')}</th>
         <th onclick="sortBy('ema20_distance_pct')">EMA%${sortIcon('ema20_distance_pct')}</th>
         <th onclick="sortBy('breakout_strength_pct')">突破%${sortIcon('breakout_strength_pct')}</th>
@@ -964,6 +1086,7 @@ function renderTradesTable() {
             <td class="${pCls}">${pnlStr(t.net_pnl_usd)}</td>
             <td class="${pCls}">${t.net_pnl_pct!=null ? t.net_pnl_pct.toFixed(1)+'%' : '-'}</td>
             <td>${t.hold_bars!=null ? t.hold_bars : '-'}</td>
+            <td>${regimeTag(t.entry_regime, t.entry_slope_pct)}</td>
             <td>${t.gk_pctile_at_entry!=null ? Number(t.gk_pctile_at_entry).toFixed(1) : '-'}</td>
             <td>${t.ema20_distance_pct!=null ? Number(t.ema20_distance_pct).toFixed(2)+'%' : '-'}</td>
             <td>${t.breakout_strength_pct!=null ? Number(t.breakout_strength_pct).toFixed(2)+'%' : '-'}</td>
@@ -1009,10 +1132,52 @@ async function loadAnalytics() {
         renderDailyChart(an.daily_pnl || []);
         renderExitDist(an.exit_distribution || {});
         renderStratCompare(an.strategy_comparison || {});
+        renderRegimeCompare(an.regime_performance || {});
     } catch (e) {
         setConnStatus(false);
         $('analytics-cards').innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
     }
+}
+
+function renderRegimeCompare(perf) {
+    const el = $('regime-compare');
+    if (!el) return;
+    const order = ['UP', 'MILD_UP', 'DOWN', 'SIDE'];
+    const descMap = {
+        'UP':      ['強多頭 slope>+4.5%', 'L 理論被擋，僅 S 可進'],
+        'MILD_UP': ['溫和多頭 0<slope≤+4.5%', 'L+S 皆可進'],
+        'DOWN':    ['下跌 slope<0 且 |slope|≥1%', 'L+S 皆可進'],
+        'SIDE':    ['橫盤 |slope|<1%', 'S 理論被擋，僅 L 可進'],
+    };
+    const keys = order.filter(k => perf[k]);
+    if (keys.length === 0) {
+        el.innerHTML = '<div class="loading">資料不足 — 需有帶 sma_slope 的 bar_snapshots.csv 才能分組</div>';
+        return;
+    }
+    let html = `<table class="strat-table"><thead><tr>
+        <th>Regime</th><th>說明</th><th>筆數</th><th>L/S</th>
+        <th>勝率</th><th>總損益</th><th>均損益</th><th>平均斜率</th>
+    </tr></thead><tbody>`;
+    for (const k of keys) {
+        const r = perf[k];
+        const desc = descMap[k] ? descMap[k][0] : '';
+        html += `<tr>
+            <td><b>${k}</b></td>
+            <td style="color:var(--text-dim);font-size:12px">${desc}</td>
+            <td>${r.trades}</td>
+            <td>L${r.l_trades} / S${r.s_trades}</td>
+            <td>${r.win_rate}%</td>
+            <td class="${pnlClass(r.pnl)}">${pnlStr(r.pnl)}</td>
+            <td class="${pnlClass(r.avg_pnl)}">${pnlStr(r.avg_pnl)}</td>
+            <td>${r.avg_slope_pct >= 0 ? '+' : ''}${r.avg_slope_pct.toFixed(2)}%</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    // 提示：UP regime 若有 L 筆數 >0 = 舊 V14 資料（當時無 R gate），新交易該欄應為 0
+    html += `<div style="margin-top:8px;color:var(--text-dim);font-size:11px">
+        註：V14+R 部署後，UP 新 L 進場應 = 0、SIDE 新 S 進場應 = 0；若不為 0 可能是部署前的舊交易或 WARMUP 期。
+    </div>`;
+    el.innerHTML = html;
 }
 
 function renderAnalyticsCards(an) {
@@ -1253,6 +1418,13 @@ const BT_PARAMS = [
     // Shared
     { key: 'notional', label: '名目金額', group: 'shared', def: 4000, min: 500, max: 20000, step: 500, unit: '$' },
     { key: 'fee',      label: '手續費',   group: 'shared', def: 4,    min: 0,   max: 50,    step: 1,   unit: '$' },
+    // V14+R Regime Gate
+    { key: 'r_th_up',  label: 'R gate L 門檻', group: 'shared', def: 4.5, min: 0.1, max: 20,  step: 0.1, unit: '%' },
+    { key: 'r_th_side',label: 'R gate S 門檻', group: 'shared', def: 1.0, min: 0.01,max: 10,  step: 0.1, unit: '%' },
+];
+
+const BT_TOGGLES = [
+    { key: 'enable_regime_gate', label: '啟用 R gate (V14+R)', def: true },
 ];
 
 async function initBtParams() {
@@ -1275,13 +1447,23 @@ async function initBtParams() {
         const el = $(elId);
         if (!el) continue;
         const params = BT_PARAMS.filter(p => p.group === group);
-        el.innerHTML = params.map(p => `
+        let html = params.map(p => `
             <div class="bt-param-row">
                 <label>${p.label}${p.unit ? ' ('+p.unit+')' : ''}</label>
                 <input type="number" id="bt-${p.key}" value="${p.def}"
                        min="${p.min}" max="${p.max}" step="${p.step}">
             </div>
         `).join('');
+        // Toggles 放在 shared 群組底部
+        if (group === 'shared') {
+            html += BT_TOGGLES.map(t => `
+                <div class="bt-param-row">
+                    <label>${t.label}</label>
+                    <input type="checkbox" id="bt-${t.key}" ${t.def ? 'checked' : ''} style="width:20px;height:20px">
+                </div>
+            `).join('');
+        }
+        el.innerHTML = html;
     }
     S.btInited = true;
 }
@@ -1310,6 +1492,10 @@ function collectBtParams() {
     for (const p of BT_PARAMS) {
         const el = $(`bt-${p.key}`);
         params[p.key] = el ? parseFloat(el.value) : p.def;
+    }
+    for (const t of BT_TOGGLES) {
+        const el = $(`bt-${t.key}`);
+        params[t.key] = el ? el.checked : t.def;
     }
     return params;
 }
@@ -1687,8 +1873,61 @@ function exportBtCSV() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `backtest_v14_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `backtest_v14r_${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// WebSocket push（Status 頁用，輪詢做 fallback）
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let _statusWS = null;
+let _wsReconnectTimer = null;
+
+function openStatusWS() {
+    if (_statusWS && _statusWS.readyState <= 1) return; // 已開或開啟中
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = `${proto}//${location.host}/ws/status?mode=${encodeURIComponent(S.mode)}`;
+    try {
+        _statusWS = new WebSocket(url);
+    } catch (e) { return; }
+    _statusWS.onopen = () => {
+        setConnStatus(true);
+    };
+    _statusWS.onmessage = (ev) => {
+        try {
+            const m = JSON.parse(ev.data);
+            if (m.type === 'status' && m.data && S.tab === 'status') {
+                renderStatusCards(m.data);
+                renderGK(m.data);
+                renderEntryConditions(m.data.entry_conditions, m.data.positions);
+                renderRecentTrades(m.data.recent_trades || [], m.data.positions);
+                renderBreakers(m.data.breakers);
+                renderHealth(m.data.health);
+                lastRefreshTime = new Date();
+                refreshCountdown = REFRESH_INTERVAL;
+                updateTimerDisplay();
+                setConnStatus(true);
+                triggerValuePop();
+            }
+        } catch (e) {}
+    };
+    _statusWS.onclose = () => {
+        _statusWS = null;
+        // 5s 後重連；期間 polling 仍會正常運作
+        if (_wsReconnectTimer) clearTimeout(_wsReconnectTimer);
+        _wsReconnectTimer = setTimeout(openStatusWS, 5000);
+    };
+    _statusWS.onerror = () => {
+        try { _statusWS.close(); } catch (e) {}
+    };
+}
+
+function closeStatusWS() {
+    if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+    if (_statusWS) {
+        try { _statusWS.close(); } catch (e) {}
+        _statusWS = null;
+    }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1735,6 +1974,7 @@ function onRefreshTick() {
     updateTimerDisplay();
     setInterval(onRefreshTick, 1000);
     setInterval(checkBotStatus, 10000);
+    openStatusWS();
 
     // 瀏覽器 tab 隱藏時暫停動畫省 CPU
     document.addEventListener('visibilitychange', () => {

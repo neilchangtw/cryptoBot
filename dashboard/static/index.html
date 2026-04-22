@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>V14-印鈔機</title>
+    <title>V14+R-印鈔機</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>$</text></svg>">
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -11,7 +11,7 @@
 
 <!-- Header -->
 <div class="header">
-    <h1>V14<span>-印鈔機</span></h1>
+    <h1>V14+R<span>-印鈔機</span></h1>
     <div class="header-right">
         <span class="bot-status" id="bot-status" title="機器人狀態">BOT: --</span>
         <button class="hdr-btn hdr-restart" onclick="restartDashboard()" title="重啟儀表板 + 機器人">重啟</button>
@@ -41,6 +41,7 @@
     <div id="gk-section"></div>
     <div id="entry-conditions"></div>
     <div id="recent-section"></div>
+    <div id="breakers-section"></div>
     <div id="health-section"></div>
 </div>
 
@@ -49,12 +50,14 @@
     <div class="chart-container">
         <div id="main-chart"></div>
         <div id="gk-chart"></div>
+        <div id="slope-chart"></div>
     </div>
     <div class="chart-legend">
         <span class="legend-item"><span class="legend-dot" style="background:#42a5f5"></span>▲ L 做多</span>
         <span class="legend-item"><span class="legend-dot" style="background:#ff9800"></span>▼ S 做空</span>
         <span class="legend-item"><span class="legend-line-dash" style="border-color:#42a5f5"></span>持倉線</span>
         <span class="legend-item"><span class="legend-line" style="background:#f0b90b"></span>EMA20</span>
+        <span class="legend-item"><span class="legend-line" style="background:#ab47bc"></span>SMA200 斜率 (R gate)</span>
     </div>
     <div class="trade-tooltip" id="trade-tooltip"></div>
 </div>
@@ -86,6 +89,12 @@
         <div class="analytics-panel">
             <h3>策略比較 (L vs S)</h3>
             <div id="strat-compare"></div>
+        </div>
+    </div>
+    <div class="analytics-row">
+        <div class="analytics-panel">
+            <h3>Regime 分組績效 (V14+R)</h3>
+            <div id="regime-compare"></div>
         </div>
     </div>
 </div>

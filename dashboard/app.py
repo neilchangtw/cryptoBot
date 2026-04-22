@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT_DIR))
 import pandas as pd
 import numpy as np
 import importlib.util
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -197,6 +197,58 @@ async def api_status(mode: str = Query("paper")):
                 "details": details,
             }
 
+            # 熔斷進度（用於前端進度條）
+            cb = state.get("circuit_breaker", {}) or {}
+            mpnl = cb.get("monthly_pnl", {}) or {}
+            ment = cb.get("monthly_entries", {}) or {}
+            daily_pnl_v = float(cb.get("daily_pnl", 0) or 0)
+            l_mpnl = float(mpnl.get("L", 0) or 0)
+            s_mpnl = float(mpnl.get("S", 0) or 0)
+            consec = int(cb.get("consec_losses", 0) or 0)
+            cd_until = int(cb.get("consec_loss_cooldown_until", 0) or 0)
+            bar_c = int(result.get("bar_counter", 0) or 0)
+
+            def _pct(used, cap):
+                return min(100.0, max(0.0, used / cap * 100)) if cap > 0 else 0.0
+
+            result["breakers"] = {
+                "daily": {
+                    "pnl": round(daily_pnl_v, 2),
+                    "cap": -200.0,
+                    "loss_used": round(max(0, -daily_pnl_v), 2),
+                    "used_pct": round(_pct(max(0, -daily_pnl_v), 200), 1),
+                    "triggered": daily_pnl_v <= -200,
+                },
+                "monthly_l": {
+                    "pnl": round(l_mpnl, 2),
+                    "cap": -75.0,
+                    "loss_used": round(max(0, -l_mpnl), 2),
+                    "used_pct": round(_pct(max(0, -l_mpnl), 75), 1),
+                    "triggered": l_mpnl <= -75,
+                    "entries": int(ment.get("L", 0) or 0),
+                    "entry_cap": 20,
+                    "entry_pct": round(_pct(int(ment.get("L", 0) or 0), 20), 1),
+                },
+                "monthly_s": {
+                    "pnl": round(s_mpnl, 2),
+                    "cap": -150.0,
+                    "loss_used": round(max(0, -s_mpnl), 2),
+                    "used_pct": round(_pct(max(0, -s_mpnl), 150), 1),
+                    "triggered": s_mpnl <= -150,
+                    "entries": int(ment.get("S", 0) or 0),
+                    "entry_cap": 20,
+                    "entry_pct": round(_pct(int(ment.get("S", 0) or 0), 20), 1),
+                },
+                "consec": {
+                    "value": consec,
+                    "cap": 4,
+                    "used_pct": round(_pct(consec, 4), 1),
+                    "cooldown_bars_remain": max(0, cd_until - bar_c) if cd_until > 0 else 0,
+                    "triggered": consec >= 4,
+                },
+                "paused": bool(state.get("paused", False)),
+            }
+
             # 今日統計
             daily = state.get("daily_stats", {})
             today_key = max(daily.keys()) if daily else None
@@ -241,6 +293,11 @@ async def api_status(mode: str = Query("paper")):
         # S 用自己的 GK pctile
         gk_s = clean_value(last.get("gk_pctile_s"))
 
+        # V14+R Regime gate（從最新 snapshot 讀 sma_slope，舊 CSV 無此欄位則 None）
+        slope_raw = clean_value(last.get("sma_slope"))
+        regime_ok_l = slope_raw is None or slope_raw <= 0.045   # L 允許：slope <= +4.5%
+        regime_ok_s = slope_raw is None or abs(slope_raw) >= 0.010  # S 允許：|slope| >= 1%
+
         # breakout: 可能是 bool 或 float（突破強度）
         def _brk_pass(v):
             if isinstance(v, bool):
@@ -251,25 +308,56 @@ async def api_status(mode: str = Query("paper")):
                 return v.lower() not in ('false', '0', '')
             return bool(v) if v is not None else False
 
-        # L 進場條件（V13: GK<25 + BRK15 + Session_L）
+        # L 進場條件（V14+R: GK<25 + BRK15 + Session_L + slope<=+4.5%）
         l_conds = {
             "gk": {"label": "GK < 25", "value": gk, "threshold": 25, "pass": bool(gk is not None and gk < 25)},
             "breakout": {"label": "向上突破 15bar", "pass": bool(_brk_pass(brk_long))},
             "session": {"label": "時段允許", "pass": bool(session_ok_l)},
+            "regime": {"label": "非強多頭 (slope≤+4.5%)", "value": slope_raw, "pass": bool(regime_ok_l)},
         }
-        l_total = sum([l_conds["gk"]["pass"], l_conds["breakout"]["pass"], l_conds["session"]["pass"]])
+        l_total = sum([l_conds["gk"]["pass"], l_conds["breakout"]["pass"], l_conds["session"]["pass"], l_conds["regime"]["pass"]])
 
-        # S 進場條件（V13: GK_S<35 + BRK15 + Session_S）
+        # S 進場條件（V14+R: GK_S<35 + BRK15 + Session_S + |slope|>=1%）
         s_conds = {
             "gk": {"label": "GK < 35", "value": gk_s, "threshold": 35, "pass": bool(gk_s is not None and gk_s < 35)},
             "breakout": {"label": "向下突破 15bar", "pass": bool(_brk_pass(brk_short))},
             "session": {"label": "時段允許", "pass": bool(session_ok_s)},
+            "regime": {"label": "非橫盤 (|slope|≥1%)", "value": slope_raw, "pass": bool(regime_ok_s)},
         }
-        s_total = sum([s_conds["gk"]["pass"], s_conds["breakout"]["pass"], s_conds["session"]["pass"]])
+        s_total = sum([s_conds["gk"]["pass"], s_conds["breakout"]["pass"], s_conds["session"]["pass"], s_conds["regime"]["pass"]])
 
         result["entry_conditions"] = {
-            "L": {"conditions": l_conds, "passed": l_total, "total": 3},
-            "S": {"conditions": s_conds, "passed": s_total, "total": 3},
+            "L": {"conditions": l_conds, "passed": l_total, "total": 4},
+            "S": {"conditions": s_conds, "passed": s_total, "total": 4},
+        }
+
+        # V14+R Regime 即時狀態（依 sma_slope 分類 UP / SIDE / DOWN / MILD_UP / WARMUP）
+        if slope_raw is None:
+            regime_label, regime_desc = "WARMUP", "暖機中（資料不足）"
+        elif slope_raw > 0.045:
+            regime_label, regime_desc = "UP", "強多頭 — L 被擋"
+        elif abs(slope_raw) < 0.010:
+            regime_label, regime_desc = "SIDE", "橫盤 — S 被擋"
+        elif slope_raw < 0:
+            regime_label, regime_desc = "DOWN", "下跌 — L+S 皆可"
+        else:
+            regime_label, regime_desc = "MILD_UP", "溫和多頭 — L+S 皆可"
+
+        slope_pct = round(slope_raw * 100, 2) if slope_raw is not None else None
+        # 距離門檻（負數表示已越過）
+        dist_up = round(4.5 - slope_pct, 2) if slope_pct is not None else None
+        dist_side = round(abs(slope_pct) - 1.0, 2) if slope_pct is not None else None
+
+        result["regime"] = {
+            "label": regime_label,
+            "desc": regime_desc,
+            "slope_pct": slope_pct,
+            "th_up": 4.5,
+            "th_side": 1.0,
+            "dist_to_up": dist_up,       # >0 = 尚未越過 UP 邊界；<=0 = 已越過，L 被擋
+            "dist_to_side": dist_side,   # >=0 = 遠離 SIDE；<0 = 進入 SIDE，S 被擋
+            "block_l": slope_raw is not None and slope_raw > 0.045,
+            "block_s": slope_raw is not None and abs(slope_raw) < 0.010,
         }
 
     # 最新價格（Binance ticker API，即時更新）
@@ -354,6 +442,42 @@ async def api_status(mode: str = Query("paper")):
     return result
 
 
+@app.websocket("/ws/status")
+async def ws_status(ws: WebSocket):
+    """WebSocket 推送 status（避免 60s 輪詢延遲）。
+    客戶端連上後：立即推一次，之後每 15s 推一次，直到斷線。
+    客戶端可送 'refresh' 訊息主動觸發立即推送。
+    """
+    import asyncio
+    await ws.accept()
+    # 預設 paper，可由 query string 覆寫
+    mode = ws.query_params.get("mode", "paper")
+    try:
+        while True:
+            try:
+                data = await api_status(mode=mode)
+                await ws.send_json({"type": "status", "data": data})
+            except Exception as e:
+                await ws.send_json({"type": "error", "message": str(e)})
+
+            # 等 15s 或收到客戶端訊息（早於 15s 主動刷新）
+            try:
+                msg = await asyncio.wait_for(ws.receive_text(), timeout=15.0)
+                # 收到任何訊息（如 'refresh'）→ 下一輪立即推送
+                if msg and msg.strip().lower() == "close":
+                    await ws.close()
+                    return
+            except asyncio.TimeoutError:
+                pass
+    except WebSocketDisconnect:
+        return
+    except Exception:
+        try:
+            await ws.close()
+        except Exception:
+            pass
+
+
 @app.get("/api/klines")
 async def api_klines(limit: int = Query(1500, ge=50, le=1500)):
     """K 線 + EMA20 + GK pctile（不分 mode，同一個市場）"""
@@ -366,6 +490,7 @@ async def api_klines(limit: int = Query(1500, ge=50, le=1500)):
     candles = []
     ema20 = []
     gk_pctile = []
+    sma_slope = []
 
     for i in range(len(df)):
         row = df.iloc[i]
@@ -385,8 +510,18 @@ async def api_klines(limit: int = Query(1500, ge=50, le=1500)):
         g = clean_value(row.get("gk_pctile"))
         if g is not None:
             gk_pctile.append({"time": ts, "value": round(g, 2)})
+        s = clean_value(row.get("sma_slope"))
+        if s is not None:
+            sma_slope.append({"time": ts, "value": round(s * 100, 3)})  # 轉百分比
 
-    return {"candles": candles, "ema20": ema20, "gk_pctile": gk_pctile}
+    return {
+        "candles": candles,
+        "ema20": ema20,
+        "gk_pctile": gk_pctile,
+        "sma_slope": sma_slope,
+        "regime_th_up": 4.5,    # L block 閾值（百分比）
+        "regime_th_side": 1.0,  # S block 閾值
+    }
 
 
 @app.get("/api/trades")
@@ -406,12 +541,38 @@ async def api_trades(mode: str = Query("paper")):
             df.loc[mask & (df["direction"] == "LONG"), "sub_strategy"] = "L"
             df.loc[mask & (df["direction"] == "SHORT"), "sub_strategy"] = "S1"
 
+    # 建 entry_time → sma_slope 映射（用於 entry_regime 標籤）
+    slope_map = {}
+    snap_csv = paths["data_dir"] / "bar_snapshots.csv"
+    snap_local = read_csv_safe(snap_csv)
+    if len(snap_local) > 0 and "bar_time_utc8" in snap_local.columns and "sma_slope" in snap_local.columns:
+        slope_map = dict(zip(
+            snap_local["bar_time_utc8"].astype(str),
+            pd.to_numeric(snap_local["sma_slope"], errors="coerce")
+        ))
+
+    def _regime_of(slope):
+        if slope is None or pd.isna(slope):
+            return None
+        if slope > 0.045:
+            return "UP"
+        if abs(slope) < 0.010:
+            return "SIDE"
+        if slope < 0:
+            return "DOWN"
+        return "MILD_UP"
+
     # 加 timestamp 欄位給圖表標記用
     trades = []
     for _, row in df.iterrows():
         t = {k: clean_value(v) for k, v in row.items()}
         t["entry_ts"] = utc8_to_ts(row.get("entry_time_utc8", ""))
         t["exit_ts"] = utc8_to_ts(row.get("exit_time_utc8", ""))
+        # entry_regime：查進場 bar 的 sma_slope
+        et = str(row.get("entry_time_utc8", ""))
+        slope = slope_map.get(et)
+        t["entry_slope_pct"] = round(float(slope) * 100, 2) if slope is not None and not pd.isna(slope) else None
+        t["entry_regime"] = _regime_of(slope)
         trades.append(t)
 
     # 按進場時間倒序
@@ -526,6 +687,53 @@ async def api_analytics(mode: str = Query("paper")):
                     "avg_pnl": round(float(sub_df["net_pnl_usd"].mean()), 2),
                 }
 
+    # V14+R Regime 分組（依進場 bar 的 sma_slope）
+    regime_perf = {}
+    snap_csv = paths["data_dir"] / "bar_snapshots.csv"
+    snap_local = read_csv_safe(snap_csv)
+    if len(snap_local) > 0 and "bar_time_utc8" in snap_local.columns and "sma_slope" in snap_local.columns:
+        slope_map = dict(zip(
+            snap_local["bar_time_utc8"].astype(str),
+            pd.to_numeric(snap_local["sma_slope"], errors="coerce")
+        ))
+        buckets = {}  # rg → {pnls: [...], slopes: [...], wins: 0, L: 0, S: 0}
+        for _, row in closed.iterrows():
+            et = str(row.get("entry_time_utc8", ""))
+            if not et or et == "nan":
+                continue
+            sl = slope_map.get(et)
+            if sl is None or pd.isna(sl):
+                continue
+            if sl > 0.045:
+                rg = "UP"
+            elif abs(sl) < 0.010:
+                rg = "SIDE"
+            elif sl < 0:
+                rg = "DOWN"
+            else:
+                rg = "MILD_UP"
+            b = buckets.setdefault(rg, {"pnls": [], "slopes": [], "L": 0, "S": 0})
+            b["pnls"].append(float(row["net_pnl_usd"]))
+            b["slopes"].append(float(sl))
+            sub = str(row.get("sub_strategy", ""))
+            if sub == "L":
+                b["L"] += 1
+            elif sub.startswith("S"):
+                b["S"] += 1
+        for rg, b in buckets.items():
+            n = len(b["pnls"])
+            wins = sum(1 for p in b["pnls"] if p > 0)
+            total = round(sum(b["pnls"]), 2)
+            regime_perf[rg] = {
+                "trades": n,
+                "l_trades": b["L"],
+                "s_trades": b["S"],
+                "pnl": total,
+                "win_rate": round(wins / n * 100, 1) if n else 0,
+                "avg_pnl": round(total / n, 2) if n else 0,
+                "avg_slope_pct": round(sum(b["slopes"]) / n * 100, 2) if n else 0,
+            }
+
     result.update({
         "total_pnl": round(total_pnl, 2),
         "total_trades": total_trades,
@@ -536,6 +744,7 @@ async def api_analytics(mode: str = Query("paper")):
         "daily_pnl": daily_pnl,
         "exit_distribution": exit_dist,
         "strategy_comparison": strat_comp,
+        "regime_performance": regime_perf,
     })
     return result
 
@@ -588,6 +797,10 @@ class BacktestParams(BaseModel):
     # Shared
     notional: float = Field(default=4000, ge=500, le=20000)
     fee: float = Field(default=4, ge=0, le=50)
+    # V14+R Regime Gate toggle（可關閉以對照 V14 vs V14+R）
+    enable_regime_gate: bool = Field(default=True)
+    r_th_up: float = Field(default=4.5, ge=0.1, le=20.0)     # L block: slope > +X%
+    r_th_side: float = Field(default=1.0, ge=0.01, le=10.0)  # S block: |slope| < X%
 
 
 _bt_df_cache = {}
@@ -632,6 +845,9 @@ def _run_backtest(params: BacktestParams):
         'S_CD': params.s_cd,
         'NOTIONAL': params.notional,
         'FEE': params.fee,
+        # V14+R: 關閉時改成不可能的值（永遠不 block）；開啟時用使用者參數
+        'R_TH_UP': (params.r_th_up / 100) if params.enable_regime_gate else 99.0,
+        'R_TH_SIDE': (params.r_th_side / 100) if params.enable_regime_gate else -1.0,
     }
     originals = {}
     try:
@@ -926,6 +1142,90 @@ async def api_backtest_audit(params: BacktestParams):
         "detail": f"OK: {exit_logic_ok}, fail: {exit_logic_fail}",
     })
 
+    # 複用完整 patch map（使用者當前 BacktestParams）跑 G7/G8
+    def _apply_full_patch():
+        saved = {}
+        fp = {
+            'L_GK_TH': params.l_gk_th, 'L_BRK': params.l_brk,
+            'L_TP': params.l_tp / 100, 'L_SN': params.l_sn / 100,
+            'L_MH': params.l_mh, 'L_CD': params.l_cd,
+            'L_MFE_ACT': params.l_mfe_act / 100, 'L_MFE_TR': params.l_mfe_tr / 100,
+            'L_CMH_BAR': params.l_cmh_bar, 'L_CMH_TH': params.l_cmh_th / 100,
+            'L_CMH_MH': params.l_mh - 1,
+            'S_GK_TH': params.s_gk_th, 'S_BRK': params.s_brk,
+            'S_TP': params.s_tp / 100, 'S_SN': params.s_sn / 100,
+            'S_MH': params.s_mh, 'S_CD': params.s_cd,
+            'NOTIONAL': params.notional, 'FEE': params.fee,
+            'R_TH_UP': (params.r_th_up / 100) if params.enable_regime_gate else 99.0,
+            'R_TH_SIDE': (params.r_th_side / 100) if params.enable_regime_gate else -1.0,
+        }
+        for k, v in fp.items():
+            saved[k] = getattr(_bt_mod, k)
+            setattr(_bt_mod, k, v)
+        return saved
+
+    def _restore_patch(saved):
+        for k, v in saved.items():
+            setattr(_bt_mod, k, v)
+
+    # === G7: Walk-forward 6 folds（依 bar index 等分）===
+    try:
+        saved_wf = _apply_full_patch()
+        ind_wf = bt_compute(df)
+        dt_wf = df['datetime'].values
+        n_bars = len(df)
+        K = 6
+        fold_size = n_bars // K
+        fold_pnls = []
+        fold_details = []
+        for fi in range(K):
+            start_bar = fi * fold_size
+            end_bar = (fi + 1) * fold_size if fi < K - 1 else n_bars
+            all_t = bt_simulate(ind_wf, dt_wf, start_bar=start_bar)
+            fold_trades = [t for t in all_t if start_bar <= t['entry_bar'] < end_bar]
+            pnl = sum(float(t['pnl_usd']) for t in fold_trades)
+            fold_pnls.append(pnl)
+            fold_details.append(f"F{fi+1}:${pnl:.0f}({len(fold_trades)}t)")
+        positive_folds = sum(1 for p in fold_pnls if p > 0)
+        g7_pass = positive_folds >= 4  # 4/6 以上為 pass
+        results.append({
+            "name": "G7 Walk-Forward (6 folds)",
+            "desc": "資料等分 6 段，計算每段 IS PnL",
+            "pass": g7_pass,
+            "detail": f"{positive_folds}/6 folds 正收益 | " + " ".join(fold_details),
+        })
+    finally:
+        _restore_patch(saved_wf)
+
+    # === G8: 時序翻轉（OHLC 反轉後跑同一策略）===
+    # 期望：regime-neutral edge 翻轉後 PnL 不應過度極端
+    try:
+        saved_rev = _apply_full_patch()
+        # 正向 PnL 作為 baseline
+        ind_fwd = bt_compute(df)
+        fwd_trades = bt_simulate(ind_fwd, df['datetime'].values)
+        fwd_pnl = sum(float(t['pnl_usd']) for t in fwd_trades)
+
+        # 翻轉 OHLCV，保留原 datetime（給快照編排用）
+        df_rev = df.copy().iloc[::-1].reset_index(drop=True)
+        df_rev['datetime'] = df['datetime'].values  # datetime 不翻轉
+        ind_rev = bt_compute(df_rev)
+        rev_trades = bt_simulate(ind_rev, df_rev['datetime'].values)
+        rev_pnl = sum(float(t['pnl_usd']) for t in rev_trades)
+
+        # PASS = 反轉 PnL 不應超過正向 PnL 量級；若反轉 >= +正向 = 疑似隨機、若反轉 << -正向 = 極度 regime-dep
+        ratio = rev_pnl / fwd_pnl if abs(fwd_pnl) > 100 else 0
+        # 寬鬆閾值：ratio 在 (-2, 0.5) 視為 regime 敏感度可接受
+        g8_pass = (-2.0 < ratio < 0.5)
+        results.append({
+            "name": "G8 時序翻轉 (Time Reversal)",
+            "desc": "OHLCV 反轉後跑同策略，驗證非隨機性 / regime 敏感度",
+            "pass": g8_pass,
+            "detail": f"正向 ${fwd_pnl:.0f} ({len(fwd_trades)}筆) | 反轉 ${rev_pnl:.0f} ({len(rev_trades)}筆) | ratio={ratio:.2f}",
+        })
+    finally:
+        _restore_patch(saved_rev)
+
     elapsed = round((_time.perf_counter() - t0) * 1000)
     all_pass = all(r['pass'] for r in results)
 
@@ -941,7 +1241,7 @@ async def api_backtest_audit(params: BacktestParams):
 
 @app.post("/api/backtest")
 async def api_backtest(params: BacktestParams):
-    """Run V14 backtest with custom parameters"""
+    """Run V14+R backtest with custom parameters"""
     try:
         trades, df, elapsed = _run_backtest(params)
     except ValueError as e:
@@ -1084,13 +1384,13 @@ def _send_bot_tg(action: str):
         bal, lc, sc, env = _read_bot_state()
         pos_text = f"L:{lc} S:{sc}" if (lc + sc) > 0 else "空手"
         if action == "stop":
-            msg = (f"<b>🖨 V14 關機（{env}）</b>\n"
+            msg = (f"<b>🖨 V14+R 關機（{env}）</b>\n"
                    f"━━━━━━━━━━━━━━━\n"
                    f"💰 金庫：${bal:.2f}\n"
                    f"📊 持倉：{pos_text}\n"
                    f"🛏 印鈔機已停止")
         elif action == "restart":
-            msg = (f"<b>🔄 V14 重啟中（{env}）</b>\n"
+            msg = (f"<b>🔄 V14+R 重啟中（{env}）</b>\n"
                    f"━━━━━━━━━━━━━━━\n"
                    f"💰 金庫：${bal:.2f}\n"
                    f"📊 持倉：{pos_text}\n"
