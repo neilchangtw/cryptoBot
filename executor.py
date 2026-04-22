@@ -57,6 +57,7 @@ class Executor:
         self.daily_key = None                          # 當日 key "YYYY-MM-DD"
         self.consec_losses = 0                         # 連續虧損筆數
         self.consec_loss_cooldown_until = 0            # 連虧冷卻結束的 bar_counter
+        self.paused = False                            # Telegram /pause 暫停開倉
 
         self._load_state()
         self._init_balance()
@@ -124,8 +125,12 @@ class Executor:
             self.consec_losses = cb.get("consec_losses", 0)
             self.consec_loss_cooldown_until = cb.get("consec_loss_cooldown_until", 0)
 
+            # 載入暫停狀態
+            self.paused = state.get("paused", False)
+
             logger.info(f"State loaded: {len(self.positions)} positions, "
-                        f"bar_counter={self.bar_counter}")
+                        f"bar_counter={self.bar_counter}"
+                        + (" PAUSED" if self.paused else ""))
         except Exception as e:
             logger.error(f"Failed to load state: {e}")
 
@@ -177,6 +182,7 @@ class Executor:
                 "consec_losses": self.consec_losses,
                 "consec_loss_cooldown_until": self.consec_loss_cooldown_until,
             },
+            "paused": self.paused,
         }
         tmp_path = self.state_path + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:

@@ -21,11 +21,12 @@ import traceback
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
+import threading
 import strategy
 import data_feed
 import recorder
 from executor import Executor
-from telegram_notify import send_telegram_message
+from telegram_notify import send_telegram_message, get_pending_commands, skip_old_updates
 
 load_dotenv()
 
@@ -179,6 +180,316 @@ def calc_eth_24h_change(df, idx) -> float:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Telegram 指令處理
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def _handle_cleanup(executor, cmd_logger):
+    """清理孤兒倉位：平掉 Binance 有但內部沒有的倉位。"""
+    try:
+        import binance_trade
+        bn_positions = binance_trade.get_positions(SYMBOL)
+        internal_sides = set()
+        for p in executor.positions.values():
+            internal_sides.add("LONG" if p["side"] == "long" else "SHORT")
+
+        orphans = [bp for bp in bn_positions
+                   if bp["size"] > 0 and bp.get("position_side") not in internal_sides]
+
+        if not orphans:
+            send_telegram_message("✅ 沒有孤兒倉位，一切正常！")
+            return
+
+        results = []
+        for bp in orphans:
+            ps = bp["position_side"]
+            size = bp["size"]
+            close_side = "SELL" if ps == "LONG" else "BUY"
+            cmd_logger.info(f"Cleaning orphan: {ps} {size} ETH")
+
+            # 先取消該方向所有訂單（包括 SL）
+            try:
+                binance_trade.cancel_all_orders(SYMBOL, position_side=ps)
+            except Exception:
+                pass
+
+            # 市價平倉
+            result = binance_trade.place_order(
+                SYMBOL, close_side, qty=size, reduce_only=True,
+                strategy_id="cleanup",
+                position_side=ps,
+            )
+            if result is not None:
+                avg = float(result.get("avgPrice", 0))
+                results.append(f"✅ {ps} {size} ETH 已平倉 @ ${avg:.2f}")
+                cmd_logger.info(f"Orphan closed: {ps} {size} @ ${avg:.2f}")
+            else:
+                results.append(f"❌ {ps} {size} ETH 平倉失敗")
+                cmd_logger.error(f"Orphan close failed: {ps} {size}")
+
+        msg = "<b>🧹 孤兒清理結果</b>\n" + "\n".join(results)
+        send_telegram_message(msg)
+    except Exception as e:
+        cmd_logger.error(f"Cleanup error: {e}")
+        send_telegram_message(f"❌ 清理失敗：{str(e)[:200]}")
+
+
+def _handle_status(executor, cmd_logger):
+    """回報內部狀態 vs Binance 實際倉位。"""
+    try:
+        import binance_trade
+        bn_positions = binance_trade.get_positions(SYMBOL)
+
+        lines = ["<b>📊 倉位同步狀態</b>\n"]
+
+        # 內部持倉
+        if executor.positions:
+            lines.append("<b>內部持倉：</b>")
+            for tid, p in executor.positions.items():
+                ps = "LONG" if p["side"] == "long" else "SHORT"
+                lines.append(f"  {ps} {p.get('qty', 0):.4f} ETH @ ${p['entry_price']:.2f}")
+        else:
+            lines.append("內部持倉：空")
+
+        # Binance 持倉
+        if bn_positions:
+            lines.append("\n<b>Binance 持倉：</b>")
+            for bp in bn_positions:
+                if bp["size"] > 0:
+                    lines.append(
+                        f"  {bp['position_side']} {bp['size']} ETH "
+                        f"@ ${bp['entry_price']:.2f} "
+                        f"(PnL ${bp['unrealized_pnl']:.2f})"
+                    )
+        else:
+            lines.append("\nBinance 持倉：空")
+
+        # 比對
+        internal_sides = {("LONG" if p["side"] == "long" else "SHORT")
+                         for p in executor.positions.values()}
+        bn_sides = {bp["position_side"] for bp in bn_positions if bp["size"] > 0}
+        orphans = bn_sides - internal_sides
+        ghosts = internal_sides - bn_sides
+        if orphans:
+            lines.append(f"\n⚠️ 孤兒：{', '.join(orphans)}（/cleanup 可清理）")
+        if ghosts:
+            lines.append(f"\n⚠️ 幽靈：{', '.join(ghosts)}（內部有 Binance 無）")
+        if not orphans and not ghosts:
+            lines.append("\n✅ 內部與 Binance 同步正常")
+
+        lines.append(f"\n💰 餘額：${executor.account_balance:.2f}")
+        send_telegram_message("\n".join(lines))
+    except Exception as e:
+        cmd_logger.error(f"Status error: {e}")
+        send_telegram_message(f"❌ 查詢失敗：{str(e)[:200]}")
+
+
+def _handle_balance(executor, cmd_logger):
+    """回報餘額 + 未實現損益。"""
+    try:
+        import binance_trade
+        bn_positions = binance_trade.get_positions(SYMBOL)
+        unrealized = sum(bp.get("unrealized_pnl", 0) for bp in bn_positions if bp["size"] > 0)
+        total = executor.account_balance + unrealized
+
+        lines = [
+            "<b>💰 帳戶概覽</b>",
+            f"🏦 錢包餘額：${executor.account_balance:.2f}",
+        ]
+        if unrealized != 0:
+            emoji = "📈" if unrealized > 0 else "📉"
+            lines.append(f"{emoji} 未實現損益：${unrealized:+.2f}")
+            lines.append(f"💎 淨值：${total:.2f}")
+
+        # 保證金使用
+        active = sum(1 for _ in executor.positions)
+        margin_used = active * strategy.MARGIN
+        lines.append(f"🔒 保證金佔用：${margin_used:.0f} / ${strategy.MARGIN * 2:.0f}")
+
+        send_telegram_message("\n".join(lines))
+    except Exception as e:
+        cmd_logger.error(f"Balance error: {e}")
+        send_telegram_message(f"❌ 查詢失敗：{str(e)[:200]}")
+
+
+def _handle_pnl(executor, cmd_logger):
+    """回報今日 + 本月 PnL。"""
+    try:
+        # 今日
+        today_key = datetime.utcnow().strftime("%Y-%m-%d")
+        today = executor.daily_stats.get(today_key, {})
+        today_pnl = today.get("pnl", 0.0)
+        today_trades = today.get("trades_closed", 0)
+        today_wins = today.get("wins", 0)
+        today_losses = today.get("losses", 0)
+        today_wr = (today_wins / today_trades * 100) if today_trades > 0 else 0
+
+        # 本月
+        l_pnl = executor.monthly_pnl.get("L", 0.0)
+        s_pnl = executor.monthly_pnl.get("S", 0.0)
+        month_total = l_pnl + s_pnl
+        l_entries = executor.monthly_entries.get("L", 0)
+        s_entries = executor.monthly_entries.get("S", 0)
+
+        # 最近 7 天彙總
+        week_pnl = 0.0
+        week_trades = 0
+        for key in sorted(executor.daily_stats.keys(), reverse=True)[:7]:
+            d = executor.daily_stats[key]
+            week_pnl += d.get("pnl", 0.0)
+            week_trades += d.get("trades_closed", 0)
+
+        lines = [
+            "<b>📊 損益報表</b>",
+            "━━━━━━━━━━━━━━━",
+            f"<b>今日</b>（{today_key}）",
+            f"  💵 PnL：${today_pnl:+.2f}",
+            f"  📝 交易：{today_trades} 筆（{today_wins}W {today_losses}L，WR {today_wr:.0f}%）",
+            "",
+            f"<b>本月</b>（{executor.monthly_key or 'N/A'}）",
+            f"  💵 合計：${month_total:+.2f}",
+            f"  📈 L 做多：${l_pnl:+.2f}（{l_entries} 筆）",
+            f"  📉 S 做空：${s_pnl:+.2f}（{s_entries} 筆）",
+            "",
+            f"<b>近 7 天</b>",
+            f"  💵 PnL：${week_pnl:+.2f}（{week_trades} 筆）",
+        ]
+        send_telegram_message("\n".join(lines))
+    except Exception as e:
+        cmd_logger.error(f"PnL error: {e}")
+        send_telegram_message(f"❌ 查詢失敗：{str(e)[:200]}")
+
+
+def _handle_trades(executor, cmd_logger):
+    """回報最近 5 筆交易。"""
+    try:
+        import csv
+        data_dir = os.path.join(os.path.dirname(__file__),
+                                "data" if PAPER_TRADING else "data_live")
+        trades_path = os.path.join(data_dir, "trades.csv")
+        if not os.path.exists(trades_path):
+            send_telegram_message("📭 尚無交易記錄")
+            return
+
+        # 讀取最後 5 筆已平倉交易
+        rows = []
+        with open(trades_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get("exit_type"):  # 已平倉
+                    rows.append(row)
+        recent = rows[-5:]
+
+        if not recent:
+            send_telegram_message("📭 尚無已平倉交易")
+            return
+
+        lines = ["<b>📋 最近交易</b>", "━━━━━━━━━━━━━━━"]
+        for t in reversed(recent):
+            side = "🟢L" if t.get("sub_strategy") == "L" else "🔴S"
+            pnl = float(t.get("net_pnl_usd", 0))
+            wl = "✅" if pnl > 0 else ("❌" if pnl < 0 else "➖")
+            entry_time = t.get("entry_time_utc8", "")[:16]
+            exit_type = t.get("exit_type", "")
+            hold = t.get("hold_hours", "?")
+            lines.append(
+                f"{wl} {side} ${pnl:+.2f} | {exit_type} | {hold}h | {entry_time}"
+            )
+
+        send_telegram_message("\n".join(lines))
+    except Exception as e:
+        cmd_logger.error(f"Trades error: {e}")
+        send_telegram_message(f"❌ 查詢失敗：{str(e)[:200]}")
+
+
+def _handle_circuit_breaker(executor, cmd_logger):
+    """回報風控熔斷狀態。"""
+    try:
+        l_pnl = executor.monthly_pnl.get("L", 0.0)
+        s_pnl = executor.monthly_pnl.get("S", 0.0)
+        l_entries = executor.monthly_entries.get("L", 0)
+        s_entries = executor.monthly_entries.get("S", 0)
+
+        lines = [
+            "<b>🛡 風控熔斷狀態</b>",
+            "━━━━━━━━━━━━━━━",
+            f"<b>日虧限額</b>",
+            f"  今日 PnL：${executor.daily_pnl:+.2f} / ${strategy.DAILY_LOSS_LIMIT}",
+            f"  {'🔴 已觸發！' if executor.daily_pnl <= strategy.DAILY_LOSS_LIMIT else '🟢 正常'}",
+            "",
+            f"<b>月虧限額</b>",
+            f"  L：${l_pnl:+.2f} / ${strategy.L_MONTHLY_LOSS_CAP}",
+            f"  {'🔴 已觸發！' if l_pnl <= strategy.L_MONTHLY_LOSS_CAP else '🟢 正常'}",
+            f"  S：${s_pnl:+.2f} / ${strategy.S_MONTHLY_LOSS_CAP}",
+            f"  {'🔴 已觸發！' if s_pnl <= strategy.S_MONTHLY_LOSS_CAP else '🟢 正常'}",
+            "",
+            f"<b>月進場</b>",
+            f"  L：{l_entries} / {strategy.L_MONTHLY_ENTRY_CAP}",
+            f"  S：{s_entries} / {strategy.S_MONTHLY_ENTRY_CAP}",
+            "",
+            f"<b>連虧</b>",
+            f"  連虧筆數：{executor.consec_losses} / {strategy.CONSEC_LOSS_PAUSE}",
+        ]
+
+        if executor.consec_losses >= strategy.CONSEC_LOSS_PAUSE:
+            remaining = executor.consec_loss_cooldown_until - executor.bar_counter
+            if remaining > 0:
+                lines.append(f"  🔴 冷卻中，剩餘 {remaining} bar")
+            else:
+                lines.append("  🟢 冷卻已結束")
+
+        # 暫停狀態
+        if getattr(executor, "paused", False):
+            lines.append("\n⏸ <b>手動暫停中</b>（/resume 恢復）")
+
+        send_telegram_message("\n".join(lines))
+    except Exception as e:
+        cmd_logger.error(f"CB error: {e}")
+        send_telegram_message(f"❌ 查詢失敗：{str(e)[:200]}")
+
+
+def _handle_pause(executor, cmd_logger):
+    """暫停開新倉（持倉出場不受影響）。"""
+    executor.paused = True
+    executor.save_state()
+    cmd_logger.info("Trading PAUSED by Telegram command")
+    send_telegram_message(
+        "<b>⏸ 已暫停開新倉</b>\n"
+        "━━━━━━━━━━━━━━━\n"
+        "🔒 不再開新倉位\n"
+        "✅ 現有持倉照常監控出場\n"
+        "▶️ 輸入 /resume 恢復交易"
+    )
+
+
+def _handle_resume(executor, cmd_logger):
+    """恢復交易。"""
+    executor.paused = False
+    executor.save_state()
+    cmd_logger.info("Trading RESUMED by Telegram command")
+    send_telegram_message(
+        "<b>▶️ 已恢復交易</b>\n"
+        "🟢 開新倉功能已啟用"
+    )
+
+
+def _handle_help():
+    """回傳可用指令列表。"""
+    send_telegram_message(
+        "<b>🤖 可用指令</b>\n"
+        "━━━━━━━━━━━━━━━\n"
+        "/status — 倉位同步狀態（內部 vs Binance）\n"
+        "/bal — 帳戶餘額 + 未實現損益\n"
+        "/pnl — 今日 / 本月損益報表\n"
+        "/trades — 最近 5 筆交易\n"
+        "/cb — 風控熔斷狀態\n"
+        "/pause — 暫停開新倉\n"
+        "/resume — 恢復交易\n"
+        "/cleanup — 清理孤兒倉位\n"
+        "/help — 顯示此說明"
+    )
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 主循環
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -253,6 +564,47 @@ def main():
         f"⏱ 已印：{executor.bar_counter} 張（K棒）"
     )
     send_telegram_message(startup_msg)
+
+    # ── Telegram 指令監聽（背景執行緒）──
+    skip_old_updates()  # 跳過啟動前的舊訊息
+
+    def telegram_command_listener():
+        """每 10 秒輪詢 Telegram 指令。"""
+        cmd_logger = logging.getLogger("telegram_cmd")
+        while True:
+            try:
+                commands = get_pending_commands()
+                for cmd in commands:
+                    cmd_lower = cmd.lower().split()[0]  # 取第一個字（忽略參數）
+                    cmd_logger.info(f"Received command: {cmd}")
+
+                    if cmd_lower in ("/cleanup", "/clean"):
+                        _handle_cleanup(executor, cmd_logger)
+                    elif cmd_lower in ("/status", "/pos"):
+                        _handle_status(executor, cmd_logger)
+                    elif cmd_lower in ("/bal", "/balance"):
+                        _handle_balance(executor, cmd_logger)
+                    elif cmd_lower == "/pnl":
+                        _handle_pnl(executor, cmd_logger)
+                    elif cmd_lower == "/trades":
+                        _handle_trades(executor, cmd_logger)
+                    elif cmd_lower == "/cb":
+                        _handle_circuit_breaker(executor, cmd_logger)
+                    elif cmd_lower == "/pause":
+                        _handle_pause(executor, cmd_logger)
+                    elif cmd_lower == "/resume":
+                        _handle_resume(executor, cmd_logger)
+                    elif cmd_lower == "/help":
+                        _handle_help()
+                    else:
+                        send_telegram_message(f"❓ 未知指令：{cmd}\n輸入 /help 查看可用指令")
+            except Exception as e:
+                cmd_logger.debug(f"Command listener error: {e}")
+            time.sleep(10)
+
+    cmd_thread = threading.Thread(target=telegram_command_listener, daemon=True)
+    cmd_thread.start()
+    logger.info("Telegram command listener started (10s polling)")
 
     last_heartbeat_bar = executor.bar_counter
     last_daily_date = None
@@ -426,10 +778,17 @@ def main():
             bar_data_for_entry["eth_24h_change_pct"] = calc_eth_24h_change(df, idx)
             any_signal = False
 
+            # 暫停檢查（/pause 指令）
+            trading_paused = getattr(executor, "paused", False)
+            if trading_paused:
+                logger.info("Trading PAUSED — skipping entry signals")
+
             # L 信號
             l_cb_ok, l_cb_reason = executor.check_circuit_breaker("L")
             long_sig = None
-            if l_cb_ok:
+            if trading_paused:
+                pass
+            elif l_cb_ok:
                 long_sig = strategy.evaluate_long_signal(
                     df=df, idx=idx,
                     open_positions=executor.positions,
@@ -465,7 +824,9 @@ def main():
             # S 信號
             s_cb_ok, s_cb_reason = executor.check_circuit_breaker("S")
             short_sig = None
-            if s_cb_ok:
+            if trading_paused:
+                pass
+            elif s_cb_ok:
                 short_sig = strategy.evaluate_short_signal(
                     df=df, idx=idx,
                     open_positions=executor.positions,
