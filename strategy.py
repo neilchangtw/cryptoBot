@@ -1,20 +1,20 @@
 """
-ETH 1h V14 雙策略 — 純指標計算 + 信號判斷（無副作用）
+ETH 1h V14+R 雙策略 — 純指標計算 + 信號判斷（無副作用）
 
 策略 L（做多）：GK(5/20)<25 壓縮突破 + TP 3.5% + MFE trail + MaxHold 6(cond5) + ext2 BE
-  OOS: $2,034, WR 60%, MDD $228, WF 6/6
-  V14 新增：MFE Trailing Exit + Conditional MH Reduction
+  + R gate：SMA200 100-bar 斜率 > +4.5% 時 block L（強多頭 regime 失效）
+  V14+R: OOS +$121, V23 12/13 gates PASS
 
 策略 S（做空）：GK(10/30)<35 壓縮突破 + TP 2.0% + MaxHold 10 + ext2 BE
-  OOS: $2,408, WR 62%, MDD $313, WF 5/6+7/8
-  V14：完全不動
+  + R gate：SMA200 100-bar 斜率 |slope| < 1.0% 時 block S（橫盤 regime 失效）
+  V14+R: OOS +$258, V23 12/13 gates PASS
 
-L+S 合計：$4,549, 12/13 正月, worst -$91, WF L 6/6, S 5/6
+L+S 合計 V14+R: PnL +6%, MDD -11%, Sharpe +18%, Worst30d -35% vs V14
 
-V13→V14 變更（只影響 L 出場）：
-  L 新增 MFE Trailing：浮盈 >=1.0% 後回吐 >=0.8% → MFE-trail 出場
-  L 新增 Conditional MH：bar 2 虧 >=-1.0% → MH 從 6 縮短為 5
-  S：完全不動
+V14→V14+R 變更（新增 regime gate，出場邏輯不動）：
+  新增 R gate：SMA200 100-bar 相對斜率（shift(1) 防前瞻）
+    - L 被阻擋：slope > +4.5%
+    - S 被阻擋：|slope| < 1.0%
 """
 import numpy as np
 import pandas as pd
@@ -35,7 +35,14 @@ FEE = 4.0                  # 每筆交易成本（含滑價）$4
 MARGIN = 200               # 每筆保證金 $200
 LEVERAGE = 20              # 槓桿倍數
 NOTIONAL = MARGIN * LEVERAGE  # $4,000 名目金額
-WARMUP_BARS = GK_WIN + S_GK_LONG + 20  # 150 bar 暖機期（取較大窗口）
+
+# ── V14+R Regime Gate ──
+R_SMA_WIN = 200            # SMA 窗口
+R_SLOPE_WIN = 100          # 斜率回看窗口（100-bar 前值）
+R_TH_UP = 0.045            # L 被 block：slope > +4.5%（強多頭）
+R_TH_SIDE = 0.010          # S 被 block：|slope| < 1.0%（橫盤）
+
+WARMUP_BARS = max(GK_WIN + S_GK_LONG + 20, R_SMA_WIN + R_SLOPE_WIN + 10)  # 310 bar（R gate 需更長暖機）
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # L 策略常數（做多）
@@ -137,6 +144,14 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     d["session_ok_l"] = ~(d["hour_utc8"].isin(BLOCK_H) | d["weekday_utc8"].isin(L_BLOCK_D))
     d["session_ok_s"] = ~(d["hour_utc8"].isin(BLOCK_H) | d["weekday_utc8"].isin(S_BLOCK_D))
 
+    # ── V14+R Regime Gate: SMA200 100-bar 相對斜率（shift(1) 防前瞻）──
+    sma = d["close"].rolling(R_SMA_WIN).mean()
+    slope = (sma - sma.shift(R_SLOPE_WIN)) / sma.shift(R_SLOPE_WIN)
+    d["sma200"] = sma
+    d["sma_slope"] = slope.shift(1)  # 只用昨日斜率，防前瞻
+    d["regime_block_l"] = d["sma_slope"] > R_TH_UP
+    d["regime_block_s"] = d["sma_slope"].abs() < R_TH_SIDE
+
     return d
 
 
@@ -172,6 +187,10 @@ def evaluate_long_signal(df: pd.DataFrame, idx: int,
 
     # Session（V13: L 獨立 session filter）
     if not _safe_bool(row.get("session_ok_l")):
+        return None
+
+    # V14+R Regime Gate: block L in strong uptrend
+    if _safe_bool(row.get("regime_block_l")):
         return None
 
     # Cooldown
@@ -232,6 +251,10 @@ def evaluate_short_signal(df: pd.DataFrame, idx: int,
 
     # Session（V13: S 獨立 session filter）
     if not _safe_bool(row.get("session_ok_s")):
+        return None
+
+    # V14+R Regime Gate: block S in sideways regime
+    if _safe_bool(row.get("regime_block_s")):
         return None
 
     # Cooldown
@@ -460,6 +483,10 @@ def _collect_indicators(row) -> dict:
         "breakout_short": _safe_bool(row.get("breakout_short")),
         "session_ok_l": _safe_bool(row.get("session_ok_l")),
         "session_ok_s": _safe_bool(row.get("session_ok_s")),
+        "sma200": _safe_float(row.get("sma200")),
+        "sma_slope": _safe_float(row.get("sma_slope")),
+        "regime_block_l": _safe_bool(row.get("regime_block_l")),
+        "regime_block_s": _safe_bool(row.get("regime_block_s")),
         "hour_utc8": int(row.get("hour_utc8", -1)),
         "weekday_utc8": int(row.get("weekday_utc8", -1)),
     }

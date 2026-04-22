@@ -69,6 +69,13 @@ def compute_independent(df: pd.DataFrame) -> pd.DataFrame:
     d["sok_ref"] = ~(d["datetime"].dt.hour.isin({0, 1, 2, 12}) |
                      d["datetime"].dt.weekday.isin({0, 5, 6}))
 
+    # V14+R Regime Gate（獨立實作，與 strategy.py 對比）
+    sma = d["close"].rolling(200).mean()
+    slope = (sma - sma.shift(100)) / sma.shift(100)
+    d["sma_slope_ref"] = slope.shift(1)
+    d["regime_block_l_ref"] = d["sma_slope_ref"] > 0.045
+    d["regime_block_s_ref"] = d["sma_slope_ref"].abs() < 0.010
+
     return d
 
 
@@ -90,6 +97,7 @@ def verify_indicators():
         "gk_pctile": 0, "breakout_long": 0, "breakout_short": 0,
         "session_ok": 0, "ema20": 0, "skew_20": 0, "ret_sign_15": 0,
         "brk_short_8": 0, "brk_short_12": 0, "brk_short_15": 0,
+        "sma_slope": 0, "regime_block_l": 0, "regime_block_s": 0,
     }
 
     for i in range(warmup, n):
@@ -142,6 +150,23 @@ def verify_indicators():
             live_v = bool(df_live.iloc[i][f"brk_short_{bl}"]) if not pd.isna(df_live.iloc[i][f"brk_short_{bl}"]) else False
             if ref_v != live_v:
                 mismatches[f"brk_short_{bl}"] += 1
+
+        # V14+R Regime Gate
+        ref_slope = df_ref.iloc[i]["sma_slope_ref"]
+        live_slope = df_live.iloc[i]["sma_slope"] if "sma_slope" in df_live.columns else None
+        if live_slope is not None and not (pd.isna(ref_slope) and pd.isna(live_slope)):
+            if pd.isna(ref_slope) != pd.isna(live_slope) or (not pd.isna(ref_slope) and abs(ref_slope - live_slope) > 1e-10):
+                mismatches["sma_slope"] += 1
+
+        ref_bl_r = bool(df_ref.iloc[i]["regime_block_l_ref"]) if not pd.isna(df_ref.iloc[i]["regime_block_l_ref"]) else False
+        live_bl_r = bool(df_live.iloc[i]["regime_block_l"]) if "regime_block_l" in df_live.columns and not pd.isna(df_live.iloc[i]["regime_block_l"]) else False
+        if "regime_block_l" in df_live.columns and ref_bl_r != live_bl_r:
+            mismatches["regime_block_l"] += 1
+
+        ref_bs_r = bool(df_ref.iloc[i]["regime_block_s_ref"]) if not pd.isna(df_ref.iloc[i]["regime_block_s_ref"]) else False
+        live_bs_r = bool(df_live.iloc[i]["regime_block_s"]) if "regime_block_s" in df_live.columns and not pd.isna(df_live.iloc[i]["regime_block_s"]) else False
+        if "regime_block_s" in df_live.columns and ref_bs_r != live_bs_r:
+            mismatches["regime_block_s"] += 1
 
     total_checked = n - warmup
     print(f"  Checked {total_checked} bars (after warmup)")

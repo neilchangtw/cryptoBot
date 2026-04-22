@@ -43,6 +43,8 @@ BAR_SNAPSHOT_FIELDS = [
     "ema20",
     # Session 狀態（V13: L/S 分開）
     "session_ok_l", "session_ok_s",
+    # V14+R Regime Gate
+    "sma_slope", "regime_block_l", "regime_block_s",
     # 信號評估
     "long_signal", "short_signals", "signal_detail",
     # 當前持倉狀態
@@ -195,6 +197,9 @@ def record_bar_snapshot(bar_data: dict, indicators: dict,
         "ema20": _fmt(indicators.get("ema20")),
         "session_ok_l": indicators.get("session_ok_l", False),
         "session_ok_s": indicators.get("session_ok_s", False),
+        "sma_slope": _fmt(indicators.get("sma_slope"), 5),
+        "regime_block_l": indicators.get("regime_block_l", False),
+        "regime_block_s": indicators.get("regime_block_s", False),
         "long_signal": signal_result.get("long_signal", "HOLD"),
         "short_signals": signal_result.get("short_signals", "HOLD"),
         "signal_detail": signal_result.get("signal_detail", ""),

@@ -154,6 +154,11 @@ def indicators_to_dict(df_row) -> dict:
         "session_ok_s": bool(df_row.get("session_ok_s", False)),
         "hour_utc8": int(df_row.get("hour_utc8", -1)),
         "weekday_utc8": int(df_row.get("weekday_utc8", -1)),
+        # V14+R Regime Gate
+        "sma200": safe(df_row.get("sma200")),
+        "sma_slope": safe(df_row.get("sma_slope")),
+        "regime_block_l": bool(df_row.get("regime_block_l", False)),
+        "regime_block_s": bool(df_row.get("regime_block_s", False)),
     }
 
 

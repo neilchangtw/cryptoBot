@@ -1,8 +1,12 @@
 """
-V14 ETH Backtest Trade Export
-==============================
-Run V14 backtest on ETHUSDT and export every trade to Excel.
+V14+R ETH Backtest Trade Export
+================================
+Run V14+R backtest on ETHUSDT and export every trade to Excel.
 Includes: entry/exit datetime & price, PnL, MAE/MFE, exit reason, cumulative equity.
+
+V14+R = V14 + asymmetric SMA200-slope regime gate:
+  - L blocked when slope > +4.5% (strong uptrend)
+  - S blocked when |slope| < 1.0% (sideways)
 """
 
 import pandas as pd
@@ -20,7 +24,13 @@ OUT_DIR = os.path.join(SCRIPT_DIR, '..', '..', 'doc')
 
 NOTIONAL = 4000
 FEE = 4
-WARMUP = 150
+WARMUP = 310  # V14+R: SMA200 + 100-bar slope + buffer
+
+# V14+R Regime Gate
+R_SMA_WIN = 200
+R_SLOPE_WIN = 100
+R_TH_UP = 0.045    # L blocked when slope > +4.5%
+R_TH_SIDE = 0.010  # S blocked when |slope| < 1.0%
 
 # L strategy
 L_GK_S, L_GK_L = 5, 20
@@ -118,11 +128,19 @@ def compute_indicators(df):
     months = (dt.dt.year * 100 + dt.dt.month).values
     days = (dt.dt.year * 10000 + dt.dt.month * 100 + dt.dt.day).values
 
+    # V14+R Regime Gate: SMA200 100-bar 相對斜率（shift(1) 防前瞻）
+    sma200 = close_s.rolling(R_SMA_WIN, min_periods=R_SMA_WIN).mean()
+    slope = (sma200 - sma200.shift(R_SLOPE_WIN)) / sma200.shift(R_SLOPE_WIN)
+    slope_use = slope.shift(1).values  # 用昨日斜率
+    regime_block_l = (slope_use > R_TH_UP) & (~np.isnan(slope_use))
+    regime_block_s = (np.abs(slope_use) < R_TH_SIDE) & (~np.isnan(slope_use))
+
     return {
         'o': o, 'h': h, 'l': l, 'c': c,
         'pctile_L': pctile_L, 'pctile_S': pctile_S,
         'brk_up': brk_up, 'brk_dn': brk_dn,
         'hours': hours, 'dows': dows, 'months': months, 'days': days,
+        'regime_block_l': regime_block_l, 'regime_block_s': regime_block_s,
     }
 
 
@@ -139,6 +157,8 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
     brk_up, brk_dn = ind['brk_up'], ind['brk_dn']
     hours, dows = ind['hours'], ind['dows']
     months, days = ind['months'], ind['days']
+    rblk_l = ind.get('regime_block_l')
+    rblk_s = ind.get('regime_block_s')
     n = len(o)
 
     sim_start = max(start_bar, WARMUP) if start_bar is not None else WARMUP
@@ -361,6 +381,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
         if (not lp_active and not l_cb and
             i - l_last_exit >= L_CD and l_m_entries < L_CAP and
             hr not in L_BLK_H and dw not in L_BLK_D and
+            not (rblk_l is not None and bool(rblk_l[i])) and
             not np.isnan(pL[i]) and pL[i] < L_GK_TH and brk_up[i]):
             lp_active = True
             lp_entry = ci
@@ -378,6 +399,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
         if (not sp_active and not s_cb and
             i - s_last_exit >= S_CD and s_m_entries < S_CAP and
             hr not in S_BLK_H and dw not in S_BLK_D and
+            not (rblk_s is not None and bool(rblk_s[i])) and
             not np.isnan(pS[i]) and pS[i] < S_GK_TH and brk_dn[i]):
             sp_active = True
             sp_entry = ci
