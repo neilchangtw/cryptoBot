@@ -215,6 +215,30 @@ def main():
     except Exception as e:
         logger.error(f"Failed to set leverage/mode: {e}")
 
+    # 啟動倉位同步檢查：偵測 Binance 孤兒倉位
+    try:
+        import binance_trade
+        bn_positions = binance_trade.get_positions(SYMBOL)
+        internal_sides = set()
+        for p in executor.positions.values():
+            internal_sides.add("LONG" if p["side"] == "long" else "SHORT")
+        for bp in bn_positions:
+            ps = bp.get("position_side")
+            if bp["size"] > 0 and ps not in internal_sides:
+                logger.error(
+                    f"ORPHAN DETECTED: Binance {ps} position "
+                    f"(size={bp['size']}, entry=${bp['entry_price']:.2f}) "
+                    f"not in internal state!"
+                )
+                send_telegram_message(
+                    f"<b>🚨 啟動偵測到孤兒倉位！</b>\n"
+                    f"📍 Binance {ps}：{bp['size']} ETH @ ${bp['entry_price']:.2f}\n"
+                    f"⚠️ 內部狀態無此倉位\n"
+                    f"🔧 請手動清理（取消該方向訂單 + 市價平倉）"
+                )
+    except Exception as e:
+        logger.warning(f"Startup position sync check failed: {e}")
+
     # 啟動通知
     env = "模擬" if PAPER_TRADING else "實戰"
     l_count = sum(1 for p in executor.positions.values() if p.get("sub_strategy") == "L")
@@ -270,6 +294,46 @@ def main():
             # ── 2. 同步幣安餘額 + 更新風控熔斷 ──
             executor._sync_balance()
             executor.update_period_keys(t_utc8)
+
+            # ── 2.5 每小時倉位同步巡檢 ──
+            try:
+                import binance_trade as _bt
+                bn_pos = _bt.get_positions(SYMBOL)
+                # 建立內部狀態的方向集合
+                internal_sides = {}
+                for p in executor.positions.values():
+                    ps = "LONG" if p["side"] == "long" else "SHORT"
+                    internal_sides[ps] = internal_sides.get(ps, 0) + p.get("qty", 0)
+                # 檢查 Binance 有但內部沒有的倉位（孤兒）
+                for bp in bn_pos:
+                    ps = bp.get("position_side")
+                    if bp["size"] > 0 and ps not in internal_sides:
+                        logger.error(
+                            f"ORPHAN: Binance {ps} {bp['size']} ETH "
+                            f"@ ${bp['entry_price']:.2f} not in internal state!"
+                        )
+                        send_telegram_message(
+                            f"<b>🚨 孤兒倉位！</b>\n"
+                            f"📍 Binance {ps}：{bp['size']} ETH @ ${bp['entry_price']:.2f}\n"
+                            f"⚠️ 內部狀態無此倉位\n"
+                            f"🔧 請手動清理"
+                        )
+                # 檢查內部有但 Binance 沒有的倉位（幽靈）
+                bn_sides = {bp.get("position_side") for bp in bn_pos if bp["size"] > 0}
+                for ps, qty in internal_sides.items():
+                    if ps not in bn_sides:
+                        logger.error(
+                            f"GHOST: Internal {ps} position (qty={qty:.4f}) "
+                            f"not found on Binance!"
+                        )
+                        send_telegram_message(
+                            f"<b>🚨 幽靈倉位！</b>\n"
+                            f"📍 內部 {ps}：{qty:.4f} ETH\n"
+                            f"⚠️ Binance 無此倉位\n"
+                            f"🔧 可能已被清算或手動平倉"
+                        )
+            except Exception as e:
+                logger.warning(f"Position sync check failed: {e}")
 
             # ── 3. 檢查持倉出場 ──
             exits_this_bar = []

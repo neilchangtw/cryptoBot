@@ -292,6 +292,31 @@ class Executor:
             import binance_trade
             order_side = "BUY" if side == "long" else "SELL"
             position_side = "LONG" if side == "long" else "SHORT"
+
+            # 防疊倉：檢查 Binance 實際倉位
+            bn_positions = binance_trade.get_positions(SYMBOL)
+            bn_same_side = [p for p in bn_positions
+                           if p.get("position_side") == position_side and p["size"] > 0]
+            if bn_same_side:
+                bn_size = bn_same_side[0]["size"]
+                internal_same = sum(1 for p in self.positions.values()
+                                   if ("LONG" if p["side"] == "long" else "SHORT") == position_side)
+                if internal_same == 0:
+                    # Binance 有倉位但內部沒有 → 孤兒倉位，不可開新倉
+                    logger.error(
+                        f"BLOCKED: Binance has orphaned {position_side} position "
+                        f"(size={bn_size}) not in internal state. "
+                        f"Cannot open new {sub_strategy}. Manual cleanup required."
+                    )
+                    send_telegram_message(
+                        f"<b>🚨 開倉被擋！</b>\n"
+                        f"⚠️ Binance 有孤兒 {position_side} 倉位（{bn_size}）\n"
+                        f"❌ 內部狀態無此倉位\n"
+                        f"🔧 需手動清理後才能開新倉"
+                    )
+                    self.trade_number -= 1
+                    return None
+
             # 只有該方向第一筆持倉時才掛 SL（closePosition=true 覆蓋整個方向）
             existing_same_side = sum(1 for p in self.positions.values()
                                     if ("LONG" if p["side"] == "long" else "SHORT") == position_side)
@@ -440,7 +465,7 @@ class Executor:
     def close_position(self, trade_id: str, exit_price: float, exit_reason: str,
                        bar_counter: int, bar_data: dict,
                        btc_context: dict) -> dict:
-        """平倉。"""
+        """平倉。平倉失敗時保留持倉狀態，下一 bar 重試。"""
         pos = self.positions.get(trade_id)
         if pos is None:
             logger.warning(f"close_position: {trade_id} not found")
@@ -450,18 +475,58 @@ class Executor:
         sub_strategy = pos.get("sub_strategy", "L")
         entry_price = pos["entry_price"]
 
-        # 實際平倉
+        # 實際平倉（含重試）
         actual_exit_price = exit_price  # fallback: 策略計算價
         exit_commission = 0.0
+        close_confirmed = False
         try:
             import binance_trade
+            import time as _time
             close_side = "SELL" if side == "long" else "BUY"
             position_side = "LONG" if side == "long" else "SHORT"
-            close_result = binance_trade.place_order(
-                SYMBOL, close_side, qty=pos["qty"], reduce_only=True,
-                strategy_id=f"eth_v10_{sub_strategy}",
-                position_side=position_side,
-            )
+
+            # 嘗試平倉（最多 2 次）
+            close_result = None
+            for attempt in range(2):
+                close_result = binance_trade.place_order(
+                    SYMBOL, close_side, qty=pos["qty"], reduce_only=True,
+                    strategy_id=f"eth_v10_{sub_strategy}",
+                    position_side=position_side,
+                )
+                if close_result is not None:
+                    break
+                logger.warning(f"Close order attempt {attempt+1} failed for {trade_id}, retrying...")
+                _time.sleep(1)
+
+            if close_result is None:
+                # 確認 Binance 上倉位是否仍在（可能超時但實際已成交）
+                bn_positions = binance_trade.get_positions(SYMBOL)
+                still_open = any(
+                    p.get("position_side") == position_side and p["size"] > 0
+                    for p in bn_positions
+                )
+                if still_open:
+                    logger.error(
+                        f"CRITICAL: Close order FAILED for {trade_id} after 2 attempts. "
+                        f"Binance {position_side} position still open. "
+                        f"Keeping position in state, will retry next bar."
+                    )
+                    send_telegram_message(
+                        f"<b>🚨 平倉失敗！</b>\n"
+                        f"🏷 {trade_id}\n"
+                        f"⚠️ Binance 仍有 {position_side} 持倉\n"
+                        f"🔄 下一根 bar 將自動重試"
+                    )
+                    return None  # 不刪除持倉，不取消 SL，下一 bar 重試
+                else:
+                    logger.warning(
+                        f"Close order returned None but Binance {position_side} "
+                        f"appears closed. Proceeding with strategy exit price."
+                    )
+                    close_confirmed = True
+            else:
+                close_confirmed = True
+
             # 使用實際成交價
             if close_result:
                 avg = float(close_result.get("avgPrice", 0))
@@ -475,14 +540,18 @@ class Executor:
                     if comm is not None:
                         exit_commission = comm
                         logger.info(f"Exit commission: ${comm:.4f}")
-            # 只有該方向最後一筆平倉時才取消該方向的 SL
-            remaining = sum(1 for p in self.positions.values()
-                           if p.get("trade_id") != trade_id
-                           and (("LONG" if p["side"] == "long" else "SHORT") == position_side))
-            if remaining == 0:
-                binance_trade.cancel_all_orders(SYMBOL, position_side=position_side)
+
+            # 只有平倉確認後才取消 SL
+            if close_confirmed:
+                remaining = sum(1 for p in self.positions.values()
+                               if p.get("trade_id") != trade_id
+                               and (("LONG" if p["side"] == "long" else "SHORT") == position_side))
+                if remaining == 0:
+                    binance_trade.cancel_all_orders(SYMBOL, position_side=position_side)
         except Exception as e:
             logger.error(f"Close order exception: {e}")
+            send_telegram_message(f"<b>🚨 平倉異常！</b>\n{trade_id}\n{str(e)[:200]}")
+            return None  # 異常時也不刪除持倉
 
         # 使用實際成交價和手續費計算 PnL
         exit_price = actual_exit_price
