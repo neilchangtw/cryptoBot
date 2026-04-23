@@ -293,8 +293,19 @@ async def api_status(mode: str = Query("paper")):
         # S 用自己的 GK pctile
         gk_s = clean_value(last.get("gk_pctile_s"))
 
-        # V14+R Regime gate（從最新 snapshot 讀 sma_slope，舊 CSV 無此欄位則 None）
+        # V14+R Regime gate（從最新 snapshot 讀 sma_slope，舊 CSV 無此欄位或空值→live fallback）
         slope_raw = clean_value(last.get("sma_slope"))
+        if slope_raw is None:
+            try:
+                import data_feed as _df_mod
+                import strategy as _st_mod
+                _live_df = _df_mod.fetch_klines("ETHUSDT", "1h", 500)
+                _ind = _st_mod.compute_indicators(_live_df)
+                _live_slope = _ind.iloc[-2].get("sma_slope")
+                if _live_slope is not None and not pd.isna(_live_slope):
+                    slope_raw = float(_live_slope)
+            except Exception:
+                pass
         regime_ok_l = slope_raw is None or slope_raw <= 0.045   # L 允許：slope <= +4.5%
         regime_ok_s = slope_raw is None or abs(slope_raw) >= 0.010  # S 允許：|slope| >= 1%
 

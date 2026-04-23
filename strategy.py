@@ -87,6 +87,45 @@ DAILY_LOSS_LIMIT = -200    # 日虧 $200 停（L+S 合計）
 CONSEC_LOSS_PAUSE = 4      # 連虧 4 筆冷卻
 CONSEC_LOSS_COOLDOWN = 24  # 連虧冷卻 24 bar
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# V25-D Regime-conditional Exits（12/12 gates PROMOTED）
+#   只覆寫有改動的 regime；其他 regime fallback 到 V14 default
+#   L_TP: DOWN 4.0% (V14 3.5%)
+#   L_MH: MILD_UP 7 bar (V14 6)
+#   S_MH: UP 8 bar   (V14 10)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+L_TP_BY_REGIME = {"DOWN": 0.040}
+L_MH_BY_REGIME = {"MILD_UP": 7}
+S_MH_BY_REGIME = {"UP": 8}
+
+
+def classify_regime(sma_slope) -> str:
+    """根據 SMA200 100-bar 相對斜率分類 regime（與 R gate 閾值一致）"""
+    if sma_slope is None:
+        return "NA"
+    try:
+        if pd.isna(sma_slope):
+            return "NA"
+    except (ValueError, TypeError):
+        return "NA"
+    s = float(sma_slope)
+    if s > R_TH_UP: return "UP"
+    if abs(s) < R_TH_SIDE: return "SIDE"
+    if s < -R_TH_SIDE: return "DOWN"
+    return "MILD_UP"
+
+
+def get_l_tp(regime: str) -> float:
+    return L_TP_BY_REGIME.get(regime, L_TP_PCT)
+
+
+def get_l_mh(regime: str) -> int:
+    return L_MH_BY_REGIME.get(regime, L_MAX_HOLD)
+
+
+def get_s_mh(regime: str) -> int:
+    return S_MH_BY_REGIME.get(regime, S_MAX_HOLD)
+
 
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -216,6 +255,7 @@ def evaluate_long_signal(df: pd.DataFrame, idx: int,
         "sub_strategy": "L",
         "reason": f"GK={gp:.1f}<{L_GK_THRESH}+BRK{BRK_LOOK}",
         "indicators": indicators,
+        "entry_regime": classify_regime(row.get("sma_slope")),
     }
 
 
@@ -280,6 +320,7 @@ def evaluate_short_signal(df: pd.DataFrame, idx: int,
         "sub_strategy": "S",
         "reason": f"GK={gp:.1f}<{S_GK_THRESH}+BRK{BRK_LOOK}",
         "indicators": indicators,
+        "entry_regime": classify_regime(row.get("sma_slope")),
     }
 
 
@@ -289,18 +330,22 @@ def check_exit_long(entry_price: float,
                     extension_active: bool = False,
                     extension_start_bar: int = 0,
                     running_mfe: float = 0.0,
-                    mh_reduced: bool = False) -> dict:
+                    mh_reduced: bool = False,
+                    entry_regime: str = "NA") -> dict:
     """
     L 策略出場條件（V14: MFE Trailing + Conditional MH + 條件式延長 + BE trail）。
 
-    優先順序：SafeNet 3.5% → TP 3.5% → MFE-trail → ext(BE/MH-ext) → MH(5or6)
+    V25-D: TP/MH 按 entry_regime 查表（DOWN→4.0%/6, MILD_UP→3.5%/7, 其他→default）
+    優先順序：SafeNet 3.5% → TP(regime) → MFE-trail → ext(BE/MH-ext) → MH(regime/reduced)
 
     Returns:
         {"exit": bool, "reason": str, "exit_price": float,
          "start_extension": bool, "running_mfe": float, "mh_reduced": bool}
     """
     bars_held = current_bar_counter - entry_bar_counter
-    effective_mh = L_COND_REDUCED_MH if mh_reduced else L_MAX_HOLD  # 5 or 6
+    tp_pct = get_l_tp(entry_regime)
+    mh_full = get_l_mh(entry_regime)
+    effective_mh = L_COND_REDUCED_MH if mh_reduced else mh_full
 
     # 0. 更新 running MFE（用 bar_high）
     bar_mfe = (bar_high - entry_price) / entry_price
@@ -315,8 +360,8 @@ def check_exit_long(entry_price: float,
         return {"exit": True, "reason": "SafeNet", "exit_price": ep,
                 "start_extension": False, **base}
 
-    # 2. TP: high >= entry*(1+3.5%)（始終有效，含 extension 期間）
-    tp_level = entry_price * (1 + L_TP_PCT)
+    # 2. TP: high >= entry*(1+tp_pct)（regime-conditional，始終有效）
+    tp_level = entry_price * (1 + tp_pct)
     if bar_high >= tp_level:
         return {"exit": True, "reason": "TP", "exit_price": tp_level,
                 "start_extension": False, **base}
@@ -371,17 +416,20 @@ def check_exit_short(entry_price: float,
                      entry_bar_counter: int, current_bar_counter: int,
                      bar_high: float, bar_low: float, bar_close: float,
                      extension_active: bool = False,
-                     extension_start_bar: int = 0) -> dict:
+                     extension_start_bar: int = 0,
+                     entry_regime: str = "NA") -> dict:
     """
     S 策略出場條件（V13: 條件式 MaxHold 延長 + BE trail）。
 
-    優先順序：SafeNet 4.0% → TP 2.0% → MaxHold 10（+ext2 BE）
+    V25-D: MH 按 entry_regime 查表（UP→8, MILD_UP/DOWN→10）
+    優先順序：SafeNet 4.0% → TP 2.0% → MaxHold(regime) (+ext2 BE)
 
     Returns:
         {"exit": bool, "reason": str, "exit_price": float,
          "start_extension": bool}
     """
     bars_held = current_bar_counter - entry_bar_counter
+    mh_regime = get_s_mh(entry_regime)
 
     # 1. SafeNet: high >= entry*(1+4.0%)
     safenet_level = entry_price * (1 + S_SAFENET_PCT)
@@ -410,8 +458,8 @@ def check_exit_short(entry_price: float,
         return {"exit": False, "reason": "", "exit_price": 0.0,
                 "start_extension": False}
 
-    # 4. MaxHold: bars >= 10 → 判斷是否進入延長期
-    if bars_held >= S_MAX_HOLD:
+    # 4. MaxHold: bars >= mh_regime → 判斷是否進入延長期
+    if bars_held >= mh_regime:
         pnl_pct = (entry_price - bar_close) / entry_price
         if pnl_pct > 0:
             # 正收益 → 啟動延長期

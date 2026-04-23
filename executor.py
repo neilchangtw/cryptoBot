@@ -104,7 +104,7 @@ class Executor:
                     "S": raw_exits.get("S", -9999),
                 }
 
-            # 遷移 positions: S1-S4 → S
+            # 遷移 positions: S1-S4 → S; V25-D: 補 entry_regime
             for tid, pos in list(self.positions.items()):
                 sub = pos.get("sub_strategy", "")
                 if sub in ("S1", "S2", "S3", "S4"):
@@ -114,6 +114,9 @@ class Executor:
                     pos["sub_strategy"] = "L"
                 elif sub == "" and pos.get("side") == "short":
                     pos["sub_strategy"] = "S"
+                # V25-D: 舊持倉缺 entry_regime → "NA"（落到 V14 default 出場）
+                if "entry_regime" not in pos:
+                    pos["entry_regime"] = "NA"
 
             # 載入風控熔斷狀態
             cb = state.get("circuit_breaker", {})
@@ -382,7 +385,10 @@ class Executor:
         # 更新月度進場計數
         self.monthly_entries[sub_strategy] = self.monthly_entries.get(sub_strategy, 0) + 1
 
-        # 建立持倉記錄（V14: 含 extension + MFE trail + conditional MH 欄位）
+        # V25-D: 判定 entry regime（出場參數查表用）
+        entry_regime = strategy.classify_regime(signal_indicators.get("sma_slope"))
+
+        # 建立持倉記錄（V14: 含 extension + MFE trail + conditional MH 欄位；V25-D: +entry_regime）
         position = {
             "trade_id": trade_id,
             "side": side,
@@ -401,6 +407,7 @@ class Executor:
             "extension_start_bar": 0,
             "running_mfe": 0.0,
             "mh_reduced": False,
+            "entry_regime": entry_regime,
             "entry_order_id": entry_order_id,
             "entry_commission": entry_commission,
         }
@@ -432,6 +439,7 @@ class Executor:
             "btc_close_at_entry": round(btc_close, 2) if btc_close else "",
             "eth_btc_ratio_at_entry": round(eth_btc, 6) if eth_btc is not None else "",
             "eth_24h_change_pct": round(eth_24h, 2) if eth_24h is not None else "",
+            "entry_regime": entry_regime,
         }
         recorder.record_trade_open(trade_record)
 
@@ -449,8 +457,12 @@ class Executor:
             sub_label = "S 空單"
             action = "🐻 空它！壓縮突破做空"
         sn_price = safenet_price
-        tp_pct = strategy.L_TP_PCT if sub_strategy == "L" else strategy.S_TP_PCT
-        max_hold = strategy.L_MAX_HOLD if sub_strategy == "L" else strategy.S_MAX_HOLD
+        if sub_strategy == "L":
+            tp_pct = strategy.get_l_tp(entry_regime)
+            max_hold = strategy.get_l_mh(entry_regime)
+        else:
+            tp_pct = strategy.S_TP_PCT
+            max_hold = strategy.get_s_mh(entry_regime)
         msg = (
             f"<b>🎰 下注！（{env}）</b>\n"
             f"━━━━━━━━━━━━━━━\n"

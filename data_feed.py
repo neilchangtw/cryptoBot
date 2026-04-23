@@ -72,10 +72,13 @@ def fetch_klines(symbol: str = "ETHUSDT", interval: str = "1h",
     return df.copy()
 
 
-def fetch_eth_and_btc(eth_limit: int = 150) -> tuple:
+def fetch_eth_and_btc(eth_limit: int = 500) -> tuple:
     """
     同時抓 ETHUSDT + BTCUSDT 1h K 線。
     BTC 資料僅用於市場背景記錄（進場時 BTC 價格、ETH/BTC ratio）。
+
+    eth_limit 需 >= strategy.WARMUP_BARS (310) 才能算出 V14+R sma_slope；
+    預設 500 留安全 buffer。
 
     Returns:
         (eth_df, btc_df) — 兩個 DataFrame，格式同 fetch_klines()

@@ -724,6 +724,7 @@ def main():
                         extension_start_bar=ext_start,
                         running_mfe=pos.get("running_mfe", 0.0),
                         mh_reduced=pos.get("mh_reduced", False),
+                        entry_regime=pos.get("entry_regime", "NA"),
                     )
                     # V14: 更新 running_mfe 和 mh_reduced 到持倉狀態
                     executor.positions[trade_id]["running_mfe"] = exit_result.get("running_mfe", 0.0)
@@ -738,6 +739,7 @@ def main():
                         bar_close=bar_data["close"],
                         extension_active=ext_active,
                         extension_start_bar=ext_start,
+                        entry_regime=pos.get("entry_regime", "NA"),
                     )
 
                 # V14: 處理延長期啟動

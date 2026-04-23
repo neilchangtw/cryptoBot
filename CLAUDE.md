@@ -42,6 +42,7 @@ ETH 1h Garman-Klass Compression-Breakout 自動交易機器人（Binance Futures
 | [doc/v22_research.md](doc/v22_research.md) | V22 古典 TA 理論掃描（8 輪 Ichimoku/H&S/三角/Harmonic/Fib/Pivot/Elliott/Wyckoff 全 REJECTED — regime-dependent 或極端過擬合） |
 | [doc/v23_research.md](doc/v23_research.md) | V23 壓力測試 + 3 條 overlay（**Path R 非對稱 slope gate PROMOTED 12/13 gates**，V14+R: PnL +6%/MDD -11%/Sharpe +18%/Worst30d -35%；Path V/H REJECTED） |
 | [doc/v24_research.md](doc/v24_research.md) | V24 風險工程（B 槓桿線性可調 5x/10x/15x/20x；**A vol overlay REJECTED 0/23、C 多標的分散 REJECTED 0/10**；BEST = V14+R @ 可調槓桿，paper 建議 10x） |
+| [doc/v25_research.md](doc/v25_research.md) | V25 Regime-conditional exits（**V25-D PROMOTED 12/12 gates**，S_MH_UP 10→8 + L_TP_DOWN 3.5→4.0 + L_MH_MILD_UP 6→7：PnL +3.1%、WR +0.7%、MDD -10.5%、G4 6/6 鄰域穩定） |
 
 ---
 
@@ -132,6 +133,7 @@ cryptoBot/
 - **V14 稽核狀態（2026-04-21）**：G4 參數鄰域 20/20 PASS、G7 WF 5/6、G9 移除最佳月全正 — **參數穩健**；但 **G8 時序翻轉 FAIL**（反轉 OHLCV 後 $-4,627）→ V14 是 **regime-dependent**，依賴 ETH 多頭 drift + 壓縮突破結構，非 risk-neutral alpha。詳見 [doc/v22_research.md](doc/v22_research.md) V14 自稽核章節。
 - **V23 overlay 研究結果（2026-04-22）**：Path R 非對稱 per-side SMA200 斜率 gate 通過 12/13 gates（G5 cascade 97th percentile、G7 WF 4/6、G8 時序翻轉改善 +$438），V14+R 參數 TH_UP=0.045 / TH_SIDE=0.010，2 年回測 PnL +$380 / MDD -$54 / Sharpe +0.91 / Worst30d -$197
 - **V23 G6 驗證（2026-04-22）**：獨立驗證 V14 baseline G6 兩方向全 FAIL（Fwd -113.8% / Bwd +53.2%），V14+R 只 Fwd FAIL（-94.4%）且 Bwd 由 FAIL 轉 PASS（+48.6%）；overlay 貢獻 IS/OOS 同向（+$258 / +$121）但衰退率 52.9% 邊緣 → 情境 A 成立，V14+R 可部署但對 +$380 改善量級須降級信心至 +$120~$380 區間
+- **V25 Regime-conditional exits（2026-04-22）**：V25-D PROMOTED 12/12 gates — `S_MH_UP 10→8` + `L_TP_DOWN 3.5→4.0%` + `L_MH_MILD_UP 6→7`，2Y PnL $6,789（+$206, +3.1%）、WR 62.3%（+0.7%）、**MDD $334（-$39, -10.5%）**、Sharpe 6.23、G4 6/6 鄰域穩定、G8 reversed 改善（-3717 vs -3981）。V25-D 是 V14+R 純出場優化，進場 100% 沿用，適合部署
 - **模式**：Paper Trading（模擬盤），Binance Testnet
 - **Hedge Mode**：已啟用（dualSidePosition=true），L/S 倉位互不影響
 - **帳戶**：$1,000 / $200 保證金 / 20x / $4,000 名目
@@ -304,6 +306,11 @@ L 月虧上限 -$75，S 月虧上限 -$150
 - 在 V14+R 之上疊加波動 overlay 改善尾端（V24 Direction A：ATR/RV/HL 23 配置全 FAIL，R gate 已吸收 vol 過濾可做的工作，overlay 只能移除好 trade）
 - 在 $300 子帳戶跑 crypto 獨立策略做分散（V24 Direction C：Donchian+trend filter 11 幣 × 3 TF × 166 配置，37 個通過 KPI 但 10/10 Top 候選 IS/OOS 失敗或 r>=0.3，crypto 在 bull regime 共漲結構性相關）
 - Mixed L/S 槓桿以為可改善 Sharpe（V24 Direction B：L/S 不對稱槓桿全部劣化 Sharpe 5.58-5.94 vs uniform 6.03，純風險偏好請用 uniform）
+- 把 L_TP_DOWN 放寬至 5% 以上（V25 R2：+$300 PnL 但 G4 邊緣、WR 未同步提升，V25-E 邊界 4/4 含 0.055 側；V25-D 保守版 4.0% 6/6 鄰域全 PASS）
+- 縮短 S_MH 在 MILD_UP 或 DOWN regime（V25 R2：S MILD_UP WIN P75=8.5 / DOWN P75=8.8 高於 MH 邊緣，縮短必砍 WIN，ΔPnL -$91~-$467 全部劣化）
+- 拉長 L_MH 在 DOWN 或 SIDE regime（V25 R2：L WIN 已被 MFE-trail 吸收，L_MH_DOWN=7/8/9 全部 -$282~-$409，L_MH_SIDE 各值也全部劣化）
+- 調整 L_TP_MILD_UP（V25 R2：±0.005 都降 PnL，MILD_UP regime L 已是局部最佳）
+- 提升 S_TP 至 2.5%/3.0%（V25 R2：WR 下降 2-4%，不符雙改善（WR+PnL）目標）
 
 ---
 

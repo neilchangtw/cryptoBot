@@ -88,6 +88,8 @@ TRADES_FIELDS = [
     "gross_pnl_usd", "commission_usd", "net_pnl_usd", "net_pnl_pct", "win_loss",
     # 市場背景
     "btc_close_at_entry", "eth_btc_ratio_at_entry", "eth_24h_change_pct",
+    # V25-D: entry regime（UP / MILD_UP / DOWN / SIDE / NA）
+    "entry_regime",
     # 事後驗證欄位（複盤填寫）
     "backtest_had_same_trade", "backtest_entry_price",
     "backtest_exit_type", "backtest_pnl_usd", "discrepancy_note",
