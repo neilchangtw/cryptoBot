@@ -134,6 +134,7 @@ function loadCurrentTab() {
     if (S.tab === 'analytics') loadAnalytics();
     if (S.tab === 'logs') loadLogs();
     if (S.tab === 'backtest') loadBacktest();
+    if (S.tab === 'guide') loadGuide();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -237,7 +238,7 @@ function renderRegimeCard(rg) {
     }
     return `
         <div class="card">
-            <div class="card-label">Regime (V14+R SMA200 slope)</div>
+            <div class="card-label">市場狀態 (Regime · SMA200 斜率)</div>
             <div class="card-value" style="color:${clr};font-size:1.5rem">${rg.label}</div>
             <div class="card-sub">斜率 ${slopeStr} | ${rg.desc}</div>
             <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${lBadge}${sBadge}</div>
@@ -1209,7 +1210,7 @@ function regimeExplainHTML() {
 
             <details style="margin:4px 0 10px 0">
                 <summary style="cursor:pointer;color:var(--text);font-size:12px">為什麼「強多頭（UP）」只能做空？（反直覺解釋）</summary>
-                <div style="padding:8px 10px;margin-top:6px;background:var(--card);border-left:2px solid var(--gold);border-radius:4px;font-size:11px;line-height:1.7">
+                <div style="padding:8px 10px;margin-top:6px;background:var(--bg-card);border-left:2px solid var(--gold);border-radius:4px;font-size:11px;line-height:1.7">
                     <b style="color:var(--text)">關鍵理解</b>：V14 L 不是普通做多，是「<b>GK 壓縮 &lt; 25 + 15-bar 新高突破</b>」——<b>賭低波動壓縮後往上爆</b>。<br><br>
 
                     <b style="color:var(--text)">V14 L 在強多頭為何虧？</b><br>
@@ -2066,6 +2067,294 @@ function onRefreshTick() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Init
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Tab 7: V14+R 指標詳細說明（Guide）
+// 目的：把策略 entry/exit 全部指標與邏輯用中文完整解釋，
+//      讓不熟研究文件的使用者也能直接在儀表板查清楚
+// 內容分 8 大章節：總覽 / 進場指標 / 進場流程 / 出場指標 /
+//      出場流程 / V25-D regime 出場 / 風控 / 研究背景
+// 靜態內容（不需 API），一次 render 完
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function loadGuide() {
+    const el = $('guide-container');
+    if (!el) return;
+    if (el.dataset.rendered === '1') return;  // 僅首次渲染，內容靜態
+
+    el.innerHTML = `
+    <div class="guide-wrap">
+
+      <!-- ── 章 1: 策略總覽 ── -->
+      <div class="guide-section">
+        <h2>1. 策略總覽 (Strategy Overview)</h2>
+        <div class="guide-card">
+          <p><b>V14+R</b> 是 ETH 1h <b>Garman-Klass 壓縮突破</b>雙策略（L 做多 + S 做空），帶 <b>regime gate</b> 和 <b>V25-D regime-conditional exits</b>。</p>
+          <div class="guide-spec">
+            <div><span class="sp-k">交易對</span><span class="sp-v">ETHUSDT 永續 (Binance Futures)</span></div>
+            <div><span class="sp-k">時框</span><span class="sp-v">1 小時 K 線</span></div>
+            <div><span class="sp-k">帳戶設定</span><span class="sp-v">$1,000 / 保證金 $200 / 20x 槓桿 / 名目 $4,000</span></div>
+            <div><span class="sp-k">持倉模式</span><span class="sp-v">Hedge Mode（L/S 可同時各 1 筆）</span></div>
+            <div><span class="sp-k">手續費模型</span><span class="sp-v">每筆 $4（taker 0.04% × 2 + 滑價 0.01% × 2）</span></div>
+            <div><span class="sp-k">回測 OOS 績效</span><span class="sp-v">L+S $4,549 / 12 個月正 13 個月中 / 最差月 -$91 / MDD $334</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 章 2: 進場指標詳解 ── -->
+      <div class="guide-section">
+        <h2>2. 進場指標詳解 (Entry Indicators)</h2>
+
+        <div class="guide-card">
+          <h3>2.1 GK 壓縮指數（Garman-Klass Volatility Percentile）</h3>
+          <p><b>定義</b>：用 Garman-Klass 高低開收估計波動率，除以基線做<b>相對壓縮程度</b>百分位排序。百分位越低 = 越壓縮。</p>
+          <div class="guide-formula">
+            gk = 0.5 × ln(H/L)² − (2ln2−1) × ln(C/O)²<br>
+            ratio<sub>L</sub> = mean(gk, 5) / mean(gk, 20)　　<span class="cmt">（L 用短期比值）</span><br>
+            ratio<sub>S</sub> = mean(gk, 10) / mean(gk, 30)　<span class="cmt">（S 用較長基線）</span><br>
+            pctile = ratio.shift(1).rolling(100).apply(rank percentile) × 100
+          </div>
+          <p><b>為什麼 shift(1)</b>：用昨日 ratio 算今日排序，防止用到當下 bar 的收盤資訊（look-ahead bias）。</p>
+          <p><b>閾值</b>：</p>
+          <ul>
+            <li><b>L 進場</b>：pctile<sub>L</sub> &lt; <b>25</b>（進入觸發區）</li>
+            <li><b>S 進場</b>：pctile<sub>S</sub> &lt; <b>35</b>（進入待命區）</li>
+          </ul>
+          <p><b>直覺</b>：波動壓縮代表 ETH 處於「蓄勢」狀態，壓縮後的突破動能通常比日常波動大，這是 V14 的核心 alpha 源。</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>2.2 15-bar 收盤突破（Close Breakout）</h3>
+          <p><b>定義</b>：本根收盤 &gt; 前 15 根最高收盤（L）或 &lt; 前 15 根最低收盤（S）。</p>
+          <div class="guide-formula">
+            L：close &gt; close.shift(1).rolling(15).max()<br>
+            S：close &lt; close.shift(1).rolling(15).min()
+          </div>
+          <p><b>用 close 不用 high/low</b>：避免蠟燭實體未確認的假突破（上影線突破後收回）。</p>
+          <p><b>為何是 alpha 的核心</b>：V17/V18/V19 三輪研究證實 — ETH 1h 的方向性 alpha <b>只存在於突破 bar</b>；非突破 bar 是 random walk。</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>2.3 Session Filter（時段過濾，UTC+8）</h3>
+          <p><b>阻擋時段</b>（兩向共用）：</p>
+          <ul>
+            <li><b>小時阻擋</b>：00 / 01 / 02 / 12 點（深夜低流動性 + 午間換手噪音）</li>
+            <li><b>L 阻擋星期</b>：週六 / 週日（週末 ETH 上漲動能弱）</li>
+            <li><b>S 阻擋星期</b>：週一 / 週六 / 週日（週一開盤波動不穩，S 容易被軋）</li>
+          </ul>
+          <p><b>背景</b>：session filter 是 V10 研究時用歷史 WR by hour/weekday 統計出的過濾，保留 WR 前段時段。</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>2.4 V14+R Regime Gate（SMA200 100-bar 斜率）</h3>
+          <p><b>定義</b>：SMA200 的 100-bar 相對斜率，分 4 個 regime。</p>
+          <div class="guide-formula">
+            SMA200 = close.rolling(200).mean()<br>
+            slope = (SMA200 − SMA200.shift(100)) / SMA200.shift(100)<br>
+            slope = slope.shift(1)　<span class="cmt">（用昨日斜率，防前瞻）</span>
+          </div>
+          <table class="guide-table">
+            <thead><tr><th>Regime</th><th>斜率範圍</th><th>狀態</th><th>R gate 作用</th></tr></thead>
+            <tbody>
+              <tr><td><b>UP</b></td><td>slope &gt; +4.5%</td><td>強多頭</td><td class="al">擋 L（僅 S 可進）</td></tr>
+              <tr><td><b>MILD_UP</b></td><td>0 &lt; slope ≤ +4.5%</td><td>溫和多頭</td><td class="ok">L+S 皆可</td></tr>
+              <tr><td><b>DOWN</b></td><td>slope &lt; −1.0%</td><td>下跌</td><td class="ok">L+S 皆可</td></tr>
+              <tr><td><b>SIDE</b></td><td>|slope| &lt; 1.0%</td><td>橫盤</td><td class="al">擋 S（僅 L 可進）</td></tr>
+            </tbody>
+          </table>
+          <p><b>為什麼要擋</b>：V23 研究 2 年 OOS 發現 V14 L 在 UP 淨虧、S 在 SIDE 淨虧 → 加 R gate 擋掉。V14+R 整體 PnL +6%、MDD −11%、Sharpe +18%、Worst 30d −35%。</p>
+          <p><b>UP 只能 S 的反直覺解釋</b>：V14 L 是「壓縮突破」不是「普通做多」。強多頭裡 GK 壓縮通常出現在 distribution 或 blow-off top，L 進場容易成為頂部騙線；而強多頭的急殺回檔對 S 的 2% TP 反而有利。</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>2.5 Cooldown + Monthly Cap（交易頻率控制）</h3>
+          <ul>
+            <li><b>出場冷卻</b>：L 出場後 <b>6 bar</b> 內不再進 L；S 出場後 <b>8 bar</b> 內不再進 S（防止反覆進出同一 setup）</li>
+            <li><b>月度上限</b>：L 每月最多 <b>20 筆</b>，S 每月最多 <b>20 筆</b>（防止月內過度交易）</li>
+            <li><b>同時持倉</b>：L/S 各最多 <b>1 筆</b>（maxTotal=1 per side），合計最多 2 筆</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── 章 3: 進場流程 ── -->
+      <div class="guide-section">
+        <h2>3. 進場流程 (Entry Flow)</h2>
+
+        <div class="guide-card">
+          <h3>3.1 L 做多進場（6 項全部 PASS 才進）</h3>
+          <ol class="guide-ol">
+            <li><b>GK<sub>L</sub> &lt; 25</b>　　—　波動壓縮到觸發區</li>
+            <li><b>向上突破 15bar</b>　—　close &gt; 前 15 根最高收盤</li>
+            <li><b>時段允許</b>　　　—　非 {0,1,2,12} 點、非週六日</li>
+            <li><b>非強多頭</b>（R gate）—　SMA200 slope ≤ +4.5%</li>
+            <li><b>冷卻結束</b>　　　—　距上次 L 出場 ≥ 6 bar</li>
+            <li><b>月度上限未滿</b>　—　當月 L 進場 &lt; 20 筆</li>
+          </ol>
+          <p class="guide-note">任一條件 FAIL 即放棄本 bar；實盤每根 bar 整點 +10s 重新評估一次。</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>3.2 S 做空進場（6 項全部 PASS 才進）</h3>
+          <ol class="guide-ol">
+            <li><b>GK<sub>S</sub> &lt; 35</b>　　—　波動壓縮到待命區</li>
+            <li><b>向下突破 15bar</b>　—　close &lt; 前 15 根最低收盤</li>
+            <li><b>時段允許</b>　　　—　非 {0,1,2,12} 點、非週一/六/日</li>
+            <li><b>非橫盤</b>（R gate）—　|SMA200 slope| ≥ 1.0%</li>
+            <li><b>冷卻結束</b>　　　—　距上次 S 出場 ≥ 8 bar</li>
+            <li><b>月度上限未滿</b>　—　當月 S 進場 &lt; 20 筆</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- ── 章 4: 出場指標詳解 ── -->
+      <div class="guide-section">
+        <h2>4. 出場指標詳解 (Exit Mechanisms)</h2>
+
+        <div class="guide-card">
+          <h3>4.1 SafeNet（安全網 / 硬停損）</h3>
+          <p><b>定義</b>：單筆最大可承受虧損百分比，超過即強制出場。</p>
+          <ul>
+            <li><b>L</b>：進場價 × (1 − <b>3.5%</b>) 觸發停損</li>
+            <li><b>S</b>：進場價 × (1 + <b>4.0%</b>) 觸發停損</li>
+          </ul>
+          <p><b>25% 穿透模型</b>：停損觸發後假設成交滑價 25%，L 單筆最大虧損約 −$158、S 單筆最大虧損約 −$200。</p>
+          <p><b>Binance Algo Order</b>：實盤用 STOP_MARKET + closePosition=true 下在交易所側，機器人當機也能執行。</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>4.2 TP（固定止盈）</h3>
+          <p><b>定義</b>：固定百分比止盈，觸及 bar 的 high (L) / low (S) 即收盤出場。</p>
+          <ul>
+            <li><b>L TP</b>：進場價 × (1 + <b>3.5%</b>)　<span class="cmt">(DOWN regime 改 4.0%，見第 6 章)</span></li>
+            <li><b>S TP</b>：進場價 × (1 − <b>2.0%</b>)</li>
+          </ul>
+          <p><b>非對稱原因</b>：L 靠壓縮突破攻上方動能空間通常較大；S 靠壓縮後的急殺，空間小但命中率高。</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>4.3 MaxHold（持倉上限）</h3>
+          <p><b>定義</b>：持倉超過 N 根 1h bar 仍未觸發 TP/SafeNet，強制出場（避免長時間套在不明方向的部位）。</p>
+          <ul>
+            <li><b>L MaxHold</b>：<b>6 bar</b>　<span class="cmt">(MILD_UP regime 改 7，見第 6 章；Conditional MH 觸發時縮為 5)</span></li>
+            <li><b>S MaxHold</b>：<b>10 bar</b>　<span class="cmt">(UP regime 改 8，見第 6 章)</span></li>
+          </ul>
+          <p><b>Extension 延長</b>：MaxHold 到期時若<b>浮盈為正</b>，延長 2 bar + 啟用 Break-Even Trail：</p>
+          <ul>
+            <li>延長期間 L：若 low ≤ 進場價 → 以進場價收盤出場（免費延長）</li>
+            <li>延長期間 S：若 high ≥ 進場價 → 以進場價收盤出場</li>
+            <li>延長期間到期仍未觸發 → MH-ext 直接收盤出場</li>
+            <li>MaxHold 到期若浮盈為負 → 直接 MaxHold 收盤出場，不延長</li>
+          </ul>
+        </div>
+
+        <div class="guide-card">
+          <h3>4.4 MFE Trailing（V14 新增，僅 L 使用）</h3>
+          <p><b>定義</b>：<b>Max Favorable Excursion 移動鎖利</b> — 浮盈曾達 1.0% 後若回吐 0.8% 即收盤出場。</p>
+          <div class="guide-formula">
+            running_mfe = max 所有 bar 的 (high − entry) / entry<br>
+            啟動條件：running_mfe ≥ <b>1.0%</b><br>
+            觸發條件：running_mfe − 當前 close PnL% ≥ <b>0.8%</b><br>
+            最早 bar 1 可觸發，extension 期間也有效
+          </div>
+          <p><b>V14 改進</b>：V13 只靠 TP/MaxHold 出場，L 在 3.5% TP 前常回吐 1–2% 盈利；MFE trail 抓住中段盈利，L OOS +$293（+17%）。</p>
+          <p><b>S 沒加</b>：V14 R2 測 45 組 MFE trail for S 全部更差；S 的 edge 在壓縮後急殺，爆發期短，trail 反而砍掉小 TP。</p>
+        </div>
+
+        <div class="guide-card">
+          <h3>4.5 Conditional MH（V14 新增，僅 L 使用）</h3>
+          <p><b>定義</b>：bar 2 的收盤若虧損 ≥ 1.0% → 把 L 的 MaxHold 從 6 縮短為 5。</p>
+          <div class="guide-formula">
+            若 bars_held == 2 且 (close − entry) / entry ≤ −1.0%<br>
+            → mh_reduced = True（從此 MaxHold 改 5）
+          </div>
+          <p><b>意義</b>：進場後第 2 根就套 1% 以上，通常是「偽突破」，早 1 bar 出場減損。</p>
+        </div>
+      </div>
+
+      <!-- ── 章 5: 出場流程 ── -->
+      <div class="guide-section">
+        <h2>5. 出場流程 (Exit Priority Order)</h2>
+
+        <div class="guide-card">
+          <h3>5.1 L 出場優先順序（高 → 低）</h3>
+          <ol class="guide-ol">
+            <li><b>SafeNet −3.5%</b>（硬停損，最高優先）</li>
+            <li><b>TP +3.5%</b>（或 DOWN regime 時 +4.0%）</li>
+            <li><b>MFE Trailing</b>（浮盈 ≥1% 後回吐 ≥0.8%）</li>
+            <li><b>Conditional MH 判定</b>（bar 2 虧 ≥1% → MH 縮為 5）</li>
+            <li><b>MaxHold 6 bar</b>（或縮短後 5 bar；MILD_UP regime 時 7 bar）</li>
+            <li><b>MaxHold Extension</b>（若浮盈為正則延 2 bar + BE trail）</li>
+          </ol>
+        </div>
+
+        <div class="guide-card">
+          <h3>5.2 S 出場優先順序（高 → 低）</h3>
+          <ol class="guide-ol">
+            <li><b>SafeNet +4.0%</b>（硬停損）</li>
+            <li><b>TP −2.0%</b></li>
+            <li><b>MaxHold 10 bar</b>（UP regime 時 8 bar）</li>
+            <li><b>MaxHold Extension</b>（若浮盈為正則延 2 bar + BE trail）</li>
+          </ol>
+          <p class="guide-note">S 沒有 MFE trail / Conditional MH — V14 R2/R3/R4 測 70+ 種 S 出場調整，全部更差，S 是 globally optimal。</p>
+        </div>
+      </div>
+
+      <!-- ── 章 6: V25-D Regime-Conditional Exits ── -->
+      <div class="guide-section">
+        <h2>6. V25-D Regime-Conditional Exits（條件出場參數）</h2>
+        <div class="guide-card">
+          <p>進場 regime 會影響出場參數（進場後 regime 變化不回頭改變）。綠色粗體是 V25-D 相對 V14 baseline 的調整。</p>
+          <table class="guide-table">
+            <thead><tr><th>Regime</th><th>L_TP</th><th>L_MaxHold</th><th>S_MaxHold</th><th>調整理由</th></tr></thead>
+            <tbody>
+              <tr><td><b>UP</b></td><td>—<br>(L 擋)</td><td>—</td><td class="ok"><b>8</b></td><td>強多頭 S 回檔快 → 早 2 bar 鎖利</td></tr>
+              <tr><td><b>MILD_UP</b></td><td>3.5%</td><td class="ok"><b>7</b></td><td>10</td><td>溫和多頭 L 突破空間大 → 多等 1 bar 觸 TP</td></tr>
+              <tr><td><b>DOWN</b></td><td class="ok"><b>4.0%</b></td><td>6</td><td>10</td><td>下跌反彈幅度大 → 拉高 L TP 吃滿反彈</td></tr>
+              <tr><td><b>SIDE</b></td><td>3.5%</td><td>6</td><td>—<br>(S 擋)</td><td>橫盤 L 維持 baseline</td></tr>
+            </tbody>
+          </table>
+          <p><b>V25-D 績效（相對 V14+R）</b>：PnL +3.1% / WR +0.7% / MDD −10.5% / Sharpe 6.23 / 通過 12/12 gates。</p>
+        </div>
+      </div>
+
+      <!-- ── 章 7: 風控熔斷 ── -->
+      <div class="guide-section">
+        <h2>7. 風控熔斷 (Circuit Breaker)</h2>
+        <div class="guide-card">
+          <ul>
+            <li><b>日虧停止</b>：當日實現 PnL ≤ <b>−$200</b> → 當日停止所有新進場（出場邏輯照常）</li>
+            <li><b>月虧停止</b>：L 當月累計 PnL ≤ <b>−$75</b> → 當月停 L；S 累計 ≤ <b>−$150</b> → 當月停 S</li>
+            <li><b>連虧冷卻</b>：連續 <b>4 筆</b>虧損 → <b>24 bar</b> 冷卻（約 1 天）</li>
+            <li><b>Regime 阻擋</b>：UP regime 阻 L 進場、SIDE regime 阻 S 進場（見第 2.4 節）</li>
+          </ul>
+          <p class="guide-note">即時狀態頁的「風控熔斷」面板會顯示每項熔斷的當前狀態和剩餘額度。</p>
+        </div>
+      </div>
+
+      <!-- ── 章 8: 研究背景 ── -->
+      <div class="guide-section">
+        <h2>8. 研究背景（為什麼是這些參數）</h2>
+        <div class="guide-card">
+          <ul class="guide-ol">
+            <li><b>V1–V10</b>：GK 壓縮突破核心策略定型（1h ETH 唯一可行 alpha）</li>
+            <li><b>V11–V13</b>：出場機制優化（TP/MaxHold 組合、extension + BE trail）</li>
+            <li><b>V14</b>：L 出場創新 — MFE trailing + Conditional MH，L OOS +$293 (+17%)</li>
+            <li><b>V15</b>：嘗試進場過濾（ATR / GK 門檻）— 10-Gate 稽核 REJECTED，cascade 運氣</li>
+            <li><b>V16</b>：TBR flow reversal — 核心 alpha 仍是 breakout，TBR 只是過濾器</li>
+            <li><b>V17–V19</b>：非 breakout alpha 探索（4+ 輪、572+ 配置）— 全部失敗，確認 ETH 1h alpha 只存在於 breakout bar</li>
+            <li><b>V20</b>：V14 框架套 9 個幣種 — 全 FAIL，V14 是 ETH-specific</li>
+            <li><b>V21–V22</b>：事件錨 breakout / 古典 TA / Ichimoku / H&amp;S / Harmonic 等 — 全 REJECTED</li>
+            <li><b>V23</b>：<b>R gate PROMOTED</b> — 非對稱 SMA200 斜率 gate，12/13 gates PASS，V14+R 成為新 baseline</li>
+            <li><b>V24</b>：Vol overlay / 槓桿調整 / 多標的分散 — 全 REJECTED</li>
+            <li><b>V25</b>：<b>V25-D PROMOTED</b> — regime-conditional exits，12/12 gates，當前線上版本</li>
+          </ul>
+          <p class="guide-note">每一輪研究都有 8-10 項稽核門檻（cascade 隨機測試、walk-forward、時序翻轉、參數鄰域等），通過才能部署。詳見 <code>doc/v*_research.md</code>。</p>
+        </div>
+      </div>
+
+    </div>`;
+
+    el.dataset.rendered = '1';
+}
+
 (function init() {
     // Restore mode
     document.querySelectorAll('.mode-btn').forEach(b =>
