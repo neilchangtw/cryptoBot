@@ -125,7 +125,13 @@ def _ensure_dirs():
 
 
 def _ensure_csv(filepath: str, headers: list):
-    """如果 CSV 不存在或 header 已變更，建立/重建檔案"""
+    """如果 CSV 不存在或 header 已變更，建立/升級/重建檔案。
+
+    header 升級策略：
+    - 現有欄位是新 header 的子集（只加不減、順序允許不同）→ 就地升級：
+      保留所有舊資料，新欄位填空值，避免資料遺失
+    - 現有欄位有移除/改名 → 備份 .bak 後重建（保守，避免資料錯位）
+    """
     _ensure_dirs()
     if not os.path.exists(filepath):
         with open(filepath, "w", newline="", encoding="utf-8") as f:
@@ -136,8 +142,22 @@ def _ensure_csv(filepath: str, headers: list):
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             existing_header = f.readline().strip().split(",")
-        if existing_header != headers:
-            # header 變更 → 備份舊檔，重建新檔
+        if existing_header == headers:
+            return
+
+        if set(existing_header).issubset(set(headers)):
+            # 純新增欄位 → 就地升級（保留資料、補空值）
+            with open(filepath, "r", newline="", encoding="utf-8") as f:
+                old_rows = list(csv.DictReader(f))
+            tmp = filepath + ".tmp"
+            with open(tmp, "w", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, fieldnames=headers, extrasaction="ignore")
+                w.writeheader()
+                for row in old_rows:
+                    w.writerow({k: row.get(k, "") for k in headers})
+            os.replace(tmp, filepath)
+        else:
+            # 有欄位被移除或改名 → 備份重建
             import shutil
             backup = filepath + ".bak"
             shutil.copy2(filepath, backup)
