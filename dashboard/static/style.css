@@ -803,7 +803,7 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
 
 /* ── Responsive: Mobile ── */
 @media (max-width: 600px) {
-    /* Header: 改為兩行 */
+    /* Header: 兩行佈局，所有操作鈕能擠在第二行 */
     .header {
         flex-wrap: wrap;
         padding: 10px 14px;
@@ -813,16 +813,32 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
     .header-right {
         width: 100%;
         justify-content: flex-start;
-        gap: 8px;
+        gap: 6px;
         flex-wrap: wrap;
+        align-items: center;
     }
-    .refresh-timer { min-width: auto; }
-    .mode-switch { order: 10; }
+    .refresh-timer {
+        min-width: auto;
+        font-size: 10px;
+        text-align: left;
+        flex: 0 1 auto;
+    }
+    .mode-switch { order: 10; margin-left: auto; }
     .mode-btn { padding: 4px 10px; font-size: 11px; }
+    .hdr-btn { padding: 3px 8px; font-size: 10px; }
+    .bot-status { font-size: 10px; padding: 2px 6px; }
 
-    /* Tabs: 可橫滑，字縮小 */
-    .tabs { padding: 0 10px; }
-    .tab-btn { padding: 10px 12px; font-size: 11px; }
+    /* Tabs: 可橫滑，字縮小；分頁數多時可左右滑 */
+    .tabs {
+        padding: 0 10px;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
+    }
+    .tab-btn {
+        padding: 10px 12px;
+        font-size: 11px;
+        scroll-snap-align: start;
+    }
 
     /* Content padding 縮減 */
     .tab-content { padding: 14px 10px; }
@@ -831,11 +847,40 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
     .cards { grid-template-columns: 1fr; gap: 10px; }
     .card { padding: 12px 14px; }
     .card-value { font-size: 22px; }
+    /* inline style="font-size:1.5rem" 需以 !important 覆蓋（Regime card） */
+    .card-value[style] { font-size: 1.3rem !important; }
+    .card-sub { font-size: 11px !important; }
 
-    /* 表格可橫滑 */
+    /* 表格可橫滑，統一字級 */
     .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     table { font-size: 11px; }
     th, td { padding: 6px 8px; }
+    /* 分析頁所有 strat-table 表也加捲動 */
+    .analytics-panel .strat-table { font-size: 11px; }
+
+    /* K 線圖：手機上縮減高度避免佔滿螢幕 */
+    #main-chart { height: max(260px, calc(100vh - 380px)); }
+    #gk-chart, #slope-chart { height: 100px; }
+    .chart-legend {
+        padding: 8px 10px;
+        gap: 10px;
+        flex-wrap: wrap;
+        font-size: 10px;
+    }
+
+    /* GK 面板（狀態頁）：縮減內距、雙值顯示縮小 */
+    .gk-panel { padding: 12px 14px !important; }
+    .gk-dual-values { gap: 12px !important; }
+    .gk-dual-item .gk-value[style] { font-size: 1.2rem !important; }
+
+    /* 進場條件面板：單欄 + 字縮小 */
+    .entry-grid { grid-template-columns: 1fr !important; gap: 10px !important; }
+    .entry-panel { padding: 10px 12px !important; }
+    .entry-cond { font-size: 12px; }
+
+    /* GK 區間列：字縮小避免單行斷開 */
+    .gk-range-item { font-size: 11px; padding: 4px 8px; gap: 6px; }
+    .gk-range-num { font-size: 10px; }
 
     /* Log viewer */
     .log-toolbar { flex-direction: column; align-items: flex-start; }
@@ -847,19 +892,72 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
 
     /* Analytics */
     .analytics-panel { padding: 12px; }
-    .analytics-panel h3 { font-size: 11px; }
-
-    /* 進場條件 grid */
-    .entry-grid { grid-template-columns: 1fr !important; }
+    .analytics-panel h3 { font-size: 12px; }
+    .analytics-panel > div { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .analytics-panel table { min-width: 500px; }
 
     /* 最近交易：可橫滑 */
     .recent-section { padding: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .recent-table { font-size: 11px; min-width: 500px; }
 
-    /* 策略健康度：單欄 */
-    .health-grid { grid-template-columns: 1fr; }
+    /* 策略健康度 & 風控熔斷：單欄 */
+    .health-grid,
+    .breakers-grid { grid-template-columns: 1fr !important; gap: 10px; }
+    .breakers-wrap { padding: 12px 14px; }
+    .breakers-title { font-size: 12px; }
     .health-item { padding: 10px 12px; }
     .health-name { font-size: 12px; }
+
+    /* 交易記錄篩選器：換行 */
+    .filters { flex-wrap: wrap; gap: 6px; }
+    .filters > * { font-size: 11px; }
+
+    /* ── Guide 分頁（V14+R 指標說明）── */
+    .guide-wrap { padding: 0; }
+    .guide-section > h2 { font-size: 15px; padding-bottom: 4px; margin-bottom: 8px; }
+    .guide-card {
+        padding: 12px 14px;
+        font-size: 12px;
+        line-height: 1.65;
+    }
+    .guide-card h3 { font-size: 13px; margin-bottom: 6px; }
+    .guide-card ul, .guide-card ol.guide-ol { margin-left: 16px; }
+    /* 公式框字縮小避免折行醜；開啟橫捲作備援 */
+    .guide-formula {
+        font-size: 10.5px;
+        padding: 8px 10px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    /* Guide 表格：外層包裹開啟橫捲（處理 5+ 欄寬度） */
+    .guide-table {
+        font-size: 11px;
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        white-space: nowrap;
+    }
+    .guide-table thead, .guide-table tbody { display: table; width: 100%; }
+    .guide-spec > div { flex-wrap: wrap; gap: 4px; }
+    .guide-spec .sp-k, .guide-spec .sp-v { font-size: 11px; }
+    .guide-spec .sp-v { text-align: left; flex: 1 1 100%; padding-left: 8px; }
+
+    /* Regime 說明摺疊面板字縮小 */
+    .regime-explain summary { font-size: 11px !important; }
+}
+
+/* ── Responsive: 超小螢幕 (iPhone SE 等，<=400px) ── */
+@media (max-width: 400px) {
+    .header h1 { font-size: 14px; }
+    .header { padding: 8px 10px; }
+    .hdr-btn { padding: 2px 6px; font-size: 9px; letter-spacing: 0; }
+    .mode-btn { padding: 3px 7px; font-size: 10px; }
+    .tab-btn { padding: 9px 9px; font-size: 10px; }
+    .tab-content { padding: 10px 8px; }
+    .card-value { font-size: 20px; }
+    .guide-card { font-size: 11px; padding: 10px 12px; }
+    .guide-card h3 { font-size: 12px; }
+    .guide-formula { font-size: 10px; }
 }
 
 /* ── Connection indicator ── */
