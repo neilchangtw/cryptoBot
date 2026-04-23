@@ -1207,6 +1207,29 @@ function regimeExplainHTML() {
             • <b>V23 研究</b>：V14 L 在 UP regime 會虧、S 在 SIDE regime 會虧 → 加 <b>R gate</b> 擋掉（UP 擋 L、SIDE 擋 S）<br>
             • <b>V25-D 研究</b>：不同 regime 下最佳出場參數不同，綠色粗體是 V25-D 相對 V14 baseline 的調整（回測 PnL +3.1%、MDD -10.5%）<br><br>
 
+            <details style="margin:4px 0 10px 0">
+                <summary style="cursor:pointer;color:var(--text);font-size:12px">為什麼「強多頭（UP）」只能做空？（反直覺解釋）</summary>
+                <div style="padding:8px 10px;margin-top:6px;background:var(--card);border-left:2px solid var(--gold);border-radius:4px;font-size:11px;line-height:1.7">
+                    <b style="color:var(--text)">關鍵理解</b>：V14 L 不是普通做多，是「<b>GK 壓縮 &lt; 25 + 15-bar 新高突破</b>」——<b>賭低波動壓縮後往上爆</b>。<br><br>
+
+                    <b style="color:var(--text)">V14 L 在強多頭為何虧？</b><br>
+                    ETH 已經漲一大波後出現 GK 壓縮，通常是這兩種情境：<br>
+                    1. <b>高檔整理（distribution）</b>→ 壓縮後往下<br>
+                    2. <b>爆拉頂部（blow-off top）</b>→ 突破當下就是局部頂<br>
+                    兩者 V14 L 進場都容易被反轉打掉。V23 回測 UP regime 下 V14 L <b>OOS 淨虧</b>，故 R gate 擋掉。<br><br>
+
+                    <b style="color:var(--text)">V14 S 在強多頭為何仍有效？</b><br>
+                    • 強多頭的<b>回檔又快又猛</b>（FOMO 耗盡後獲利了結）<br>
+                    • S 的 TP 只設 2%，急殺中很容易打到<br>
+                    • GK 壓縮後的下破常是「最後一次甩轎」→ 2% 快殺很常見<br><br>
+
+                    <b style="color:var(--text)">一句話總結</b>：<br>
+                    「強多頭只能 S」≠「強多頭適合做空」，而是<b>「V14 L 的突破訊號在強多頭環境下特別容易變頂部騙線」</b>。
+                    V14 S 只是順便在這個環境仍有正 edge，所以保留。
+                </div>
+            </details>
+
+
             <b style="color:var(--text)">怎麼讀下方分組績效？</b><br>
             • 各 regime 的實盤績效分開統計，可觀察哪個 regime 最賺/最虧<br>
             • V14+R 部署後，UP 的「L 筆數」應 = 0、SIDE 的「S 筆數」應 = 0；若不為 0 通常是部署前舊交易
