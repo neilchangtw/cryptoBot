@@ -477,6 +477,49 @@ def _handle_resume(executor, cmd_logger):
     )
 
 
+def _handle_alerts(cmd_logger):
+    """回傳今日 alerts.log 內容（最多 10 筆）。"""
+    alerts_path = os.path.join(LOGS_DIR, "alerts.log")
+    if not os.path.exists(alerts_path):
+        send_telegram_message("✅ 無告警日誌檔")
+        return
+    today_prefix = now_utc8().strftime("%Y-%m-%d")
+    hits = []
+    try:
+        with open(alerts_path, "r", encoding="utf-8") as af:
+            for line in af:
+                if len(line) >= 10 and line[:10] == today_prefix:
+                    hits.append(line.rstrip())
+    except Exception as e:
+        cmd_logger.error(f"Alerts read error: {e}")
+        send_telegram_message(f"❌ 讀取失敗：{str(e)[:200]}")
+        return
+    if not hits:
+        send_telegram_message(f"✅ 今日（{today_prefix}）無 ERROR/WARNING")
+        return
+    # 只留最近 10 筆，每筆精簡顯示
+    recent = hits[-10:]
+    lines = [f"<b>⚠️ 今日告警（{len(hits)} 筆，顯示最新 {len(recent)}）</b>",
+             "━━━━━━━━━━━━━━━"]
+    for h in recent:
+        # 格式：時間 [module] LEVEL  訊息 → 縮成「HH:MM LEVEL msg」
+        try:
+            ts = h[11:16]  # "HH:MM"
+            # 切 level 與 msg
+            after = h[20:]  # 跳過完整時間戳
+            if "]" in after:
+                lvl_msg = after.split("]", 1)[1].strip()
+            else:
+                lvl_msg = after
+            # 截斷過長訊息
+            if len(lvl_msg) > 80:
+                lvl_msg = lvl_msg[:77] + "..."
+            lines.append(f"<code>{ts}</code> {lvl_msg}")
+        except Exception:
+            lines.append(h[:100])
+    send_telegram_message("\n".join(lines))
+
+
 def _handle_help():
     """回傳可用指令列表。"""
     send_telegram_message(
@@ -486,6 +529,7 @@ def _handle_help():
         "/bal — 帳戶餘額 + 未實現損益\n"
         "/pnl — 今日 / 本月損益報表\n"
         "/trades — 最近 5 筆交易\n"
+        "/alerts — 今日告警日誌\n"
         "/cb — 風控熔斷狀態\n"
         "/pause — 暫停開新倉\n"
         "/resume — 恢復交易\n"
@@ -593,6 +637,8 @@ def main():
                         _handle_pnl(executor, cmd_logger)
                     elif cmd_lower == "/trades":
                         _handle_trades(executor, cmd_logger)
+                    elif cmd_lower in ("/alerts", "/warn"):
+                        _handle_alerts(cmd_logger)
                     elif cmd_lower == "/cb":
                         _handle_circuit_breaker(executor, cmd_logger)
                     elif cmd_lower == "/pause":
@@ -966,23 +1012,23 @@ def main():
                 # ── V14 自檢 ──
                 checks = []
 
-                # 1. 日誌健康：最近 24h 無 ERROR/WARNING
+                # 1. 日誌健康：今日（00:00 起）無 ERROR/WARNING
                 alerts_path = os.path.join(LOGS_DIR, "alerts.log")
                 alert_count = 0
                 try:
                     if os.path.exists(alerts_path):
-                        cutoff = (t_utc8 - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
+                        today_prefix = t_utc8.strftime("%Y-%m-%d")
                         with open(alerts_path, "r", encoding="utf-8") as af:
                             for line in af:
                                 # 只計算以日期開頭的行（跳過 Traceback/堆疊等續行）
-                                if len(line) >= 16 and line[0] == '2' and line[:16] >= cutoff:
+                                if len(line) >= 10 and line[:10] == today_prefix:
                                     alert_count += 1
                 except Exception:
                     pass
                 if alert_count == 0:
-                    checks.append("✅ 無 ERROR/WARNING")
+                    checks.append("✅ 今日無 ERROR/WARNING")
                 else:
-                    checks.append(f"⚠️ 24h 內 {alert_count} 筆告警")
+                    checks.append(f"⚠️ 今日 {alert_count} 筆告警（/alerts 查詳情）")
 
                 # 2. 持倉數正確（L ≤ 1，S ≤ 1）
                 if len(l_pos) <= 1 and len(s_pos) <= 1:
