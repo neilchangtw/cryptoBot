@@ -153,7 +153,10 @@
       "Bash(awk -F, 'NR>1 {print $1,\"|\",$8,\"|ex_t=\",$32,\"|typ=\",$33,\"|pnl=\",$38,\"|rg=\",$44}' /c/Users/wei/IdeaProjects/cryptoBot/data/trades.csv)",
       "Bash(awk NR>=30280 && NR<=30320 *)",
       "Bash(awk 'NR>=30280 && NR<=30315' C:/Users/wei/IdeaProjects/cryptoBot/logs/system.log)",
-      "Bash(awk *)"
+      "Bash(awk *)",
+      "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('dashboard/static/app.js','utf-8'\\)\\)\")",
+      "Bash(curl -s http://127.0.0.1:8050/api/status)",
+      "Bash(node -c dashboard/static/app.js)"
     ]
   }
 }

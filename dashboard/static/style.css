@@ -524,6 +524,51 @@ body {
     transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
 }
 
+/* ── 進場冷卻 Badge ── */
+.cd-badge {
+    background: rgba(240, 185, 11, 0.08);
+    border: 1px solid rgba(240, 185, 11, 0.35);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 8px 0 4px;
+    font-size: 12px;
+}
+.cd-badge.cd-alert {
+    background: rgba(239, 83, 80, 0.10);
+    border-color: rgba(239, 83, 80, 0.45);
+}
+.cd-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+.cd-icon { font-size: 13px; }
+.cd-label {
+    color: var(--gold);
+    font-weight: 600;
+}
+.cd-badge.cd-alert .cd-label { color: var(--red); }
+.cd-remain {
+    margin-left: auto;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+}
+.cd-track {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.cd-fill {
+    height: 100%;
+    background: var(--gold);
+    border-radius: 2px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+
 /* ── GK Explain ── */
 .gk-explain {
     background: var(--bg-card);

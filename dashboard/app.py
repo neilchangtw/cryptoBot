@@ -263,6 +263,40 @@ async def api_status(mode: str = Query("paper")):
                 "paused": bool(state.get("paused", False)),
             }
 
+            # 進場冷卻（出場後 L=6 bar / S=8 bar 不再進場；連虧 4 筆 → 24 bar 冷卻）
+            try:
+                import strategy as _strat
+                L_CD = int(getattr(_strat, "L_EXIT_CD", 6))
+                S_CD = int(getattr(_strat, "S_EXIT_CD", 8))
+                CONSEC_CD = int(getattr(_strat, "CONSEC_LOSS_COOLDOWN", 24))
+            except Exception:
+                L_CD, S_CD, CONSEC_CD = 6, 8, 24
+            last_exits = state.get("last_exits", {}) or {}
+            l_last = int(last_exits.get("L", -9999) or -9999)
+            s_last = int(last_exits.get("S", -9999) or -9999)
+            l_remain = max(0, L_CD - (bar_c - l_last)) if l_last > -9999 else 0
+            s_remain = max(0, S_CD - (bar_c - s_last)) if s_last > -9999 else 0
+            consec_remain = max(0, cd_until - bar_c) if cd_until > 0 else 0
+            result["cooldowns"] = {
+                "L": {
+                    "total": L_CD,
+                    "remaining": l_remain,
+                    "active": l_remain > 0,
+                    "passed": L_CD - l_remain if l_remain > 0 else L_CD,
+                },
+                "S": {
+                    "total": S_CD,
+                    "remaining": s_remain,
+                    "active": s_remain > 0,
+                    "passed": S_CD - s_remain if s_remain > 0 else S_CD,
+                },
+                "consec_loss": {
+                    "total": CONSEC_CD,
+                    "remaining": consec_remain,
+                    "active": consec_remain > 0,
+                },
+            }
+
             # 今日統計
             daily = state.get("daily_stats", {})
             today_key = max(daily.keys()) if daily else None

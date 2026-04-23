@@ -1037,6 +1037,24 @@ def main():
                 if executor.daily_pnl < 0:
                     cb_info += f"\n📊 今日：${executor.daily_pnl:.0f}"
 
+                # 進場冷卻倒數（連虧 24h 優先，否則顯示同側尚未解除的 L/S）
+                bar_c = executor.bar_counter
+                consec_remain = max(0, executor.consec_loss_cooldown_until - bar_c) if executor.consec_loss_cooldown_until > 0 else 0
+                if consec_remain > 0:
+                    cb_info += f"\n🚫 連虧冷卻剩 {consec_remain}h（L+S 皆停）"
+                else:
+                    l_last = executor.last_exits.get("L", -9999)
+                    s_last = executor.last_exits.get("S", -9999)
+                    l_remain = max(0, strategy.L_EXIT_CD - (bar_c - l_last)) if l_last > -9999 else 0
+                    s_remain = max(0, strategy.S_EXIT_CD - (bar_c - s_last)) if s_last > -9999 else 0
+                    cd_parts = []
+                    if l_remain > 0:
+                        cd_parts.append(f"L剩{l_remain}/{strategy.L_EXIT_CD}h")
+                    if s_remain > 0:
+                        cd_parts.append(f"S剩{s_remain}/{strategy.S_EXIT_CD}h")
+                    if cd_parts:
+                        cb_info += f"\n⏱ 進場冷卻：{' ｜ '.join(cd_parts)}"
+
                 # ── V14 自檢 ──
                 checks = []
 

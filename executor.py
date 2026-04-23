@@ -657,8 +657,13 @@ class Executor:
             result_text = "打平"
 
         cb_info = ""
+        # 進場冷卻（連虧 24h 優先；否則顯示同側 L=6h / S=8h）
         if self.consec_losses >= strategy.CONSEC_LOSS_PAUSE:
-            cb_info = f"\n⚠️ 連虧{self.consec_losses}筆，冷卻24h"
+            cd_bars = strategy.CONSEC_LOSS_COOLDOWN
+            cb_info = f"\n⚠️ 連虧{self.consec_losses}筆，L+S 冷卻 {cd_bars}h"
+        else:
+            exit_cd = strategy.L_EXIT_CD if sub_strategy == "L" else strategy.S_EXIT_CD
+            cb_info = f"\n⏱ {sub_strategy} 進場冷卻 {exit_cd}h（避免反覆進出）"
         if self.daily_pnl <= strategy.DAILY_LOSS_LIMIT:
             cb_info += f"\n🚫 日虧${self.daily_pnl:.0f}，今日停工"
 

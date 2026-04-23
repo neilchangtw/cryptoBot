@@ -146,7 +146,7 @@ async function loadStatus() {
         setConnStatus(true);
         renderStatusCards(d);
         renderGK(d);
-        renderEntryConditions(d.entry_conditions, d.positions);
+        renderEntryConditions(d.entry_conditions, d.positions, d.cooldowns);
         renderRecentTrades(d.recent_trades || [], d.positions);
         renderBreakers(d.breakers);
         renderHealth(d.health);
@@ -361,7 +361,7 @@ function sessionTimeStr(side) {
     return side === 'S' ? '二~五 3-11,13-23' : '二~六 3-11,13-23';
 }
 
-function renderEntryConditions(ec, positions) {
+function renderEntryConditions(ec, positions, cooldowns) {
     const el = $('entry-conditions');
     if (!el) return;
     if (!ec) { el.innerHTML = ''; return; }
@@ -373,6 +373,33 @@ function renderEntryConditions(ec, positions) {
             <span class="cond-icon ${cls}">${ic}</span>
             <span class="cond-label">${label}</span>
             <span class="cond-value">${valueStr || ''}</span>
+        </div>`;
+    }
+
+    // 冷卻倒數 Badge（連虧 24 bar 優先，再來 L=6 bar / S=8 bar）
+    function cooldownBadge(side) {
+        if (!cooldowns) return '';
+        const consec = cooldowns.consec_loss;
+        if (consec && consec.active) {
+            return `<div class="cd-badge cd-alert" title="連虧 4 筆觸發 24 bar 冷卻，L+S 皆停">
+                <div class="cd-head">
+                    <span class="cd-icon">🚫</span>
+                    <span class="cd-label">連虧冷卻中（L+S 皆停）</span>
+                    <span class="cd-remain">剩 ${consec.remaining} / ${consec.total} bar（約 ${consec.remaining}h）</span>
+                </div>
+                <div class="cd-track"><div class="cd-fill" style="width:${Math.round((consec.total - consec.remaining) / consec.total * 100)}%;background:var(--red)"></div></div>
+            </div>`;
+        }
+        const cd = cooldowns[side];
+        if (!cd || !cd.active) return '';
+        const pct = Math.round((cd.passed / cd.total) * 100);
+        return `<div class="cd-badge" title="出場後冷卻中，避免反覆進出同一 setup">
+            <div class="cd-head">
+                <span class="cd-icon">⏱</span>
+                <span class="cd-label">進場冷卻中</span>
+                <span class="cd-remain">剩 ${cd.remaining} / ${cd.total} bar（約 ${cd.remaining}h）</span>
+            </div>
+            <div class="cd-track"><div class="cd-fill" style="width:${pct}%"></div></div>
         </div>`;
     }
 
@@ -388,6 +415,7 @@ function renderEntryConditions(ec, positions) {
             <span>L 做多進場條件</span>
             <span class="entry-progress" style="color:${lColor}">${lPassed}/${lTotal}</span>
         </div>`;
+    lHtml += cooldownBadge('L');
     if (lc.gk) lHtml += condRow('', lc.gk.pass, 'GK < 25（壓縮）', lc.gk.value != null ? lc.gk.value.toFixed(1) : '-');
     if (lc.breakout) lHtml += condRow('', lc.breakout.pass, '向上突破 15bar', '');
     if (lc.session) lHtml += condRow('', lc.session.pass, '時段允許', sessionTimeStr('L'));
@@ -407,6 +435,7 @@ function renderEntryConditions(ec, positions) {
             <span>S 做空進場條件</span>
             <span class="entry-progress" style="color:${sColor}">${sPassed}/${sTotal}</span>
         </div>`;
+    sHtml += cooldownBadge('S');
     if (sc.gk) sHtml += condRow('', sc.gk.pass, 'GK < 35（壓縮）', sc.gk.value != null ? sc.gk.value.toFixed(1) : '-');
     if (sc.breakout) sHtml += condRow('', sc.breakout.pass, '向下突破 15bar', '');
     if (sc.session) sHtml += condRow('', sc.session.pass, '時段允許', sessionTimeStr('S'));
@@ -2001,7 +2030,7 @@ function openStatusWS() {
             if (m.type === 'status' && m.data && S.tab === 'status') {
                 renderStatusCards(m.data);
                 renderGK(m.data);
-                renderEntryConditions(m.data.entry_conditions, m.data.positions);
+                renderEntryConditions(m.data.entry_conditions, m.data.positions, m.data.cooldowns);
                 renderRecentTrades(m.data.recent_trades || [], m.data.positions);
                 renderBreakers(m.data.breakers);
                 renderHealth(m.data.health);
