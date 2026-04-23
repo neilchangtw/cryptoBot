@@ -890,11 +890,25 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
     .log-search-input { width: 100%; }
     .log-viewer { font-size: 11px; }
 
-    /* Analytics */
-    .analytics-panel { padding: 12px; }
+    /* Analytics — 根因修正：grid/flex 子項 min-width: 0，避免內部 min-width:500px 表格把整列撐爆螢幕 */
+    /* 沒有這條，瀏覽器會自動縮小整個頁面以容納最寬子項（「上面版面就更小」的元凶） */
+    .analytics-row { grid-template-columns: minmax(0, 1fr) !important; }
+    .analytics-panel { padding: 12px; min-width: 0; overflow: hidden; }
     .analytics-panel h3 { font-size: 12px; }
-    .analytics-panel > div { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    /* 真正做橫捲的內層容器 */
+    .analytics-panel > div { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
     .analytics-panel table { min-width: 500px; }
+    /* 出場原因分佈：label 採自然寬度（MFE-trail 等長名稱避免被裁）+ bar 允許完整收縮 */
+    .dist-bar-row { gap: 6px; margin-bottom: 6px; }
+    .dist-bar-label {
+        width: auto; min-width: 56px;
+        font-size: 11px; white-space: nowrap; flex-shrink: 0;
+    }
+    .dist-bar-track { height: 20px; min-width: 0; }
+    .dist-bar-fill { font-size: 10px; padding: 0 6px; }
+    /* analytics-cards 也要 min-width: 0 避免同問題 */
+    .cards, #analytics-cards { min-width: 0; }
+    .cards > .card { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
     /* 最近交易：可橫滑 */
     .recent-section { padding: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -913,7 +927,8 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
     .filters > * { font-size: 11px; }
 
     /* ── Guide 分頁（V14+R 指標說明）── */
-    .guide-wrap { padding: 0; }
+    .guide-wrap { padding: 0; min-width: 0; }
+    .guide-section, .guide-card { min-width: 0; }
     .guide-section > h2 { font-size: 15px; padding-bottom: 4px; margin-bottom: 8px; }
     .guide-card {
         padding: 12px 14px;
