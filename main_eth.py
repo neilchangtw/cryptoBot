@@ -754,6 +754,34 @@ def main():
                 # 更新追蹤（MAE/MFE）
                 executor.update_tracking(trade_id, bar_data, executor.bar_counter)
 
+                # 上 bar 有掛著的 pending_exit（前次下單 Binance 408 等失敗但倉位仍在）
+                # → 本 bar 直接以 MARKET 強制平倉，避免因價格已離開 TP 區間而漏接出場
+                if pos.get("pending_exit"):
+                    pending_reason = pos["pending_exit"]
+                    logger.warning(f"Retrying pending close for {trade_id} (reason: {pending_reason})")
+                    result = executor.close_position(
+                        trade_id=trade_id,
+                        exit_price=bar_data["close"],  # 重試用本根收盤價
+                        exit_reason=pending_reason,
+                        bar_counter=executor.bar_counter,
+                        bar_data=bar_data,
+                        btc_context=btc_context,
+                    )
+                    if result:
+                        executor.record_close(
+                            result["pnl_usd"],
+                            result["exit_reason"],
+                            result["bars_held"],
+                            commission=result.get("commission", 0.0),
+                        )
+                        exits_this_bar.append(result)
+                        sig_logger.info(
+                            f"EXIT {sub} {side.upper()} | {pending_reason} (retry) "
+                            f"@ ${bar_data['close']:.2f} | PnL ${result['pnl_usd']:.2f}"
+                        )
+                    # 無論重試成功與否，本 bar 這筆倉位就不再跑策略出場檢查
+                    continue
+
                 # 按策略分派出場檢查（V14: 傳入 extension 狀態）
                 ext_active = pos.get("extension_active", False)
                 ext_start = pos.get("extension_start_bar", 0)

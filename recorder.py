@@ -130,7 +130,8 @@ def _ensure_csv(filepath: str, headers: list):
     header 升級策略：
     - 現有欄位是新 header 的子集（只加不減、順序允許不同）→ 就地升級：
       保留所有舊資料，新欄位填空值，避免資料遺失
-    - 現有欄位有移除/改名 → 備份 .bak 後重建（保守，避免資料錯位）
+    - 現有欄位有移除/改名 → 仍以交集欄位搬移資料（避免完全遺失），
+      並在 .bak 留一份原始備份。過去會直接清空，今日事故的根因即此。
     """
     _ensure_dirs()
     if not os.path.exists(filepath):
@@ -145,10 +146,12 @@ def _ensure_csv(filepath: str, headers: list):
         if existing_header == headers:
             return
 
+        # 讀入舊 rows（DictReader 會自動對應欄位名稱）
+        with open(filepath, "r", newline="", encoding="utf-8") as f:
+            old_rows = list(csv.DictReader(f))
+
         if set(existing_header).issubset(set(headers)):
             # 純新增欄位 → 就地升級（保留資料、補空值）
-            with open(filepath, "r", newline="", encoding="utf-8") as f:
-                old_rows = list(csv.DictReader(f))
             tmp = filepath + ".tmp"
             with open(tmp, "w", newline="", encoding="utf-8") as f:
                 w = csv.DictWriter(f, fieldnames=headers, extrasaction="ignore")
@@ -157,15 +160,30 @@ def _ensure_csv(filepath: str, headers: list):
                     w.writerow({k: row.get(k, "") for k in headers})
             os.replace(tmp, filepath)
         else:
-            # 有欄位被移除或改名 → 備份重建
+            # 有欄位被移除/改名 → 備份 + 以交集欄位遷移資料（保守但不清空）
+            # 舊 headers 中「仍存在於新 headers」的部分會搬過來，其餘欄位丟棄；
+            # 被移除的欄位資料會留在 .bak 供事後回撈
             import shutil
             backup = filepath + ".bak"
             shutil.copy2(filepath, backup)
-            with open(filepath, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=headers)
-                writer.writeheader()
-    except Exception:
-        pass
+            common = set(existing_header) & set(headers)
+            tmp = filepath + ".tmp"
+            with open(tmp, "w", newline="", encoding="utf-8") as f:
+                w = csv.DictWriter(f, fieldnames=headers, extrasaction="ignore")
+                w.writeheader()
+                for row in old_rows:
+                    w.writerow({k: (row.get(k, "") if k in common else "") for k in headers})
+            os.replace(tmp, filepath)
+            import logging
+            logging.getLogger("recorder").warning(
+                f"_ensure_csv: {os.path.basename(filepath)} header shrunk/renamed, "
+                f"migrated {len(old_rows)} rows via intersection "
+                f"({len(common)}/{len(headers)} common cols); original saved to .bak"
+            )
+    except Exception as e:
+        # 吞錯後記 log，避免掩蓋檔案鎖/編碼等真正問題
+        import logging
+        logging.getLogger("recorder").error(f"_ensure_csv error on {filepath}: {e}")
 
 
 def _append_row(filepath: str, headers: list, row: dict):
@@ -351,19 +369,37 @@ def record_trade_close(trade_id: str, exit_data: dict):
         max_favorable_excursion_pct, max_favorable_excursion_usd,
         mae_time_bar, mfe_time_bar, pnl_at_bar7, pnl_at_bar12,
         gross_pnl_usd, commission_usd, net_pnl_usd, net_pnl_pct, win_loss
+
+    防禦：若 trade_id 不存在（CSV 被外力清空/header migration 遺失等），
+    過去會靜默丟失出場資料；現改為 ERROR log + append fallback row，
+    至少保留 exit_data 不讓資料完全消失。
     """
     _ensure_csv(TRADES_CSV, TRADES_FIELDS)
 
-    # 讀取所有行
+    # 讀取所有行，逐行比對 trade_id；命中則以 exit_data 更新
     rows = []
+    matched = False
     with open(TRADES_CSV, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row["trade_id"] == trade_id:
                 row.update({k: v for k, v in exit_data.items() if k in TRADES_FIELDS})
+                matched = True
             rows.append(row)
 
-    # 重寫
+    if not matched:
+        # trade_id 不存在 → 至少記 ERROR 並 append fallback row，避免出場資料完全遺失
+        import logging
+        logging.getLogger("recorder").error(
+            f"record_trade_close: trade_id={trade_id} NOT FOUND in trades.csv, "
+            f"appending fallback row (entry fields will be empty)"
+        )
+        fallback = {field: "" for field in TRADES_FIELDS}
+        fallback["trade_id"] = trade_id
+        fallback.update({k: v for k, v in exit_data.items() if k in TRADES_FIELDS})
+        rows.append(fallback)
+
+    # 重寫整檔
     with open(TRADES_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=TRADES_FIELDS, extrasaction="ignore")
         writer.writeheader()

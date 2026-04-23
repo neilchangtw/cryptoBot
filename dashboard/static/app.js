@@ -653,33 +653,66 @@ function renderBreakers(bk) {
 }
 
 function renderHealth(h) {
+    // 改為與「風控熔斷」一致的進度條樣式（bk-* 系列）
+    // 進度條語意：越接近觸發（ALERT）條越長越紅，與風控熔斷的「使用率」概念對齊
+    //   OK      → 30% 綠   （安全）
+    //   WARNING → 65% 橘黃 （接近）
+    //   ALERT   → 100% 紅  （已觸發）
     if (!h || !h.checks) {
         $('health-section').innerHTML = '';
         return;
     }
     const overall = (h.overall || 'UNKNOWN').toUpperCase();
-    const cls = overall === 'NORMAL' ? 'status-normal' : overall === 'WARNING' ? 'status-warning' : overall === 'PAUSE' ? 'status-pause' : 'badge-unknown';
-    const overallLabel = overall === 'NORMAL' ? '正常 (Normal)' : overall === 'WARNING' ? '警告 (Warning)' : overall === 'PAUSE' ? '暫停 (Pause)' : overall;
-    let html = `<div class="health-header">
-        <span class="health-title">策略健康度 (Health Check)</span>
-        <span class="status-badge ${cls}">${overallLabel}</span>
-    </div>`;
-    html += '<div class="health-grid">';
-    for (const c of (h.checks || [])) {
+    const overallLabel = overall === 'NORMAL' ? '正常' : overall === 'WARNING' ? '警告' : overall === 'PAUSE' ? '暫停' : overall;
+    const overallCls = overall === 'NORMAL' ? 'bk-ok' : overall === 'WARNING' ? 'bk-warn' : 'bk-alert';
+    const overallBadge = `<span class="bk-paused ${overallCls}">${overallLabel}</span>`;
+
+    // 單筆檢查渲染：複用風控熔斷的 .bk-item / .bk-bar-track / .bk-bar-fill / .bk-meta
+    function healthBar(c) {
         const st = (c.status || '').toUpperCase();
-        const bcls = st === 'OK' ? 'badge-ok' : st === 'WARNING' ? 'badge-warn' : st === 'ALERT' ? 'badge-alert' : 'badge-unknown';
+        // 狀態 → 顏色 + 填充比例 + 中文狀態標籤
+        let pct, clr, statusHtml;
+        if (st === 'OK') {
+            pct = 30; clr = 'var(--green)';
+            statusHtml = '<span style="color:var(--green)">✓ 正常</span>';
+        } else if (st === 'WARNING') {
+            pct = 65; clr = '#ff9800';
+            statusHtml = '<span style="color:#ff9800">⚠ 注意</span>';
+        } else if (st === 'ALERT') {
+            pct = 100; clr = 'var(--red)';
+            statusHtml = '<span style="color:var(--red);font-weight:600">🚫 警報</span>';
+        } else {
+            pct = 0; clr = 'var(--text-dim)';
+            statusHtml = '<span style="color:var(--text-dim)">未知</span>';
+        }
+
         const name = HEALTH_NAME_MAP[c.name] || c.name || '';
         const desc = HEALTH_DESC_MAP[c.name] || c.detail || '';
-        const stLabel = HEALTH_STATUS_MAP[st] || st;
-        html += `<div class="health-item">
-            <div class="health-info">
-                <span class="health-name">${name} <span style="color:var(--text-dim)">${c.value != null ? c.value : ''}</span></span>
-                <span class="health-desc">${desc}</span>
+        // meta 行：當前值 + 門檻 + detail，用全形分隔線對齊風控熔斷
+        const val = c.value != null ? c.value : '-';
+        const thr = c.threshold ? `門檻 ${c.threshold}` : '';
+        const metaParts = [`當前 ${val}`, thr, desc].filter(x => x);
+        const meta = metaParts.join('｜');
+
+        return `<div class="bk-item">
+            <div class="bk-head">
+                <span class="bk-label">${name}</span>
+                <span class="bk-status">${statusHtml}</span>
             </div>
-            <span class="health-badge ${bcls}">${stLabel}</span>
+            <div class="bk-bar-track"><div class="bk-bar-fill" style="width:${pct}%;background:${clr}"></div></div>
+            <div class="bk-meta">${meta}</div>
         </div>`;
     }
-    html += '</div>';
+
+    let html = `<div class="breakers-wrap">
+        <div class="breakers-title">
+            <span>策略健康度 (Health Check)</span>${overallBadge}
+        </div>
+        <div class="breakers-grid">`;
+    for (const c of (h.checks || [])) {
+        html += healthBar(c);
+    }
+    html += '</div></div>';
     $('health-section').innerHTML = html;
 }
 

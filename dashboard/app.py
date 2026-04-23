@@ -121,8 +121,19 @@ async def root():
 async def api_status(mode: str = Query("paper")):
     """即時狀態：餘額、持倉、今日 PnL、GK、健康度"""
     paths = get_paths(mode)
+    # 判斷「當前 binance_trade 指向的環境」是否與 URL mode 一致
+    # binance_trade 由 .env 決定（PAPER_TRADING / BINANCE_TESTNET 全域），
+    # dashboard 現階段無法為 paper/live 各開一個 client → 若使用者在 dashboard
+    # 切到 live 但 .env 仍是 paper，餘額/持倉會仍是 paper 帳戶。回傳 mode_mismatch
+    # 旗標讓前端能顯示警告，避免誤判。
+    env_paper = os.getenv("PAPER_TRADING", "true").lower() == "true"
+    env_mode = "paper" if env_paper else "live"
+    mode_mismatch = (mode != env_mode)
+
     result = {
         "mode": mode,
+        "env_mode": env_mode,
+        "mode_mismatch": mode_mismatch,
         "account_balance": 0,
         "bar_counter": 0,
         "last_bar_time": None,
@@ -137,6 +148,9 @@ async def api_status(mode: str = Query("paper")):
     }
 
     # ── 從幣安即時取得餘額和持倉 ──
+    # 注意：binance_trade 用的是 .env 裡的 BINANCE_TESTNET 端點，
+    # 與 dashboard URL mode 參數無關；mode_mismatch=True 時下方餘額/持倉
+    # 屬於 env_mode 帳戶而非 URL mode 帳戶
     try:
         import binance_trade
         wallet_bal = binance_trade.get_wallet_balance()

@@ -537,6 +537,10 @@ class Executor:
                         f"⚠️ Binance 仍有 {position_side} 持倉\n"
                         f"🔄 下一根 bar 將自動重試"
                     )
+                    # 標記本倉位為 pending_exit，下一 bar main loop 會直接以 MARKET
+                    # 強制平倉、不再檢查策略條件（避免 TP 區間已偏離導致漏接出場）
+                    pos["pending_exit"] = exit_reason
+                    self.save_state()
                     return None  # 不刪除持倉，不取消 SL，下一 bar 重試
                 else:
                     logger.warning(
@@ -721,7 +725,10 @@ class Executor:
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def _today_key(self) -> str:
-        return datetime.utcnow().strftime("%Y-%m-%d")
+        # 用 UTC+8 確保與 main_eth.py 的日結 rollover (flush_daily_summary) 對齊；
+        # 舊版用 datetime.utcnow() 會讓 00:00-08:00 UTC+8 的交易被歸到前一 UTC+8 日，
+        # daily_summary.csv 日期攤銷會錯 8 小時。
+        return (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d")
 
     def _ensure_daily(self):
         key = self._today_key()
@@ -798,6 +805,8 @@ class Executor:
             "earlyStop_count": 0,
             "trail_count": 0,
             "tp_count": d.get("tp_count", 0),
+            # V14 新增出場類型：MFE-trail（浮盈回吐鎖利），過去漏填此欄永遠為空
+            "mfe_trail_count": d.get("mfe_trail_count", 0),
             "maxhold_count": d.get("maxhold_count", 0),
             "mh_ext_count": d.get("mh_ext_count", 0),
             "be_count": d.get("be_count", 0),

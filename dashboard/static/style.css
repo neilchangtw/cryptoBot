@@ -195,6 +195,10 @@ body {
     border: 1px solid var(--gold);
     border-radius: 10px;
 }
+/* 健康度整體狀態徽章顏色覆蓋（沿用 bk-paused 基底樣式） */
+.bk-paused.bk-ok { color: var(--green); border-color: var(--green); }
+.bk-paused.bk-warn { color: #ff9800; border-color: #ff9800; }
+.bk-paused.bk-alert { color: var(--red); border-color: var(--red); }
 .breakers-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));

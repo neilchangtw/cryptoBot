@@ -144,7 +144,16 @@
       "Bash(curl -s http://localhost:8050/api/bot-status)",
       "Bash(curl -s --connect-timeout 3 http://localhost:8050/api/status)",
       "Bash(netstat -ano)",
-      "Bash(WMIC PROCESS WHERE \"Name='python.exe'\" GET ProcessId,CommandLine)"
+      "Bash(WMIC PROCESS WHERE \"Name='python.exe'\" GET ProcessId,CommandLine)",
+      "Bash(grep -E \"sma_slope|regime_block|^ *[0-9]+\\\\s+$\")",
+      "Bash(curl -s \"http://localhost:8050/api/trades?mode=paper\")",
+      "Bash(curl -s \"http://localhost:8050/api/analytics?mode=paper\")",
+      "Bash(awk -F, 'NR>1 {print $1, \"|\", $8, \"|\", $32, \"|\", $33, \"|\", $38}' /c/Users/wei/IdeaProjects/cryptoBot/data/trades.csv)",
+      "Bash(awk -F, 'NR==1 {for\\(i=1;i<=NF;i++\\) if \\($i==\"trade_id\"||$i==\"sub_strategy\"||$i==\"exit_time_utc8\"||$i==\"exit_type\"||$i==\"net_pnl_usd\"||$i==\"entry_regime\"\\) print i, $i}')",
+      "Bash(awk -F, 'NR>1 {print $1,\"|\",$8,\"|ex_t=\",$32,\"|typ=\",$33,\"|pnl=\",$38,\"|rg=\",$44}' /c/Users/wei/IdeaProjects/cryptoBot/data/trades.csv)",
+      "Bash(awk NR>=30280 && NR<=30320 *)",
+      "Bash(awk 'NR>=30280 && NR<=30315' C:/Users/wei/IdeaProjects/cryptoBot/logs/system.log)",
+      "Bash(awk *)"
     ]
   }
 }
