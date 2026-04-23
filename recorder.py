@@ -12,11 +12,15 @@ import os
 import csv
 from datetime import datetime, timedelta
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 路徑
+# 路徑（依 PAPER_TRADING 切 data/ 或 data_live/）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
+_PAPER = os.getenv("PAPER_TRADING", "true").lower() == "true"
+DATA_DIR = os.path.join(BASE_DIR, "data" if _PAPER else "data_live")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
 
 BAR_SNAPSHOTS_CSV = os.path.join(DATA_DIR, "bar_snapshots.csv")

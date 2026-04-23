@@ -35,7 +35,9 @@ logger = logging.getLogger("executor")
 class Executor:
     def __init__(self, state_path: str = None):
         if state_path is None:
-            state_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "eth_state.json")
+            # 依 PAPER_TRADING 切 eth_state.json / eth_state_live.json
+            fname = "eth_state.json" if PAPER_TRADING else "eth_state_live.json"
+            state_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), fname)
         self.state_path = state_path
 
         # 核心狀態
