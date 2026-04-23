@@ -1172,6 +1172,48 @@ async function loadAnalytics() {
     }
 }
 
+// 進場 Regime 說明（collapsible）：讓沒看過研究文件的使用者也能理解
+// UP / MILD_UP / DOWN / SIDE 四種分類的意義 + V25-D 出場參數
+function regimeExplainHTML() {
+    return `
+    <details class="regime-explain" style="margin-bottom:12px">
+        <summary style="cursor:pointer;color:var(--text);font-size:12px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px">
+            ℹ 什麼是「進場 Regime」？（點此展開說明）
+        </summary>
+        <div style="padding:10px 12px;margin-top:6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-dim);line-height:1.7">
+            <b style="color:var(--text)">定義</b>：進場當下 ETH 的市場狀態分類，依 <b>SMA200 的 100-bar 相對斜率</b>分成 4 類。每類有不同的進場准入 + 出場參數（V14+R / V25-D）。<br><br>
+
+            <table class="strat-table" style="margin:6px 0">
+                <thead><tr>
+                    <th>Regime</th><th>斜率範圍</th><th>市場狀態</th>
+                    <th>可進場</th><th>L_TP</th><th>L_MH</th><th>S_MH</th>
+                </tr></thead>
+                <tbody>
+                    <tr><td><b>UP</b></td><td>slope &gt; +4.5%</td><td>強多頭</td>
+                        <td style="color:var(--gold)">只 S</td><td>-</td><td>-</td><td><b style="color:var(--green)">8</b></td></tr>
+                    <tr><td><b>MILD_UP</b></td><td>0 &lt; slope ≤ +4.5%</td><td>溫和多頭</td>
+                        <td>L + S</td><td>3.5%</td><td><b style="color:var(--green)">7</b></td><td>10</td></tr>
+                    <tr><td><b>DOWN</b></td><td>slope &lt; -1.0%</td><td>下跌</td>
+                        <td>L + S</td><td><b style="color:var(--green)">4.0%</b></td><td>6</td><td>10</td></tr>
+                    <tr><td><b>SIDE</b></td><td>|slope| &lt; 1.0%</td><td>橫盤</td>
+                        <td style="color:var(--gold)">只 L</td><td>3.5%</td><td>6</td><td>-</td></tr>
+                </tbody>
+            </table>
+
+            <b style="color:var(--text)">斜率公式</b>：<code>slope = (SMA200 − SMA200.shift(100)) / SMA200.shift(100)</code><br>
+            意義：200-bar 均線在過去 100 bar（約 4 天）漲了幾 %。例如 slope=+3% 代表 4 天內均線漲 3% → MILD_UP。<br><br>
+
+            <b style="color:var(--text)">為什麼要分？</b><br>
+            • <b>V23 研究</b>：V14 L 在 UP regime 會虧、S 在 SIDE regime 會虧 → 加 <b>R gate</b> 擋掉（UP 擋 L、SIDE 擋 S）<br>
+            • <b>V25-D 研究</b>：不同 regime 下最佳出場參數不同，綠色粗體是 V25-D 相對 V14 baseline 的調整（回測 PnL +3.1%、MDD -10.5%）<br><br>
+
+            <b style="color:var(--text)">怎麼讀下方分組績效？</b><br>
+            • 各 regime 的實盤績效分開統計，可觀察哪個 regime 最賺/最虧<br>
+            • V14+R 部署後，UP 的「L 筆數」應 = 0、SIDE 的「S 筆數」應 = 0；若不為 0 通常是部署前舊交易
+        </div>
+    </details>`;
+}
+
 function renderRegimeCompare(perf) {
     const el = $('regime-compare');
     if (!el) return;
@@ -1183,11 +1225,14 @@ function renderRegimeCompare(perf) {
         'SIDE':    ['橫盤 |slope|<1%', 'S 理論被擋，僅 L 可進'],
     };
     const keys = order.filter(k => perf[k]);
+    // 說明區永遠顯示（即使沒資料也讓使用者能看懂），分組表依資料有無動態顯示
+    let html = regimeExplainHTML();
     if (keys.length === 0) {
-        el.innerHTML = '<div class="loading">資料不足 — 需有帶 sma_slope 的 bar_snapshots.csv 才能分組</div>';
+        html += '<div class="loading">資料不足 — 需有帶 sma_slope 的 bar_snapshots.csv 才能分組</div>';
+        el.innerHTML = html;
         return;
     }
-    let html = `<table class="strat-table"><thead><tr>
+    html += `<table class="strat-table"><thead><tr>
         <th>Regime</th><th>說明</th><th>筆數</th><th>L/S</th>
         <th>勝率</th><th>總損益</th><th>均損益</th><th>平均斜率</th>
     </tr></thead><tbody>`;
