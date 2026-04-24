@@ -1213,6 +1213,7 @@ function regimeExplainHTML() {
         <div style="padding:10px 12px;margin-top:6px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-dim);line-height:1.7">
             <b style="color:var(--text)">定義</b>：進場當下 ETH 的市場狀態分類，依 <b>SMA200 的 100-bar 相對斜率</b>分成 4 類。每類有不同的進場准入 + 出場參數（V14+R / V25-D）。<br><br>
 
+            <div class="table-scroll-wrap">
             <table class="strat-table" style="margin:6px 0">
                 <thead><tr>
                     <th>Regime</th><th>斜率範圍</th><th>市場狀態</th>
@@ -1229,6 +1230,7 @@ function regimeExplainHTML() {
                         <td style="color:var(--gold)">只 L</td><td>3.5%</td><td>6</td><td>-</td></tr>
                 </tbody>
             </table>
+            </div>
 
             <b style="color:var(--text)">斜率公式</b>：<code>slope = (SMA200 − SMA200.shift(100)) / SMA200.shift(100)</code><br>
             意義：200-bar 均線在過去 100 bar（約 4 天）漲了幾 %。例如 slope=+3% 代表 4 天內均線漲 3% → MILD_UP。<br><br>
@@ -1285,7 +1287,7 @@ function renderRegimeCompare(perf) {
         el.innerHTML = html;
         return;
     }
-    html += `<table class="strat-table"><thead><tr>
+    html += `<div class="table-scroll-wrap"><table class="strat-table"><thead><tr>
         <th>Regime</th><th>說明</th><th>筆數</th><th>L/S</th>
         <th>勝率</th><th>總損益</th><th>均損益</th><th>平均斜率</th>
     </tr></thead><tbody>`;
@@ -1303,7 +1305,7 @@ function renderRegimeCompare(perf) {
             <td>${r.avg_slope_pct >= 0 ? '+' : ''}${r.avg_slope_pct.toFixed(2)}%</td>
         </tr>`;
     }
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     // 提示：UP regime 若有 L 筆數 >0 = 舊 V14 資料（當時無 R gate），新交易該欄應為 0
     html += `<div style="margin-top:8px;color:var(--text-dim);font-size:11px">
         註：V14+R 部署後，UP 新 L 進場應 = 0、SIDE 新 S 進場應 = 0；若不為 0 可能是部署前的舊交易或 WARMUP 期。

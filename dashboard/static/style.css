@@ -943,6 +943,9 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
     /* 真正做橫捲的內層容器 */
     .analytics-panel > div { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
     .analytics-panel table { min-width: 500px; }
+    /* 巢狀表格（如 regime-explain 裡的說明表）需獨立橫捲容器，避免撐爆旁邊的說明文 */
+    .table-scroll-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; margin: 6px 0; }
+    .table-scroll-wrap > table { min-width: 480px; }
     /* 出場原因分佈：label 採自然寬度（MFE-trail 等長名稱避免被裁）+ bar 允許完整收縮 */
     .dist-bar-row { gap: 6px; margin-bottom: 6px; }
     .dist-bar-label {
