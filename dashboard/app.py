@@ -196,6 +196,7 @@ async def api_status(mode: str = Query("paper")):
                     "sub_strategy": sub,
                     "entry_price": actual_entry,
                     "entry_time_utc8": pos.get("entry_time_utc8"),
+                    "entry_regime": pos.get("entry_regime", "NA"),
                     "bars_held": pos.get("bars_held", 0),
                     "running_mfe": pos.get("running_mfe", 0.0),
                     "mh_reduced": pos.get("mh_reduced", False),
@@ -333,8 +334,9 @@ async def api_status(mode: str = Query("paper")):
         last_ema20 = ema20_val
 
         # Session: 直接用當前時間計算（V13: L/S 各自 block_days）
-        from datetime import datetime as _dt
-        _now = _dt.now()  # 本機 = UTC+8
+        # 明確換算到 UTC+8（避免依賴本機時區設定）
+        from datetime import datetime as _dt, timedelta as _td
+        _now = _dt.utcnow() + _td(hours=8)
         session_ok_l = _now.hour not in {0, 1, 2, 12} and _now.weekday() not in {5, 6}
         session_ok_s = _now.hour not in {0, 1, 2, 12} and _now.weekday() not in {0, 5, 6}
 
@@ -434,6 +436,11 @@ async def api_status(mode: str = Query("paper")):
             result["last_close"] = last_close
 
     # 為每筆持倉計算出場條件距離（用幣安 mark price + unrealized_pnl）
+    # V25-D: TP/MH 按 entry_regime 查表（DOWN→L_TP 4.0%, MILD_UP→L_MH 7, UP→S_MH 8）
+    try:
+        import strategy as _strat_ep
+    except Exception:
+        _strat_ep = None
     for d in result["positions"]["details"]:
         ep = d.get("entry_price", 0)
         if not ep or ep <= 0:
@@ -443,24 +450,29 @@ async def api_status(mode: str = Query("paper")):
         mark = d.get("mark_price") or last_close  # fallback to last_close
         if not mark or mark <= 0:
             continue
+        entry_regime = d.get("entry_regime", "NA")
 
         if sub == "L":
             unr_pct = (mark - ep) / ep * 100
+            l_tp_pct = (_strat_ep.get_l_tp(entry_regime) * 100) if _strat_ep else 3.5
+            l_mh_full = _strat_ep.get_l_mh(entry_regime) if _strat_ep else 6
+            l_cond_reduced = int(getattr(_strat_ep, "L_COND_REDUCED_MH", 5)) if _strat_ep else 5
             safenet_dist = round(-3.5 - unr_pct, 2)
-            tp_dist = round(3.5 - unr_pct, 2)
+            tp_dist = round(l_tp_pct - unr_pct, 2)
             mh_reduced = d.get("mh_reduced", False)
-            effective_mh = 5 if mh_reduced else 6
+            effective_mh = l_cond_reduced if mh_reduced else l_mh_full
             running_mfe = d.get("running_mfe", 0.0)
             d["exit_progress"] = {
                 "unrealized_pct": round(unr_pct, 2),
                 "unrealized_pnl": d.get("unrealized_pnl"),
                 "safenet": {"threshold": -3.5, "current": round(unr_pct, 2), "distance": safenet_dist},
-                "tp": {"threshold": 3.5, "current": round(unr_pct, 2), "distance": tp_dist},
+                "tp": {"threshold": l_tp_pct, "current": round(unr_pct, 2), "distance": tp_dist},
                 "mfe_trail": {"running_mfe": round(running_mfe * 100, 2), "act": 1.0, "dd": 0.8},
                 "max_hold": {"threshold": effective_mh, "bars_held": bars, "remaining": max(0, effective_mh - bars)},
             }
         elif sub == "S":
             unr_pct = (ep - mark) / ep * 100
+            s_mh_full = _strat_ep.get_s_mh(entry_regime) if _strat_ep else 10
             safenet_dist = round(4.0 - abs(unr_pct), 2) if unr_pct < 0 else round(4.0 + unr_pct, 2)
             tp_dist = round(2.0 - unr_pct, 2)
             d["exit_progress"] = {
@@ -469,7 +481,7 @@ async def api_status(mode: str = Query("paper")):
                 "safenet": {"threshold": 4.0, "current": round(-unr_pct if unr_pct < 0 else 0, 2),
                             "distance": round(4.0 - (-unr_pct if unr_pct < 0 else 0), 2)},
                 "tp": {"threshold": 2.0, "current": round(unr_pct, 2), "distance": tp_dist},
-                "max_hold": {"threshold": 10, "bars_held": bars, "remaining": max(0, 10 - bars)},
+                "max_hold": {"threshold": s_mh_full, "bars_held": bars, "remaining": max(0, s_mh_full - bars)},
             }
 
     # 最近 5 筆交易（給 Status 頁迷你表格用）
