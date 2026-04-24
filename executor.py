@@ -17,6 +17,7 @@ V14 新增：L 持倉新增 running_mfe / mh_reduced 欄位（MFE Trailing + Con
 """
 import os
 import json
+import copy
 import logging
 import threading
 from datetime import datetime, timedelta
@@ -179,17 +180,19 @@ class Executor:
             logger.error(f"Balance sync failed: {e}")
 
     def save_state(self):
-        """儲存狀態到 eth_state.json（持鎖拍快照 + atomic replace）"""
-        # 持鎖複製 dict 避免 json.dump 迭代中 positions 被其他 thread 改變
+        """儲存狀態到 eth_state.json（持鎖深拷貝 + atomic replace）"""
+        # 持鎖 deepcopy 兩層嵌套 dict（positions / daily_stats value 都是 dict），
+        # 避免鎖外 json.dump 期間其他 thread 改 pos 內部欄位污染序列化結果。
+        # 其他 dict value 都是 primitive，淺拷貝 dict(...) 已足夠。
         with self._lock:
             state = {
-                "positions": dict(self.positions),
+                "positions": copy.deepcopy(self.positions),
                 "last_exits": dict(self.last_exits),
                 "account_balance": round(self.account_balance, 4),
                 "bar_counter": self.bar_counter,
                 "last_bar_time": self.last_bar_time,
                 "trade_number": self.trade_number,
-                "daily_stats": dict(self.daily_stats),
+                "daily_stats": copy.deepcopy(self.daily_stats),
                 "circuit_breaker": {
                     "monthly_pnl": dict(self.monthly_pnl),
                     "monthly_entries": dict(self.monthly_entries),
@@ -716,36 +719,38 @@ class Executor:
 
     def update_tracking(self, trade_id: str, bar_data: dict, bar_counter: int):
         """每 bar 更新持倉追蹤：MAE/MFE。"""
-        pos = self.positions.get(trade_id)
-        if pos is None:
-            return
+        # 持鎖寫 pos 內部欄位，避免與 Telegram listener /status iterate positions 並發
+        with self._lock:
+            pos = self.positions.get(trade_id)
+            if pos is None:
+                return
 
-        entry_price = pos["entry_price"]
-        if not entry_price or entry_price <= 0:
-            logger.error(f"update_tracking: {trade_id} has invalid entry_price={entry_price}, skipping")
-            return
+            entry_price = pos["entry_price"]
+            if not entry_price or entry_price <= 0:
+                logger.error(f"update_tracking: {trade_id} has invalid entry_price={entry_price}, skipping")
+                return
 
-        side = pos["side"]
-        bars_held = bar_counter - pos["entry_bar_counter"]
-        pos["bars_held"] = bars_held
+            side = pos["side"]
+            bars_held = bar_counter - pos["entry_bar_counter"]
+            pos["bars_held"] = bars_held
 
-        bar_high = bar_data["high"]
-        bar_low = bar_data["low"]
+            bar_high = bar_data["high"]
+            bar_low = bar_data["low"]
 
-        if side == "long":
-            adverse = (bar_low - entry_price) / entry_price * 100
-            favorable = (bar_high - entry_price) / entry_price * 100
-        else:
-            adverse = (entry_price - bar_high) / entry_price * 100
-            favorable = (entry_price - bar_low) / entry_price * 100
+            if side == "long":
+                adverse = (bar_low - entry_price) / entry_price * 100
+                favorable = (bar_high - entry_price) / entry_price * 100
+            else:
+                adverse = (entry_price - bar_high) / entry_price * 100
+                favorable = (entry_price - bar_low) / entry_price * 100
 
-        if adverse < pos.get("mae_pct", 0):
-            pos["mae_pct"] = adverse
-            pos["mae_time_bar"] = bars_held
+            if adverse < pos.get("mae_pct", 0):
+                pos["mae_pct"] = adverse
+                pos["mae_time_bar"] = bars_held
 
-        if favorable > pos.get("mfe_pct", 0):
-            pos["mfe_pct"] = favorable
-            pos["mfe_time_bar"] = bars_held
+            if favorable > pos.get("mfe_pct", 0):
+                pos["mfe_pct"] = favorable
+                pos["mfe_time_bar"] = bars_held
 
     def get_open_positions(self) -> list:
         """回傳所有持倉的 list"""
