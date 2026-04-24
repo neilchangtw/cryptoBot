@@ -62,8 +62,6 @@ cryptoBot/
 │
 │  ── 診斷工具 ──
 ├── check_health.py        # 策略健康報告（8 項指標：月交易量/SafeNet率/勝率/PF/DD...）
-├── compare_backtest.py    # 回測 vs 實盤逐筆對比
-├── verify_strategy.py     # strategy.py GK 指標 + 交易邏輯正確性驗證
 │
 │  ── 儀表板（Dashboard） ──
 ├── dashboard/
@@ -434,8 +432,6 @@ call .venv\Scripts\activate
 python dashboard/app.py         # 啟動儀表板（自動啟動機器人）
 python main_eth.py              # 單獨啟動機器人（不開儀表板）
 python check_health.py --days 30  # 健康報告
-python compare_backtest.py       # 回測 vs 實盤對比
-python verify_strategy.py        # 驗證策略一致性
 ```
 
 ---

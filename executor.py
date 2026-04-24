@@ -18,6 +18,7 @@ V14 新增：L 持倉新增 running_mfe / mh_reduced 欄位（MFE Trailing + Con
 import os
 import json
 import logging
+import threading
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -60,6 +61,11 @@ class Executor:
         self.consec_losses = 0                         # 連續虧損筆數
         self.consec_loss_cooldown_until = 0            # 連虧冷卻結束的 bar_counter
         self.paused = False                            # Telegram /pause 暫停開倉
+
+        # Thread safety: main loop 與 Telegram listener daemon thread 並發存取
+        # positions/daily_stats/paused 等狀態。RLock 允許同一 thread 重入
+        # （例如 open_position 內呼叫 save_state）。
+        self._lock = threading.RLock()
 
         self._load_state()
         self._init_balance()
@@ -169,26 +175,28 @@ class Executor:
             logger.error(f"Balance sync failed: {e}")
 
     def save_state(self):
-        """儲存狀態到 eth_state.json"""
-        state = {
-            "positions": self.positions,
-            "last_exits": self.last_exits,
-            "account_balance": round(self.account_balance, 4),
-            "bar_counter": self.bar_counter,
-            "last_bar_time": self.last_bar_time,
-            "trade_number": self.trade_number,
-            "daily_stats": self.daily_stats,
-            "circuit_breaker": {
-                "monthly_pnl": self.monthly_pnl,
-                "monthly_entries": self.monthly_entries,
-                "monthly_key": self.monthly_key,
-                "daily_pnl": self.daily_pnl,
-                "daily_key": self.daily_key,
-                "consec_losses": self.consec_losses,
-                "consec_loss_cooldown_until": self.consec_loss_cooldown_until,
-            },
-            "paused": self.paused,
-        }
+        """儲存狀態到 eth_state.json（持鎖拍快照 + atomic replace）"""
+        # 持鎖複製 dict 避免 json.dump 迭代中 positions 被其他 thread 改變
+        with self._lock:
+            state = {
+                "positions": dict(self.positions),
+                "last_exits": dict(self.last_exits),
+                "account_balance": round(self.account_balance, 4),
+                "bar_counter": self.bar_counter,
+                "last_bar_time": self.last_bar_time,
+                "trade_number": self.trade_number,
+                "daily_stats": dict(self.daily_stats),
+                "circuit_breaker": {
+                    "monthly_pnl": dict(self.monthly_pnl),
+                    "monthly_entries": dict(self.monthly_entries),
+                    "monthly_key": self.monthly_key,
+                    "daily_pnl": self.daily_pnl,
+                    "daily_key": self.daily_key,
+                    "consec_losses": self.consec_losses,
+                    "consec_loss_cooldown_until": self.consec_loss_cooldown_until,
+                },
+                "paused": self.paused,
+            }
         tmp_path = self.state_path + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2, ensure_ascii=False, default=str)
@@ -283,6 +291,13 @@ class Executor:
         Returns:
             trade_id or None
         """
+        with self._lock:
+            return self._open_position_locked(side, sub_strategy, entry_price,
+                                              bar_counter, signal_indicators,
+                                              bar_data, btc_context)
+
+    def _open_position_locked(self, side, sub_strategy, entry_price, bar_counter,
+                               signal_indicators, bar_data, btc_context):
         self.trade_number += 1
         dt_utc8 = bar_data["datetime"]
         dt_utc = dt_utc8 - timedelta(hours=8) if isinstance(dt_utc8, datetime) else dt_utc8
@@ -486,6 +501,12 @@ class Executor:
                        bar_counter: int, bar_data: dict,
                        btc_context: dict) -> dict:
         """平倉。平倉失敗時保留持倉狀態，下一 bar 重試。"""
+        with self._lock:
+            return self._close_position_locked(trade_id, exit_price, exit_reason,
+                                               bar_counter, bar_data, btc_context)
+
+    def _close_position_locked(self, trade_id, exit_price, exit_reason,
+                                bar_counter, bar_data, btc_context):
         pos = self.positions.get(trade_id)
         if pos is None:
             logger.warning(f"close_position: {trade_id} not found")

@@ -319,8 +319,8 @@ def _handle_balance(executor, cmd_logger):
 def _handle_pnl(executor, cmd_logger):
     """回報今日 + 本月 PnL。"""
     try:
-        # 今日
-        today_key = datetime.utcnow().strftime("%Y-%m-%d")
+        # 今日（UTC+8，對齊 executor.daily_stats key）
+        today_key = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d")
         today = executor.daily_stats.get(today_key, {})
         today_pnl = today.get("pnl", 0.0)
         today_trades = today.get("trades_closed", 0)
@@ -618,7 +618,11 @@ def main():
     skip_old_updates()  # 跳過啟動前的舊訊息
 
     def telegram_command_listener():
-        """每 10 秒輪詢 Telegram 指令。"""
+        """每 10 秒輪詢 Telegram 指令。
+
+        所有 dispatch 都持 executor._lock，避免與主迴圈並發寫
+        positions / paused / daily_stats（包含 save_state 的 json.dump）。
+        """
         cmd_logger = logging.getLogger("telegram_cmd")
         while True:
             try:
@@ -627,28 +631,29 @@ def main():
                     cmd_lower = cmd.lower().split()[0]  # 取第一個字（忽略參數）
                     cmd_logger.info(f"Received command: {cmd}")
 
-                    if cmd_lower in ("/cleanup", "/clean"):
-                        _handle_cleanup(executor, cmd_logger)
-                    elif cmd_lower in ("/status", "/pos"):
-                        _handle_status(executor, cmd_logger)
-                    elif cmd_lower in ("/bal", "/balance"):
-                        _handle_balance(executor, cmd_logger)
-                    elif cmd_lower == "/pnl":
-                        _handle_pnl(executor, cmd_logger)
-                    elif cmd_lower == "/trades":
-                        _handle_trades(executor, cmd_logger)
-                    elif cmd_lower in ("/alerts", "/warn"):
-                        _handle_alerts(cmd_logger)
-                    elif cmd_lower == "/cb":
-                        _handle_circuit_breaker(executor, cmd_logger)
-                    elif cmd_lower == "/pause":
-                        _handle_pause(executor, cmd_logger)
-                    elif cmd_lower == "/resume":
-                        _handle_resume(executor, cmd_logger)
-                    elif cmd_lower == "/help":
-                        _handle_help()
-                    else:
-                        send_telegram_message(f"❓ 未知指令：{cmd}\n輸入 /help 查看可用指令")
+                    with executor._lock:
+                        if cmd_lower in ("/cleanup", "/clean"):
+                            _handle_cleanup(executor, cmd_logger)
+                        elif cmd_lower in ("/status", "/pos"):
+                            _handle_status(executor, cmd_logger)
+                        elif cmd_lower in ("/bal", "/balance"):
+                            _handle_balance(executor, cmd_logger)
+                        elif cmd_lower == "/pnl":
+                            _handle_pnl(executor, cmd_logger)
+                        elif cmd_lower == "/trades":
+                            _handle_trades(executor, cmd_logger)
+                        elif cmd_lower in ("/alerts", "/warn"):
+                            _handle_alerts(cmd_logger)
+                        elif cmd_lower == "/cb":
+                            _handle_circuit_breaker(executor, cmd_logger)
+                        elif cmd_lower == "/pause":
+                            _handle_pause(executor, cmd_logger)
+                        elif cmd_lower == "/resume":
+                            _handle_resume(executor, cmd_logger)
+                        elif cmd_lower == "/help":
+                            _handle_help()
+                        else:
+                            send_telegram_message(f"❓ 未知指令：{cmd}\n輸入 /help 查看可用指令")
             except Exception as e:
                 cmd_logger.debug(f"Command listener error: {e}")
             time.sleep(10)
@@ -658,7 +663,17 @@ def main():
     logger.info("Telegram command listener started (10s polling)")
 
     last_heartbeat_bar = executor.bar_counter
-    last_daily_date = None
+    # 啟動時 seed 今日 UTC+8；並 flush 所有 < today 的陳舊 daily_stats
+    # （否則跨午夜重啟會漏寫前一日 daily_summary.csv）
+    today_str_startup = now_utc8().strftime("%Y-%m-%d")
+    stale_keys = sorted(k for k in list(executor.daily_stats.keys()) if k < today_str_startup)
+    for k in stale_keys:
+        try:
+            executor.flush_daily_summary(k)
+            logger.info(f"Startup: flushed stale daily_stats {k}")
+        except Exception as e:
+            logger.warning(f"Startup flush failed for {k}: {e}")
+    last_daily_date = today_str_startup
 
     # ── 主循環 ──
     while True:
