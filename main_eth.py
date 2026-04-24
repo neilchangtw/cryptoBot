@@ -663,17 +663,11 @@ def main():
     logger.info("Telegram command listener started (10s polling)")
 
     last_heartbeat_bar = executor.bar_counter
-    # 啟動時 seed 今日 UTC+8；並 flush 所有 < today 的陳舊 daily_stats
-    # （否則跨午夜重啟會漏寫前一日 daily_summary.csv）
-    today_str_startup = now_utc8().strftime("%Y-%m-%d")
-    stale_keys = sorted(k for k in list(executor.daily_stats.keys()) if k < today_str_startup)
-    for k in stale_keys:
-        try:
-            executor.flush_daily_summary(k)
-            logger.info(f"Startup: flushed stale daily_stats {k}")
-        except Exception as e:
-            logger.warning(f"Startup flush failed for {k}: {e}")
-    last_daily_date = today_str_startup
+    # last_daily_date 從 state 載入（持久化），而非每次啟動重置為 None。
+    # - None：首次運行，主迴圈會直接 seed 為 today，不 flush（沒東西可 flush）
+    # - 等於 today：正常中途重啟，主迴圈不會觸發 flush（已寫過）
+    # - 小於 today：跨午夜重啟漏 flush，主迴圈會自動補 flush
+    last_daily_date = executor.last_daily_date
 
     # ── 主循環 ──
     while True:
@@ -993,11 +987,16 @@ def main():
             )
 
             # ── 6. 日結統計 ──
+            # 注意：last_daily_date 是「最後一次 flush 到 CSV 的日期」。
+            # 跨午夜（或跨午夜重啟）時 today_str > last_daily_date → 補 flush 一次，
+            # flush_daily_summary 內部會 del daily_stats[date_str] 避免之後重複寫。
             today_str = t_utc8.strftime("%Y-%m-%d")
-            if last_daily_date is not None and last_daily_date != today_str:
+            if last_daily_date is not None and last_daily_date < today_str:
                 executor.flush_daily_summary(last_daily_date)
                 logger.info(f"Daily summary flushed for {last_daily_date}")
-            last_daily_date = today_str
+            if last_daily_date != today_str:
+                last_daily_date = today_str
+                executor.last_daily_date = today_str  # 同步到 state 持久化
 
             # ── 7. 狀態持久化 ──
             executor.save_state()

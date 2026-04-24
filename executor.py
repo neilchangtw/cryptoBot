@@ -61,6 +61,7 @@ class Executor:
         self.consec_losses = 0                         # 連續虧損筆數
         self.consec_loss_cooldown_until = 0            # 連虧冷卻結束的 bar_counter
         self.paused = False                            # Telegram /pause 暫停開倉
+        self.last_daily_date = None                    # 最後一次 daily_summary flush 的 UTC+8 日期 (YYYY-MM-DD)
 
         # Thread safety: main loop 與 Telegram listener daemon thread 並發存取
         # positions/daily_stats/paused 等狀態。RLock 允許同一 thread 重入
@@ -139,6 +140,9 @@ class Executor:
             # 載入暫停狀態
             self.paused = state.get("paused", False)
 
+            # 載入 last_daily_date（V14+R fix: 防止跨午夜重啟漏 flush / 重複 flush）
+            self.last_daily_date = state.get("last_daily_date", None)
+
             logger.info(f"State loaded: {len(self.positions)} positions, "
                         f"bar_counter={self.bar_counter}"
                         + (" PAUSED" if self.paused else ""))
@@ -196,6 +200,7 @@ class Executor:
                     "consec_loss_cooldown_until": self.consec_loss_cooldown_until,
                 },
                 "paused": self.paused,
+                "last_daily_date": self.last_daily_date,
             }
         tmp_path = self.state_path + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
@@ -844,3 +849,7 @@ class Executor:
             "system_alerts": 0,
         }
         recorder.record_daily_summary(stats)
+        # 刪除已 flush 的日期，避免跨午夜重啟時被 startup 邏輯重複寫入 CSV
+        # （record_daily_summary 是純 append，無 dedup）
+        with self._lock:
+            self.daily_stats.pop(date_str, None)
