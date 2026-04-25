@@ -15,6 +15,8 @@ const S = {
     gkSeries: null,
     slopeChart: null,
     slopeSeries: null,
+    slopeData: [],   // 給 autoscaleInfoProvider 引用
+    chartRO: null,   // ResizeObserver（避免重複建立）
     equityChart: null,
     equitySeries: null,
     equityRO: null,
@@ -802,13 +804,28 @@ function initCharts() {
     // Slope 副圖：SMA200 斜率 (R gate)，作為最下方時間軸
     if (sc) {
         S.slopeChart = LightweightCharts.createChart(sc, {
-            ...baseOpts, width: sc.clientWidth, height: 130,
+            ...baseOpts, width: sc.clientWidth, height: sc.clientHeight || 130,
             timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2B2B43' },
         });
         S.slopeSeries = S.slopeChart.addLineSeries({
             color: '#ab47bc', lineWidth: 2, title: 'SMA200 斜率 %',
+            // ★ 修正「斜率怎看都沒變」：autoscale 只看資料範圍，
+            // 不被 +4.5/-1 reference line 撐開導致變化被壓平。
+            // 同時保證至少 ±1.5% 視窗，避免極端平緩段噪音放大。
+            autoscaleInfoProvider: (orig) => {
+                const data = S.slopeData || [];
+                if (!data.length) return orig();
+                let mn = Infinity, mx = -Infinity;
+                for (const p of data) {
+                    if (p.value < mn) mn = p.value;
+                    if (p.value > mx) mx = p.value;
+                }
+                const span = Math.max(mx - mn, 1.5);
+                const pad = span * 0.15;
+                return { priceRange: { minValue: mn - pad, maxValue: mx + pad } };
+            },
         });
-        // 固定參考線：+4.5% (L block) / +1% (S block upper) / -1% (S block lower)
+        // ±1% S block 參考線（autoscale 已 override，priceLines 不影響範圍）
         S.slopeSeries.createPriceLine({ price: 4.5, color: '#ef5350', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'L block' });
         S.slopeSeries.createPriceLine({ price: 1.0, color: '#f0b90b', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S block ↑' });
         S.slopeSeries.createPriceLine({ price: -1.0, color: '#f0b90b', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S block ↓' });
@@ -831,13 +848,22 @@ function initCharts() {
         syncFrom(c, charts.filter(x => x !== c));
     }
 
-    // Resize
-    const ro = new ResizeObserver(() => {
-        S.mainChart.applyOptions({ width: mc.clientWidth, height: mc.clientHeight || 300 });
-        S.gkChart.applyOptions({ width: gc.clientWidth });
-        if (S.slopeChart && sc) S.slopeChart.applyOptions({ width: sc.clientWidth });
+    // Resize：同時觀察三個容器，跳過 clientHeight=0（tab 切換 display:none 時）
+    // 避免「切回圖表分頁高度被退化成 fallback」造成 layout 跑掉
+    if (S.chartRO) { try { S.chartRO.disconnect(); } catch (e) {} }
+    S.chartRO = new ResizeObserver(() => {
+        const mh = mc.clientHeight, mw = mc.clientWidth;
+        if (mh > 0 && mw > 0) S.mainChart.applyOptions({ width: mw, height: mh });
+        const gh = gc.clientHeight, gw = gc.clientWidth;
+        if (gh > 0 && gw > 0) S.gkChart.applyOptions({ width: gw, height: gh });
+        if (S.slopeChart && sc) {
+            const sh = sc.clientHeight, sw = sc.clientWidth;
+            if (sh > 0 && sw > 0) S.slopeChart.applyOptions({ width: sw, height: sh });
+        }
     });
-    ro.observe(mc);
+    S.chartRO.observe(mc);
+    S.chartRO.observe(gc);
+    if (sc) S.chartRO.observe(sc);
 
     // 點擊標記顯示交易詳情
     S.mainChart.subscribeClick(param => {
@@ -921,8 +947,9 @@ function updateChartData(kd, trades) {
     });
     S.gkSeries.setData(gkFull);
 
-    // SMA200 斜率（V14+R regime gate）
+    // SMA200 斜率（V14+R regime gate）— 同步 cache 給 autoscaleInfoProvider 使用
     if (S.slopeSeries && kd.sma_slope) {
+        S.slopeData = kd.sma_slope;
         S.slopeSeries.setData(kd.sma_slope);
     }
 
