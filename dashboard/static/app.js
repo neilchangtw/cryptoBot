@@ -986,16 +986,16 @@ function initCharts() {
                 return d.toISOString().slice(5, 16).replace('T', ' ');
             };
             readout.innerHTML = `
-                <div class="ro-row"><span class="ro-label">Time</span><span>${fmtT(candle.time)}</span></div>
-                <div class="ro-row"><span class="ro-label">O</span><span>${candle.open.toFixed(2)}</span></div>
-                <div class="ro-row"><span class="ro-label">H</span><span>${candle.high.toFixed(2)}</span></div>
-                <div class="ro-row"><span class="ro-label">L</span><span>${candle.low.toFixed(2)}</span></div>
-                <div class="ro-row"><span class="ro-label">C</span><span class="${dirCls}">${candle.close.toFixed(2)}</span></div>
-                ${vol != null ? `<div class="ro-row"><span class="ro-label">Vol</span><span>${vol.value.toFixed(0)}</span></div>` : ''}
+                <div class="ro-row"><span class="ro-label">時間</span><span>${fmtT(candle.time)}</span></div>
+                <div class="ro-row"><span class="ro-label">開</span><span>${candle.open.toFixed(2)}</span></div>
+                <div class="ro-row"><span class="ro-label">高</span><span>${candle.high.toFixed(2)}</span></div>
+                <div class="ro-row"><span class="ro-label">低</span><span>${candle.low.toFixed(2)}</span></div>
+                <div class="ro-row"><span class="ro-label">收</span><span class="${dirCls}">${candle.close.toFixed(2)}</span></div>
+                ${vol != null ? `<div class="ro-row"><span class="ro-label">成交量</span><span>${vol.value.toFixed(0)}</span></div>` : ''}
                 ${ema ? `<div class="ro-row"><span class="ro-label">EMA20</span><span>${ema.value.toFixed(2)} (${emaDist!=null?(emaDist>=0?'+':'')+emaDist+'%':'-'})</span></div>` : ''}
-                ${gk != null ? `<div class="ro-row"><span class="ro-label">GK_L</span><span>${gk.value.toFixed(1)}</span></div>` : ''}
-                ${gks != null ? `<div class="ro-row"><span class="ro-label">GK_S</span><span>${gks.value.toFixed(1)}</span></div>` : ''}
-                ${slp != null ? `<div class="ro-row"><span class="ro-label">Slope</span><span>${(slp.value>=0?'+':'')+slp.value.toFixed(2)}%</span></div>` : ''}
+                ${gk != null ? `<div class="ro-row"><span class="ro-label">GK 多</span><span>${gk.value.toFixed(1)}</span></div>` : ''}
+                ${gks != null ? `<div class="ro-row"><span class="ro-label">GK 空</span><span>${gks.value.toFixed(1)}</span></div>` : ''}
+                ${slp != null ? `<div class="ro-row"><span class="ro-label">斜率</span><span>${(slp.value>=0?'+':'')+slp.value.toFixed(2)}%</span></div>` : ''}
             `;
             readout.classList.add('show');
         });
