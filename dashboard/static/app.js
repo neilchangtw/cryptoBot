@@ -18,10 +18,10 @@ const S = {
     slopeData: [],   // 給 autoscaleInfoProvider 引用
     chartRO: null,   // ResizeObserver（避免重複建立）
     volumeSeries: null,
-    candidateLSeries: null,
-    candidateSSeries: null,
     regimeBandSeries: null,  // slope 副圖 regime 背景帶（histogram）
     klineCache: null,        // 最近一次 /api/klines 結果（toggle 重繪用）
+    tradeMarkers: [],         // 交易進出場 markers（合併到 candleSeries）
+    candidateMarkers: [],     // 進場候選 markers（依 toggle 開關決定是否合併）
     chartLayers: {            // 顯示開關狀態（從 localStorage 讀）
         ema20: true, volume: true, candidates: true, positions: true, gk: true, slope: true,
     },
@@ -824,15 +824,7 @@ function initCharts() {
         visible: false,
     });
     S.ema20Series = S.mainChart.addLineSeries({ color: '#f0b90b', lineWidth: 2, title: 'EMA20' });
-    // L/S 進場候選 bar：用透明 line 上的 markers 表示
-    S.candidateLSeries = S.mainChart.addLineSeries({
-        color: 'rgba(0,0,0,0)', lastValueVisible: false, priceLineVisible: false,
-        crosshairMarkerVisible: false,
-    });
-    S.candidateSSeries = S.mainChart.addLineSeries({
-        color: 'rgba(0,0,0,0)', lastValueVisible: false, priceLineVisible: false,
-        crosshairMarkerVisible: false,
-    });
+    // L/S 進場候選 bar markers：合併到 candleSeries（避免獨立 series 拉壞 price scale + markers 擠在單點）
 
     // GK 副圖
     S.gkChart = LightweightCharts.createChart(gc, {
@@ -1042,8 +1034,8 @@ function applyChartLayers() {
     const L = S.chartLayers;
     if (S.ema20Series) S.ema20Series.applyOptions({ visible: L.ema20 });
     if (S.volumeSeries) S.volumeSeries.applyOptions({ visible: L.volume });
-    if (S.candidateLSeries) S.candidateLSeries.applyOptions({ visible: L.candidates });
-    if (S.candidateSSeries) S.candidateSSeries.applyOptions({ visible: L.candidates });
+    // 候選 markers toggle：重組 markers 合集（候選 + 交易），交給 candleSeries
+    setCombinedMarkers();
     // 副圖隱藏：DOM display:none，會觸發 ResizeObserver 跳過更新
     const gc = $('gk-chart'), sc = $('slope-chart');
     if (gc) gc.classList.toggle('hidden', !L.gk);
@@ -1136,29 +1128,30 @@ function updateChartData(kd, trades) {
         S.regimeBandSeries.setData(bandData);
     }
 
-    // ── 候選 bar markers（用透明 line 上掛 markers）──
-    if (S.candidateLSeries && S.candidateSSeries) {
-        // 透明 line 一個 dummy 點即可（series 必須有資料才能 setMarkers）
-        const lastTs = candles.length ? candles[candles.length - 1].time : 0;
-        S.candidateLSeries.setData([{ time: lastTs || 1, value: 0 }]);
-        S.candidateSSeries.setData([{ time: lastTs || 1, value: 0 }]);
-        const lMarkers = (kd.candidates_l || []).map(c => ({
+    // ── 候選 bar markers + Trade markers 合併到 candleSeries ──
+    // 只有 candleSeries 帶完整 candle 時間集合，外掛 series 會把 markers 擠到單點
+    const candleTimes = new Set(candles.map(c => c.time));
+    S.candidateMarkers = [];
+    for (const c of (kd.candidates_l || [])) {
+        if (!candleTimes.has(c.time)) continue;
+        S.candidateMarkers.push({
             time: c.time, position: 'belowBar', color: '#26a69a', shape: 'circle', text: '',
-        }));
-        const sMarkers = (kd.candidates_s || []).map(c => ({
+        });
+    }
+    for (const c of (kd.candidates_s || [])) {
+        if (!candleTimes.has(c.time)) continue;
+        S.candidateMarkers.push({
             time: c.time, position: 'aboveBar', color: '#ef5350', shape: 'circle', text: '',
-        }));
-        S.candidateLSeries.setMarkers(lMarkers);
-        S.candidateSSeries.setMarkers(sMarkers);
+        });
     }
 
     // ── 清除舊的持倉線並重繪 ──
     for (const ls of S.tradeLines) S.mainChart.removeSeries(ls);
     S.tradeLines = [];
 
-    // ── Trade markers ──
-    const markers = renderTradeMarkers(trades);
-    S.candleSeries.setMarkers(markers);
+    // ── Trade markers + 候選 markers 合併送 candleSeries ──
+    S.tradeMarkers = renderTradeMarkers(trades);
+    setCombinedMarkers();
 
     // 持倉期間進場價格線（依 toggle 開關）
     if (S.chartLayers.positions) renderPositionLines(candles, trades);
@@ -1175,6 +1168,16 @@ function updateChartData(kd, trades) {
             S.mainChart.timeScale().scrollToRealTime();
         }
     }
+}
+
+// 把候選 markers + trade markers 合併排序後送 candleSeries
+// 候選依 toggle 開關決定是否納入；trade markers 永遠顯示
+function setCombinedMarkers() {
+    if (!S.candleSeries) return;
+    const trade = S.tradeMarkers || [];
+    const cand = S.chartLayers.candidates ? (S.candidateMarkers || []) : [];
+    const merged = [...cand, ...trade].sort((a, b) => a.time - b.time);
+    S.candleSeries.setMarkers(merged);
 }
 
 function renderTradeMarkers(trades) {
