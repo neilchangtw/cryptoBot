@@ -669,9 +669,69 @@ body {
     overflow: hidden;
     margin-bottom: 16px;
 }
-#main-chart { width: 100%; height: max(300px, calc(100vh - 460px)); }
+#main-chart { width: 100%; height: max(300px, calc(100vh - 520px)); }
 #gk-chart { width: 100%; height: 130px; border-top: 1px solid var(--border); }
 #slope-chart { width: 100%; height: 130px; border-top: 1px solid var(--border); }
+/* 隱藏副圖時佔位 0 */
+#gk-chart.hidden, #slope-chart.hidden { display: none; }
+
+/* Chart Toolbar：時間範圍 + 顯示開關 */
+.chart-toolbar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    padding: 10px 14px; margin-bottom: 10px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.chart-range-btns { display: flex; gap: 4px; }
+.range-btn {
+    padding: 5px 12px; font-size: 12px; cursor: pointer;
+    background: var(--bg); color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 4px;
+    transition: all 0.15s ease;
+}
+.range-btn:hover { color: var(--text); border-color: var(--border-hover); }
+.range-btn.active { background: var(--gold-dim); color: var(--gold); border-color: var(--gold); }
+.chart-toggles { display: flex; flex-wrap: wrap; gap: 12px; margin-left: auto; }
+.chart-toggle {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 12px; color: var(--text-dim); cursor: pointer; user-select: none;
+}
+.chart-toggle input { cursor: pointer; accent-color: var(--gold); }
+.chart-toggle:hover { color: var(--text); }
+
+/* 浮動狀態面板（左上） */
+.chart-status-panel {
+    position: absolute; top: 8px; left: 12px; z-index: 5;
+    background: rgba(15, 15, 26, 0.85); backdrop-filter: blur(4px);
+    border: 1px solid var(--border-hover); border-radius: 6px;
+    padding: 8px 12px; font-size: 11px; line-height: 1.6;
+    color: var(--text); pointer-events: none;
+    min-width: 180px; max-width: 260px;
+}
+.chart-status-panel .csp-row { display: flex; justify-content: space-between; gap: 12px; }
+.chart-status-panel .csp-label { color: var(--text-dim); }
+.chart-status-panel .csp-divider { border-top: 1px solid var(--border); margin: 4px 0; }
+.chart-status-panel .csp-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; font-weight: 700;
+}
+.csp-tag.UP { background: rgba(239,83,80,0.2); color: #ef5350; }
+.csp-tag.MILD_UP { background: rgba(38,166,154,0.2); color: #26a69a; }
+.csp-tag.DOWN { background: rgba(91,134,229,0.2); color: #5b86e5; }
+.csp-tag.SIDE { background: rgba(240,185,11,0.2); color: #f0b90b; }
+.csp-tag.NA, .csp-tag.WARMUP { background: rgba(107,107,120,0.2); color: var(--text-dim); }
+
+/* Crosshair 即時讀數（右上） */
+.chart-readout {
+    position: absolute; top: 8px; right: 90px; z-index: 5;
+    background: rgba(15, 15, 26, 0.85); backdrop-filter: blur(4px);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 11px; line-height: 1.5; color: var(--text);
+    pointer-events: none; display: none;
+    font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+}
+.chart-readout.show { display: block; }
+.chart-readout .ro-row { display: flex; justify-content: space-between; gap: 8px; }
+.chart-readout .ro-label { color: var(--text-dim); }
 
 /* ── Chart Legend ── */
 .chart-legend {
@@ -904,8 +964,17 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
     .analytics-panel .strat-table { font-size: 11px; }
 
     /* K 線圖：手機上縮減高度避免佔滿螢幕 */
-    #main-chart { height: max(260px, calc(100vh - 380px)); }
+    #main-chart { height: max(260px, calc(100vh - 460px)); }
     #gk-chart, #slope-chart { height: 100px; }
+    /* Chart toolbar 手機版：壓縮間距 */
+    .chart-toolbar { gap: 8px; padding: 8px 10px; }
+    .chart-range-btns { width: 100%; justify-content: space-between; }
+    .range-btn { flex: 1; padding: 6px 4px; font-size: 11px; }
+    .chart-toggles { width: 100%; margin-left: 0; gap: 8px 12px; font-size: 11px; }
+    .chart-toggle { font-size: 11px; }
+    /* 浮動 panel 縮小，避免擋到 K 線 */
+    .chart-status-panel { font-size: 10px; padding: 6px 8px; min-width: 140px; max-width: 50%; }
+    .chart-readout { font-size: 10px; padding: 4px 6px; right: 70px; }
     .chart-legend {
         padding: 8px 10px;
         gap: 10px;

@@ -551,7 +551,7 @@ async def ws_status(ws: WebSocket):
 
 @app.get("/api/klines")
 async def api_klines(limit: int = Query(1500, ge=50, le=1500)):
-    """K 線 + EMA20 + GK pctile（不分 mode，同一個市場）"""
+    """K 線 + EMA20 + GK pctile + 成交量 + 進場候選 bar 標記（不分 mode）"""
     import data_feed
     import strategy
 
@@ -561,37 +561,81 @@ async def api_klines(limit: int = Query(1500, ge=50, le=1500)):
     candles = []
     ema20 = []
     gk_pctile = []
+    gk_pctile_s = []
     sma_slope = []
+    volume = []        # 成交量 histogram（依 close>open 染色）
+    candidates_l = []  # L 進場候選 bar (GK<25 + breakout_long + session_l)
+    candidates_s = []  # S 進場候選 bar (GK_S<35 + breakout_short + session_s)
+    regime_segs = []   # 連續 regime 區段 [{from, to, regime}]
+
+    L_GK = float(getattr(strategy, "L_GK_THRESH", 25))
+    S_GK = float(getattr(strategy, "S_GK_THRESH", 35))
+
+    last_regime = None
+    seg_start = None
+    seg_start_val = None
 
     for i in range(len(df)):
         row = df.iloc[i]
         ts = utc8_to_ts(row["datetime"])
         if ts <= 0:
             continue
+        op = float(row["open"]); cl = float(row["close"])
         candles.append({
-            "time": ts,
-            "open": round(float(row["open"]), 2),
+            "time": ts, "open": round(op, 2),
             "high": round(float(row["high"]), 2),
             "low": round(float(row["low"]), 2),
-            "close": round(float(row["close"]), 2),
+            "close": round(cl, 2),
         })
+        # 成交量（漲綠/跌紅 半透明）
+        v = clean_value(row.get("volume"))
+        if v is not None:
+            color = "rgba(38,166,154,0.55)" if cl >= op else "rgba(239,83,80,0.55)"
+            volume.append({"time": ts, "value": round(v, 2), "color": color})
         e = clean_value(row.get("ema20"))
         if e is not None:
             ema20.append({"time": ts, "value": round(e, 2)})
         g = clean_value(row.get("gk_pctile"))
         if g is not None:
             gk_pctile.append({"time": ts, "value": round(g, 2)})
+        gs = clean_value(row.get("gk_pctile_s"))
+        if gs is not None:
+            gk_pctile_s.append({"time": ts, "value": round(gs, 2)})
         s = clean_value(row.get("sma_slope"))
         if s is not None:
-            sma_slope.append({"time": ts, "value": round(s * 100, 3)})  # 轉百分比
+            sma_slope.append({"time": ts, "value": round(s * 100, 3)})
+
+            # Regime 連續區段（用百分比閾值與 strategy.classify_regime 對齊）
+            r = strategy.classify_regime(row.get("sma_slope"))
+            if r != last_regime:
+                if last_regime is not None and seg_start is not None:
+                    regime_segs.append({"from": seg_start, "to": ts, "regime": last_regime})
+                seg_start = ts; last_regime = r
+        # L 候選：GK<25 + breakout_long + session_ok_l
+        if g is not None and g < L_GK and bool(row.get("breakout_long")) and bool(row.get("session_ok_l")):
+            candidates_l.append({"time": ts, "price": round(float(row["low"]) * 0.997, 2)})
+        # S 候選：GK_S<35 + breakout_short + session_ok_s
+        if gs is not None and gs < S_GK and bool(row.get("breakout_short")) and bool(row.get("session_ok_s")):
+            candidates_s.append({"time": ts, "price": round(float(row["high"]) * 1.003, 2)})
+
+    # flush 最後一個 regime 區段
+    if last_regime is not None and seg_start is not None and len(candles) > 0:
+        regime_segs.append({"from": seg_start, "to": candles[-1]["time"], "regime": last_regime})
 
     return {
         "candles": candles,
         "ema20": ema20,
         "gk_pctile": gk_pctile,
+        "gk_pctile_s": gk_pctile_s,
         "sma_slope": sma_slope,
-        "regime_th_up": 4.5,    # L block 閾值（百分比）
-        "regime_th_side": 1.0,  # S block 閾值
+        "volume": volume,
+        "candidates_l": candidates_l,
+        "candidates_s": candidates_s,
+        "regime_segments": regime_segs,
+        "regime_th_up": 4.5,
+        "regime_th_side": 1.0,
+        "l_gk_thresh": L_GK,
+        "s_gk_thresh": S_GK,
     }
 
 

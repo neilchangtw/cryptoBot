@@ -17,6 +17,16 @@ const S = {
     slopeSeries: null,
     slopeData: [],   // 給 autoscaleInfoProvider 引用
     chartRO: null,   // ResizeObserver（避免重複建立）
+    volumeSeries: null,
+    candidateLSeries: null,
+    candidateSSeries: null,
+    regimeBandSeries: null,  // slope 副圖 regime 背景帶（histogram）
+    klineCache: null,        // 最近一次 /api/klines 結果（toggle 重繪用）
+    chartLayers: {            // 顯示開關狀態（從 localStorage 讀）
+        ema20: true, volume: true, candidates: true, positions: true, gk: true, slope: true,
+    },
+    chartRange: '1m',         // 當前選取的範圍鈕
+    chartUserZoomed: false,   // 使用者手動 zoom 後不再 auto-scroll
     equityChart: null,
     equitySeries: null,
     equityRO: null,
@@ -110,7 +120,7 @@ function switchMode(mode) {
     loadCurrentTab();
     // Mode 變動 → 重連 WS 帶新 mode
     closeStatusWS();
-    if (S.tab === 'status') openStatusWS();
+    if (S.tab === 'status' || S.tab === 'chart') openStatusWS();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -124,8 +134,8 @@ function switchTab(tab) {
         c.classList.toggle('active', c.id === `tab-${tab}`));
     resetCountdown();
     loadCurrentTab();
-    // 離開 status → 關 WS 省資源；切回 → 重開
-    if (tab === 'status') openStatusWS();
+    // status 與 chart 都需要 status WS（chart 浮動面板用）；其他 tab 關 WS 省資源
+    if (tab === 'status' || tab === 'chart') openStatusWS();
     else closeStatusWS();
 }
 
@@ -753,14 +763,16 @@ function renderHealth(h) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function loadChart() {
     try {
-        const [kd, td] = await Promise.all([
+        const [kd, td, sd] = await Promise.all([
             fetch('/api/klines?limit=1500').then(r => r.json()),
             api('/api/trades'),
+            api('/api/status').catch(() => null),
         ]);
         setConnStatus(true);
         if (!S.chartReady) initCharts();
         S.trades = td.trades || [];
         updateChartData(kd, S.trades);
+        if (sd) updateChartStatusPanel(sd);
     } catch (e) {
         setConnStatus(false);
         $('main-chart').innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
@@ -775,6 +787,15 @@ function initCharts() {
     gc.innerHTML = '';
     if (sc) sc.innerHTML = '';
 
+    // 載入 toggle 狀態
+    try {
+        const saved = JSON.parse(localStorage.getItem('cb_chart_layers') || 'null');
+        if (saved) Object.assign(S.chartLayers, saved);
+    } catch (e) {}
+    document.querySelectorAll('.chart-toggle input[data-layer]').forEach(inp => {
+        inp.checked = !!S.chartLayers[inp.dataset.layer];
+    });
+
     const baseOpts = {
         layout: { background: { color: '#000000' }, textColor: '#d1d4dc' },
         grid: { vertLines: { color: '#2B2B43' }, horzLines: { color: '#2B2B43' } },
@@ -782,7 +803,7 @@ function initCharts() {
         rightPriceScale: { borderColor: '#2B2B43', minimumWidth: 80 },
     };
 
-    // 主圖：隱藏底部時間軸（由 GK 副圖統一顯示）
+    // 主圖
     S.mainChart = LightweightCharts.createChart(mc, {
         ...baseOpts, width: mc.clientWidth, height: mc.clientHeight || 480,
         timeScale: { visible: false, borderColor: '#2B2B43' },
@@ -792,26 +813,52 @@ function initCharts() {
         borderUpColor: '#26a69a', borderDownColor: '#ef5350',
         wickUpColor: '#26a69a', wickDownColor: '#ef5350',
     });
+    // 成交量 histogram（疊在主圖下方 25% 區域）
+    S.volumeSeries = S.mainChart.addHistogramSeries({
+        priceFormat: { type: 'volume' },
+        priceScaleId: 'vol',
+        title: 'Volume',
+    });
+    S.mainChart.priceScale('vol').applyOptions({
+        scaleMargins: { top: 0.78, bottom: 0 },
+        visible: false,
+    });
     S.ema20Series = S.mainChart.addLineSeries({ color: '#f0b90b', lineWidth: 2, title: 'EMA20' });
+    // L/S 進場候選 bar：用透明 line 上的 markers 表示
+    S.candidateLSeries = S.mainChart.addLineSeries({
+        color: 'rgba(0,0,0,0)', lastValueVisible: false, priceLineVisible: false,
+        crosshairMarkerVisible: false,
+    });
+    S.candidateSSeries = S.mainChart.addLineSeries({
+        color: 'rgba(0,0,0,0)', lastValueVisible: false, priceLineVisible: false,
+        crosshairMarkerVisible: false,
+    });
 
-    // GK 副圖：隱藏時間軸（由 slope 副圖統一顯示）
+    // GK 副圖
     S.gkChart = LightweightCharts.createChart(gc, {
-        ...baseOpts, width: gc.clientWidth, height: 130,
+        ...baseOpts, width: gc.clientWidth, height: gc.clientHeight || 130,
         timeScale: { visible: false, borderColor: '#2B2B43' },
     });
     S.gkSeries = S.gkChart.addHistogramSeries({ color: '#5b86e5', title: 'GK 百分位 (Pctile)' });
 
-    // Slope 副圖：SMA200 斜率 (R gate)，作為最下方時間軸
+    // Slope 副圖：SMA200 斜率 (R gate) + regime 背景帶
     if (sc) {
         S.slopeChart = LightweightCharts.createChart(sc, {
             ...baseOpts, width: sc.clientWidth, height: sc.clientHeight || 130,
             timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2B2B43' },
         });
+        // Regime 背景帶（用獨立 priceScale，histogram 高度固定 = 1）
+        S.regimeBandSeries = S.slopeChart.addHistogramSeries({
+            priceScaleId: 'regime',
+            priceFormat: { type: 'volume' },
+            base: 0,
+        });
+        S.slopeChart.priceScale('regime').applyOptions({
+            scaleMargins: { top: 0.95, bottom: 0 },  // 只佔副圖底部 5% 高度
+            visible: false,
+        });
         S.slopeSeries = S.slopeChart.addLineSeries({
             color: '#ab47bc', lineWidth: 2, title: 'SMA200 斜率 %',
-            // ★ 修正「斜率怎看都沒變」：autoscale 只看資料範圍，
-            // 不被 +4.5/-1 reference line 撐開導致變化被壓平。
-            // 同時保證至少 ±1.5% 視窗，避免極端平緩段噪音放大。
             autoscaleInfoProvider: (orig) => {
                 const data = S.slopeData || [];
                 if (!data.length) return orig();
@@ -825,14 +872,13 @@ function initCharts() {
                 return { priceRange: { minValue: mn - pad, maxValue: mx + pad } };
             },
         });
-        // ±1% S block 參考線（autoscale 已 override，priceLines 不影響範圍）
         S.slopeSeries.createPriceLine({ price: 4.5, color: '#ef5350', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'L block' });
         S.slopeSeries.createPriceLine({ price: 1.0, color: '#f0b90b', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S block ↑' });
         S.slopeSeries.createPriceLine({ price: -1.0, color: '#f0b90b', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S block ↓' });
         S.slopeSeries.createPriceLine({ price: 0, color: '#555', lineWidth: 1, lineStyle: 3, axisLabelVisible: false });
     }
 
-    // Sync time scales
+    // Sync time scales + 標記使用者手動 zoom（暫停 auto-scroll）
     let syncing = false;
     const syncFrom = (from, targets) => {
         from.timeScale().subscribeVisibleLogicalRangeChange(range => {
@@ -840,6 +886,8 @@ function initCharts() {
             syncing = true;
             for (const t of targets) t.timeScale().setVisibleLogicalRange(range);
             syncing = false;
+            // 偵測使用者主動操作（drag/wheel）→ 暫停 auto-scroll
+            if (S._allowZoomDetect) S.chartUserZoomed = true;
         });
     };
     const charts = [S.mainChart, S.gkChart];
@@ -926,13 +974,122 @@ function initCharts() {
         }
     });
 
+    // ── Crosshair 即時讀數（OHLC + GK + slope + EMA20 距離）──
+    const readout = $('chart-readout');
+    if (readout) {
+        S.mainChart.subscribeCrosshairMove(param => {
+            if (!param.time || !S.klineCache) { readout.classList.remove('show'); return; }
+            const cache = S.klineCache;
+            const candle = (cache.candles || []).find(c => c.time === param.time);
+            if (!candle) { readout.classList.remove('show'); return; }
+            const ema = (cache.ema20 || []).find(e => e.time === param.time);
+            const gk  = (cache.gk_pctile || []).find(g => g.time === param.time);
+            const gks = (cache.gk_pctile_s || []).find(g => g.time === param.time);
+            const slp = (cache.sma_slope || []).find(s => s.time === param.time);
+            const vol = (cache.volume || []).find(v => v.time === param.time);
+            const dirCls = candle.close >= candle.open ? 'pnl-pos' : 'pnl-neg';
+            const emaDist = (ema && ema.value > 0) ? ((candle.close - ema.value) / ema.value * 100).toFixed(2) : null;
+            const fmtT = (ts) => {
+                const d = new Date(ts * 1000);
+                return d.toISOString().slice(5, 16).replace('T', ' ');
+            };
+            readout.innerHTML = `
+                <div class="ro-row"><span class="ro-label">Time</span><span>${fmtT(candle.time)}</span></div>
+                <div class="ro-row"><span class="ro-label">O</span><span>${candle.open.toFixed(2)}</span></div>
+                <div class="ro-row"><span class="ro-label">H</span><span>${candle.high.toFixed(2)}</span></div>
+                <div class="ro-row"><span class="ro-label">L</span><span>${candle.low.toFixed(2)}</span></div>
+                <div class="ro-row"><span class="ro-label">C</span><span class="${dirCls}">${candle.close.toFixed(2)}</span></div>
+                ${vol != null ? `<div class="ro-row"><span class="ro-label">Vol</span><span>${vol.value.toFixed(0)}</span></div>` : ''}
+                ${ema ? `<div class="ro-row"><span class="ro-label">EMA20</span><span>${ema.value.toFixed(2)} (${emaDist!=null?(emaDist>=0?'+':'')+emaDist+'%':'-'})</span></div>` : ''}
+                ${gk != null ? `<div class="ro-row"><span class="ro-label">GK_L</span><span>${gk.value.toFixed(1)}</span></div>` : ''}
+                ${gks != null ? `<div class="ro-row"><span class="ro-label">GK_S</span><span>${gks.value.toFixed(1)}</span></div>` : ''}
+                ${slp != null ? `<div class="ro-row"><span class="ro-label">Slope</span><span>${(slp.value>=0?'+':'')+slp.value.toFixed(2)}%</span></div>` : ''}
+            `;
+            readout.classList.add('show');
+        });
+    }
+
+    // ── 範圍快速鈕 ──
+    document.querySelectorAll('.range-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            S.chartRange = btn.dataset.range;
+            S.chartUserZoomed = false;  // 主動點 = 重置 zoom 鎖
+            applyChartRange();
+        });
+    });
+
+    // ── 顯示開關 ──
+    document.querySelectorAll('.chart-toggle input[data-layer]').forEach(inp => {
+        inp.addEventListener('change', () => {
+            S.chartLayers[inp.dataset.layer] = inp.checked;
+            try { localStorage.setItem('cb_chart_layers', JSON.stringify(S.chartLayers)); } catch (e) {}
+            applyChartLayers();
+        });
+    });
+
+    applyChartLayers();
+    // 初始化完成後才開始偵測 user zoom（避免初次 setData 被誤判）
+    setTimeout(() => { S._allowZoomDetect = true; }, 500);
+
     S.chartReady = true;
+}
+
+// 套用顯示開關（hide/show series + 副圖容器）
+function applyChartLayers() {
+    if (!S.chartReady && !S.mainChart) return;
+    const L = S.chartLayers;
+    if (S.ema20Series) S.ema20Series.applyOptions({ visible: L.ema20 });
+    if (S.volumeSeries) S.volumeSeries.applyOptions({ visible: L.volume });
+    if (S.candidateLSeries) S.candidateLSeries.applyOptions({ visible: L.candidates });
+    if (S.candidateSSeries) S.candidateSSeries.applyOptions({ visible: L.candidates });
+    // 副圖隱藏：DOM display:none，會觸發 ResizeObserver 跳過更新
+    const gc = $('gk-chart'), sc = $('slope-chart');
+    if (gc) gc.classList.toggle('hidden', !L.gk);
+    if (sc) sc.classList.toggle('hidden', !L.slope);
+    // 持倉線：重繪
+    if (S.klineCache && S.trades) {
+        for (const ls of S.tradeLines) S.mainChart.removeSeries(ls);
+        S.tradeLines = [];
+        if (L.positions) renderPositionLines(S.klineCache.candles || [], S.trades);
+    }
+}
+
+// 套用範圍鈕（依當前資料時間軸 setVisibleRange）
+function applyChartRange() {
+    if (!S.mainChart || !S.klineCache) return;
+    const candles = S.klineCache.candles || [];
+    if (candles.length === 0) return;
+    const last = candles[candles.length - 1].time;
+    const HOUR = 3600;
+    let from;
+    switch (S.chartRange) {
+        case '1d':  from = last - 24 * HOUR; break;
+        case '1w':  from = last - 7 * 24 * HOUR; break;
+        case '1m':  from = last - 30 * 24 * HOUR; break;
+        case '3m':  from = last - 90 * 24 * HOUR; break;
+        default:    from = candles[0].time;
+    }
+    S.mainChart.timeScale().setVisibleRange({ from, to: last + 5 * HOUR });
 }
 
 function updateChartData(kd, trades) {
     const candles = kd.candles || [];
+    S.klineCache = kd;  // crosshair tooltip + range/toggle 重繪用
+
+    // 保留使用者當前 zoom（updateData 不該打斷）
+    const prevRange = S.chartUserZoomed
+        ? S.mainChart.timeScale().getVisibleLogicalRange()
+        : null;
+
     S.candleSeries.setData(candles);
     S.ema20Series.setData(kd.ema20 || []);
+
+    // 成交量 histogram
+    if (S.volumeSeries) {
+        S.volumeSeries.setData(kd.volume || []);
+    }
 
     // 用 candles 的時間建立完整時間集合，GK 沒值的 bar 填 0（保持時間對齊）
     const gkMap = {};
@@ -947,89 +1104,206 @@ function updateChartData(kd, trades) {
     });
     S.gkSeries.setData(gkFull);
 
-    // SMA200 斜率（V14+R regime gate）— 同步 cache 給 autoscaleInfoProvider 使用
+    // SMA200 斜率
     if (S.slopeSeries && kd.sma_slope) {
         S.slopeData = kd.sma_slope;
         S.slopeSeries.setData(kd.sma_slope);
     }
 
-    // ── 清除舊的持倉線 ──
-    for (const ls of S.tradeLines) {
-        S.mainChart.removeSeries(ls);
+    // ── Regime 背景帶（slope 副圖底部色塊）──
+    if (S.regimeBandSeries) {
+        const REG_COLOR = {
+            UP:      'rgba(239,83,80,0.45)',   // 紅
+            MILD_UP: 'rgba(38,166,154,0.45)',  // 青綠
+            DOWN:    'rgba(91,134,229,0.45)',  // 藍
+            SIDE:    'rgba(240,185,11,0.45)',  // 金
+            NA:      'rgba(0,0,0,0)',
+        };
+        // 把 segments 展開成每個 candle 一筆 histogram point
+        const segs = kd.regime_segments || [];
+        const bandData = [];
+        let segIdx = 0;
+        for (const c of candles) {
+            // 找 c.time 落在哪個 segment
+            while (segIdx < segs.length && c.time >= segs[segIdx].to) segIdx++;
+            const seg = segs[segIdx];
+            if (seg && c.time >= seg.from && c.time < seg.to) {
+                bandData.push({ time: c.time, value: 1, color: REG_COLOR[seg.regime] || 'rgba(0,0,0,0)' });
+            } else {
+                bandData.push({ time: c.time, value: 0, color: 'rgba(0,0,0,0)' });
+            }
+        }
+        S.regimeBandSeries.setData(bandData);
     }
+
+    // ── 候選 bar markers（用透明 line 上掛 markers）──
+    if (S.candidateLSeries && S.candidateSSeries) {
+        // 透明 line 一個 dummy 點即可（series 必須有資料才能 setMarkers）
+        const lastTs = candles.length ? candles[candles.length - 1].time : 0;
+        S.candidateLSeries.setData([{ time: lastTs || 1, value: 0 }]);
+        S.candidateSSeries.setData([{ time: lastTs || 1, value: 0 }]);
+        const lMarkers = (kd.candidates_l || []).map(c => ({
+            time: c.time, position: 'belowBar', color: '#26a69a', shape: 'circle', text: '',
+        }));
+        const sMarkers = (kd.candidates_s || []).map(c => ({
+            time: c.time, position: 'aboveBar', color: '#ef5350', shape: 'circle', text: '',
+        }));
+        S.candidateLSeries.setMarkers(lMarkers);
+        S.candidateSSeries.setMarkers(sMarkers);
+    }
+
+    // ── 清除舊的持倉線並重繪 ──
+    for (const ls of S.tradeLines) S.mainChart.removeSeries(ls);
     S.tradeLines = [];
 
-    // ── Trade markers + 持倉期間進場價格線 ──
+    // ── Trade markers ──
+    const markers = renderTradeMarkers(trades);
+    S.candleSeries.setMarkers(markers);
+
+    // 持倉期間進場價格線（依 toggle 開關）
+    if (S.chartLayers.positions) renderPositionLines(candles, trades);
+
+    // ── Zoom 記憶：若使用者已 zoom 過 → 還原；否則才 scroll-to-realtime ──
+    if (prevRange) {
+        S.mainChart.timeScale().setVisibleLogicalRange(prevRange);
+    } else {
+        S.mainChart.timeScale().applyOptions({ rightOffset: 5 });
+        // 若有當前 range 鈕選擇，套用 range；否則預設 1M（避免顯示 1500 根太密）
+        if (S.chartRange && S.chartRange !== 'all') {
+            applyChartRange();
+        } else {
+            S.mainChart.timeScale().scrollToRealTime();
+        }
+    }
+}
+
+function renderTradeMarkers(trades) {
     const markers = [];
-    const lastCandleTime = candles.length > 0 ? candles[candles.length - 1].time : 0;
-
-    // 標記色系：藍=做多、橘=做空（避開 K 棒綠/紅）
-    const COLOR_L = '#42a5f5';   // 藍
-    const COLOR_S = '#ff9800';   // 橘
-
+    const COLOR_L = '#42a5f5', COLOR_S = '#ff9800';
     for (const t of trades) {
         const isLong = (t.direction || '').toUpperCase() === 'LONG';
         const sub = t.sub_strategy || (isLong ? 'L' : 'S');
         const dirColor = isLong ? COLOR_L : COLOR_S;
         const isClosed = t.exit_ts > 0 && t.exit_type;
         const pnl = t.net_pnl_usd;
-
-        // 進場標記：箭頭 + 方向文字
         if (t.entry_ts > 0) {
             markers.push({
                 time: t.entry_ts,
                 position: isLong ? 'belowBar' : 'aboveBar',
-                color: dirColor,
-                shape: isLong ? 'arrowUp' : 'arrowDown',
-                text: sub,
+                color: dirColor, shape: isLong ? 'arrowUp' : 'arrowDown', text: sub,
             });
         }
-
-        // 出場標記：圓點 + PnL 金額（同方向色）
         if (isClosed) {
             const pnlText = pnl != null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(1) : '';
             markers.push({
                 time: t.exit_ts,
                 position: isLong ? 'aboveBar' : 'belowBar',
-                color: dirColor,
-                shape: 'circle',
-                text: pnlText,
+                color: dirColor, shape: 'circle', text: pnlText,
             });
-        }
-
-        // 持倉期間進場價格線（方向色半透明，持倉中用金色）
-        const ep = t.entry_price;
-        if (t.entry_ts > 0 && ep > 0) {
-            const endTs = isClosed ? t.exit_ts : lastCandleTime;
-            if (endTs > 0) {
-                const lineData = [];
-                for (const c of candles) {
-                    if (c.time >= t.entry_ts && c.time <= endTs) {
-                        lineData.push({ time: c.time, value: ep });
-                    }
-                }
-                if (lineData.length >= 2) {
-                    const lineColor = !isClosed ? '#f0b90bcc' : (isLong ? '#42a5f5aa' : '#ff9800aa');
-                    const ls = S.mainChart.addLineSeries({
-                        color: lineColor,
-                        lineWidth: 2,
-                        lineStyle: 2,
-                        crosshairMarkerVisible: false,
-                        lastValueVisible: false,
-                        priceLineVisible: false,
-                    });
-                    ls.setData(lineData);
-                    S.tradeLines.push(ls);
-                }
-            }
         }
     }
     markers.sort((a, b) => a.time - b.time);
-    S.candleSeries.setMarkers(markers);
+    return markers;
+}
 
-    // 自動顯示最新 K 線，右邊留 5 根空間
-    S.mainChart.timeScale().applyOptions({ rightOffset: 5 });
-    S.mainChart.timeScale().scrollToRealTime();
+function renderPositionLines(candles, trades) {
+    const lastCandleTime = candles.length > 0 ? candles[candles.length - 1].time : 0;
+    for (const t of trades) {
+        const isLong = (t.direction || '').toUpperCase() === 'LONG';
+        const isClosed = t.exit_ts > 0 && t.exit_type;
+        const ep = t.entry_price;
+        if (!(t.entry_ts > 0 && ep > 0)) continue;
+        const endTs = isClosed ? t.exit_ts : lastCandleTime;
+        if (!(endTs > 0)) continue;
+        const lineData = [];
+        for (const c of candles) {
+            if (c.time >= t.entry_ts && c.time <= endTs) {
+                lineData.push({ time: c.time, value: ep });
+            }
+        }
+        if (lineData.length < 2) continue;
+        const lineColor = !isClosed ? '#f0b90bcc' : (isLong ? '#42a5f5aa' : '#ff9800aa');
+        const ls = S.mainChart.addLineSeries({
+            color: lineColor, lineWidth: 2, lineStyle: 2,
+            crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
+        });
+        ls.setData(lineData);
+        S.tradeLines.push(ls);
+    }
+}
+
+// ── Chart 浮動狀態面板（regime / GK / 持倉出場進度）──
+function updateChartStatusPanel(d) {
+    const el = $('chart-status-panel');
+    if (!el || !d) return;
+    const rg = d.regime || {};
+    const gkL = d.gk_pctile, gkS = d.gk_pctile_s;
+    const lc = d.last_close;
+    const pos = (d.positions && d.positions.details) || [];
+
+    const slopeStr = rg.slope_pct != null
+        ? (rg.slope_pct >= 0 ? '+' : '') + rg.slope_pct.toFixed(2) + '%'
+        : '-';
+    const regTag = `<span class="csp-tag ${rg.label || 'NA'}">${rg.label || 'NA'}</span>`;
+    const lBlock = rg.block_l ? '<span class="pnl-neg">L 擋</span>' : '<span class="pnl-pos">L ✓</span>';
+    const sBlock = rg.block_s ? '<span class="pnl-neg">S 擋</span>' : '<span class="pnl-pos">S ✓</span>';
+
+    const gkLClr = gkL == null ? 'var(--text-dim)'
+        : gkL < 25 ? 'var(--green)' : gkL < 35 ? '#06b6d4' : gkL < 50 ? 'var(--gold)' : 'var(--text-dim)';
+    const gkSClr = gkS == null ? 'var(--text-dim)'
+        : gkS < 25 ? 'var(--green)' : gkS < 35 ? '#06b6d4' : gkS < 50 ? 'var(--gold)' : 'var(--text-dim)';
+    const gkLStr = gkL != null ? gkL.toFixed(1) : '-';
+    const gkSStr = gkS != null ? gkS.toFixed(1) : '-';
+
+    let posHtml = '';
+    if (pos.length > 0) {
+        const lines = pos.map(p => {
+            const sub = p.sub_strategy || '';
+            const isL = sub === 'L';
+            const dirCls = isL ? 'dir-long' : 'dir-short';
+            const ep = p.entry_price || 0;
+            const mark = p.mark_price || lc || 0;
+            const unrPct = ep > 0 && mark > 0
+                ? (isL ? (mark - ep) / ep * 100 : (ep - mark) / ep * 100)
+                : 0;
+            const unrCls = unrPct >= 0 ? 'pnl-pos' : 'pnl-neg';
+            const ep_str = `<span class="${dirCls}">${sub}</span> $${ep.toFixed(2)} · ${p.bars_held || 0}h`;
+            const pct_str = `<span class="${unrCls}">${unrPct >= 0 ? '+' : ''}${unrPct.toFixed(2)}%</span>`;
+
+            // Exit progress 短摘要：剩餘 MH bars / 距 TP / 距 SafeNet
+            let exitStr = '';
+            const ep2 = p.exit_progress;
+            if (ep2) {
+                const parts = [];
+                if (ep2.max_hold) parts.push(`MH剩${ep2.max_hold.remaining}/${ep2.max_hold.threshold}`);
+                if (ep2.tp) {
+                    const td = ep2.tp.distance;
+                    parts.push(`TP差${td >= 0 ? td.toFixed(2) : '已到'}%`);
+                }
+                if (ep2.mfe_trail && ep2.mfe_trail.running_mfe > 0) {
+                    parts.push(`MFE${ep2.mfe_trail.running_mfe.toFixed(2)}%`);
+                }
+                exitStr = `<div class="csp-row" style="font-size:10px;color:var(--text-dim)">${parts.join(' · ')}</div>`;
+            }
+
+            return `<div class="csp-row">${ep_str}${pct_str}</div>${exitStr}`;
+        });
+        posHtml = `
+            <div class="csp-divider"></div>
+            <div class="csp-row"><span class="csp-label">持倉</span><span>${pos.length} 筆</span></div>
+            ${lines.join('')}
+        `;
+    }
+
+    el.innerHTML = `
+        <div class="csp-row"><span class="csp-label">Regime</span>${regTag}</div>
+        <div class="csp-row"><span class="csp-label">Slope</span><span>${slopeStr}</span></div>
+        <div class="csp-row"><span class="csp-label">Gate</span><span>${lBlock} | ${sBlock}</span></div>
+        <div class="csp-divider"></div>
+        <div class="csp-row"><span class="csp-label">GK_L (5/20)</span><span style="color:${gkLClr}">${gkLStr}</span></div>
+        <div class="csp-row"><span class="csp-label">GK_S (10/30)</span><span style="color:${gkSClr}">${gkSStr}</span></div>
+        ${posHtml}
+    `;
 }
 
 function scrollChartTo(ts) {
@@ -2056,18 +2330,23 @@ function openStatusWS() {
     _statusWS.onmessage = (ev) => {
         try {
             const m = JSON.parse(ev.data);
-            if (m.type === 'status' && m.data && S.tab === 'status') {
-                renderStatusCards(m.data);
-                renderGK(m.data);
-                renderEntryConditions(m.data.entry_conditions, m.data.positions, m.data.cooldowns);
-                renderRecentTrades(m.data.recent_trades || [], m.data.positions);
-                renderBreakers(m.data.breakers);
-                renderHealth(m.data.health);
+            if (m.type === 'status' && m.data) {
+                if (S.tab === 'status') {
+                    renderStatusCards(m.data);
+                    renderGK(m.data);
+                    renderEntryConditions(m.data.entry_conditions, m.data.positions, m.data.cooldowns);
+                    renderRecentTrades(m.data.recent_trades || [], m.data.positions);
+                    renderBreakers(m.data.breakers);
+                    renderHealth(m.data.health);
+                    triggerValuePop();
+                }
+                if (S.tab === 'chart') {
+                    updateChartStatusPanel(m.data);
+                }
                 lastRefreshTime = new Date();
                 refreshCountdown = REFRESH_INTERVAL;
                 updateTimerDisplay();
                 setConnStatus(true);
-                triggerValuePop();
             }
         } catch (e) {}
     };
