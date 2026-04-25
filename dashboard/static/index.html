@@ -62,9 +62,9 @@
             <label class="chart-toggle"><input type="checkbox" data-layer="volume" checked> 成交量</label>
             <label class="chart-toggle"><input type="checkbox" data-layer="candidates" checked> 進場候選</label>
             <label class="chart-toggle"><input type="checkbox" data-layer="positions" checked> 持倉線</label>
-            <label class="chart-toggle"><input type="checkbox" data-layer="funding"> 資金費率</label>
+            <label class="chart-toggle"><input type="checkbox" data-layer="slope" checked> 斜率(左軸)</label>
             <label class="chart-toggle"><input type="checkbox" data-layer="gk" checked> GK 副圖</label>
-            <label class="chart-toggle"><input type="checkbox" data-layer="slope" checked> 斜率副圖</label>
+            <label class="chart-toggle"><input type="checkbox" data-layer="funding" checked> 資金費率副圖</label>
         </div>
     </div>
     <div class="chart-container" style="position:relative">
@@ -83,8 +83,8 @@
         <span class="legend-item"><span class="legend-dot" style="background:#ef5350;border-radius:50%"></span>S 候選 bar</span>
         <span class="legend-item"><span class="legend-line-dash" style="border-color:#42a5f5"></span>持倉線</span>
         <span class="legend-item"><span class="legend-line" style="background:#f0b90b"></span>EMA20</span>
-        <span class="legend-item"><span class="legend-line" style="background:#ab47bc"></span>SMA200 斜率</span>
-        <span class="legend-item"><span class="legend-line" style="background:#00bcd4"></span>資金費率 (左軸)</span>
+        <span class="legend-item"><span class="legend-line" style="background:#ab47bc"></span>SMA200 斜率 (左軸)</span>
+        <span class="legend-item"><span class="legend-line" style="background:#00bcd4"></span>資金費率 (副圖)</span>
     </div>
     <div class="trade-tooltip" id="trade-tooltip"></div>
 </div>

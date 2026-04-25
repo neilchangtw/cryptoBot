@@ -13,18 +13,18 @@ const S = {
     ema20Series: null,
     gkChart: null,
     gkSeries: null,
-    slopeChart: null,
-    slopeSeries: null,
-    slopeData: [],   // 給 autoscaleInfoProvider 引用
-    chartRO: null,   // ResizeObserver（避免重複建立）
+    slopeSeries: null,        // SMA200 斜率（主圖左軸）
+    slopeData: [],            // 給 autoscaleInfoProvider 引用
+    fundingChart: null,       // 資金費率副圖（取代原本斜率副圖位置）
+    fundingSeries: null,
+    fundingData: [],
+    chartRO: null,            // ResizeObserver（避免重複建立）
     volumeSeries: null,
-    fundingSeries: null,     // 資金費率（左側價軸）
-    regimeBandSeries: null,  // slope 副圖 regime 背景帶（histogram）
     klineCache: null,        // 最近一次 /api/klines 結果（toggle 重繪用）
     tradeMarkers: [],         // 交易進出場 markers（合併到 candleSeries）
     candidateMarkers: [],     // 進場候選 markers（依 toggle 開關決定是否合併）
     chartLayers: {            // 顯示開關狀態（從 localStorage 讀）
-        ema20: true, volume: true, candidates: true, positions: true, funding: false, gk: true, slope: true,
+        ema20: true, volume: true, candidates: true, positions: true, funding: true, gk: true, slope: true,
     },
     chartRange: '1m',         // 當前選取的範圍鈕
     chartUserZoomed: false,   // 使用者手動 zoom 後不再 auto-scroll
@@ -826,13 +826,31 @@ function initCharts() {
         visible: false,
     });
     S.ema20Series = S.mainChart.addLineSeries({ color: '#f0b90b', lineWidth: 2, title: 'EMA20' });
-    // 資金費率（左側軸，階梯線；toggle 開關時才顯示，預設關閉避免左軸佔位）
-    S.fundingSeries = S.mainChart.addLineSeries({
-        color: '#00bcd4', lineWidth: 2, lineType: 1,  // 1 = WithSteps
-        priceScaleId: 'left', title: '資金費率%',
-        priceFormat: { type: 'price', precision: 4, minMove: 0.0001 },
-        visible: false,
+    // SMA200 斜率（左側軸；含 L/S block 門檻線；預設顯示）
+    S.slopeSeries = S.mainChart.addLineSeries({
+        color: '#ab47bc', lineWidth: 2, title: 'SMA200 斜率 %',
+        priceScaleId: 'left',
+        priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+        autoscaleInfoProvider: (orig) => {
+            const data = S.slopeData || [];
+            if (!data.length) return orig();
+            let mn = Infinity, mx = -Infinity;
+            for (const p of data) {
+                if (p.value < mn) mn = p.value;
+                if (p.value > mx) mx = p.value;
+            }
+            // 確保門檻線（+4.5 / ±1）也在視窗內
+            mn = Math.min(mn, -1.5);
+            mx = Math.max(mx, 5.0);
+            const span = Math.max(mx - mn, 1.5);
+            const pad = span * 0.10;
+            return { priceRange: { minValue: mn - pad, maxValue: mx + pad } };
+        },
     });
+    S.slopeSeries.createPriceLine({ price: 4.5, color: '#ef5350', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'L block' });
+    S.slopeSeries.createPriceLine({ price: 1.0, color: '#f0b90b', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S block ↑' });
+    S.slopeSeries.createPriceLine({ price: -1.0, color: '#f0b90b', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S block ↓' });
+    S.slopeSeries.createPriceLine({ price: 0, color: '#555', lineWidth: 1, lineStyle: 3, axisLabelVisible: false });
     // L/S 進場候選 bar markers：合併到 candleSeries（避免獨立 series 拉壞 price scale + markers 擠在單點）
 
     // GK 副圖
@@ -842,41 +860,35 @@ function initCharts() {
     });
     S.gkSeries = S.gkChart.addHistogramSeries({ color: '#5b86e5', title: 'GK 百分位 (Pctile)' });
 
-    // Slope 副圖：SMA200 斜率 (R gate) + regime 背景帶
+    // 資金費率副圖（取代原本的斜率副圖位置）
     if (sc) {
-        S.slopeChart = LightweightCharts.createChart(sc, {
+        S.fundingChart = LightweightCharts.createChart(sc, {
             ...baseOpts, width: sc.clientWidth, height: sc.clientHeight || 130,
             timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2B2B43' },
+            rightPriceScale: {
+                borderColor: '#2B2B43', minimumWidth: 80,
+                scaleMargins: { top: 0.15, bottom: 0.15 },
+            },
         });
-        // Regime 背景帶（用獨立 priceScale，histogram 高度固定 = 1）
-        S.regimeBandSeries = S.slopeChart.addHistogramSeries({
-            priceScaleId: 'regime',
-            priceFormat: { type: 'volume' },
-            base: 0,
-        });
-        S.slopeChart.priceScale('regime').applyOptions({
-            scaleMargins: { top: 0.95, bottom: 0 },  // 只佔副圖底部 5% 高度
-            visible: false,
-        });
-        S.slopeSeries = S.slopeChart.addLineSeries({
-            color: '#ab47bc', lineWidth: 2, title: 'SMA200 斜率 %',
+        S.fundingSeries = S.fundingChart.addAreaSeries({
+            lineColor: '#00bcd4', lineWidth: 2,
+            topColor: 'rgba(0,188,212,0.30)', bottomColor: 'rgba(0,188,212,0.02)',
+            priceFormat: { type: 'price', precision: 4, minMove: 0.0001 },
+            title: '資金費率%',
             autoscaleInfoProvider: (orig) => {
-                const data = S.slopeData || [];
+                const data = S.fundingData || [];
                 if (!data.length) return orig();
                 let mn = Infinity, mx = -Infinity;
                 for (const p of data) {
                     if (p.value < mn) mn = p.value;
                     if (p.value > mx) mx = p.value;
                 }
-                const span = Math.max(mx - mn, 1.5);
-                const pad = span * 0.15;
+                const span = Math.max(mx - mn, 0.02);
+                const pad = span * 0.20;
                 return { priceRange: { minValue: mn - pad, maxValue: mx + pad } };
             },
         });
-        S.slopeSeries.createPriceLine({ price: 4.5, color: '#ef5350', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'L block' });
-        S.slopeSeries.createPriceLine({ price: 1.0, color: '#f0b90b', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S block ↑' });
-        S.slopeSeries.createPriceLine({ price: -1.0, color: '#f0b90b', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S block ↓' });
-        S.slopeSeries.createPriceLine({ price: 0, color: '#555', lineWidth: 1, lineStyle: 3, axisLabelVisible: false });
+        S.fundingSeries.createPriceLine({ price: 0, color: '#555', lineWidth: 1, lineStyle: 3, axisLabelVisible: false });
     }
 
     // Sync time scales + 標記使用者手動 zoom（暫停 auto-scroll）
@@ -892,7 +904,7 @@ function initCharts() {
         });
     };
     const charts = [S.mainChart, S.gkChart];
-    if (S.slopeChart) charts.push(S.slopeChart);
+    if (S.fundingChart) charts.push(S.fundingChart);
     for (const c of charts) {
         syncFrom(c, charts.filter(x => x !== c));
     }
@@ -905,9 +917,9 @@ function initCharts() {
         if (mh > 0 && mw > 0) S.mainChart.applyOptions({ width: mw, height: mh });
         const gh = gc.clientHeight, gw = gc.clientWidth;
         if (gh > 0 && gw > 0) S.gkChart.applyOptions({ width: gw, height: gh });
-        if (S.slopeChart && sc) {
+        if (S.fundingChart && sc) {
             const sh = sc.clientHeight, sw = sc.clientWidth;
-            if (sh > 0 && sw > 0) S.slopeChart.applyOptions({ width: sw, height: sh });
+            if (sh > 0 && sw > 0) S.fundingChart.applyOptions({ width: sw, height: sh });
         }
     });
     S.chartRO.observe(mc);
@@ -1045,17 +1057,17 @@ function applyChartLayers() {
     const L = S.chartLayers;
     if (S.ema20Series) S.ema20Series.applyOptions({ visible: L.ema20 });
     if (S.volumeSeries) S.volumeSeries.applyOptions({ visible: L.volume });
-    if (S.fundingSeries) {
-        S.fundingSeries.applyOptions({ visible: L.funding });
-        // 左軸只在資金費率顯示時才開（避免空軸佔位）
-        if (S.mainChart) S.mainChart.priceScale('left').applyOptions({ visible: L.funding });
+    // 斜率（主圖左軸）：toggle 同時控制 series 可見與左軸顯示
+    if (S.slopeSeries) {
+        S.slopeSeries.applyOptions({ visible: L.slope });
+        if (S.mainChart) S.mainChart.priceScale('left').applyOptions({ visible: L.slope });
     }
     // 候選 markers toggle：重組 markers 合集（候選 + 交易），交給 candleSeries
     setCombinedMarkers();
     // 副圖隱藏：DOM display:none，會觸發 ResizeObserver 跳過更新
     const gc = $('gk-chart'), sc = $('slope-chart');
     if (gc) gc.classList.toggle('hidden', !L.gk);
-    if (sc) sc.classList.toggle('hidden', !L.slope);
+    if (sc) sc.classList.toggle('hidden', !L.funding);  // 副圖 2 = 資金費率
     // 持倉線：重繪
     if (S.klineCache && S.trades) {
         for (const ls of S.tradeLines) S.mainChart.removeSeries(ls);
@@ -1098,9 +1110,10 @@ function updateChartData(kd, trades) {
     if (S.volumeSeries) {
         S.volumeSeries.setData(kd.volume || []);
     }
-    // 資金費率（左側軸，階梯線）
+    // 資金費率（底部副圖，area）
     if (S.fundingSeries) {
-        S.fundingSeries.setData(kd.funding_rate || []);
+        S.fundingData = kd.funding_rate || [];
+        S.fundingSeries.setData(S.fundingData);
     }
 
     // 用 candles 的時間建立完整時間集合，GK 沒值的 bar 填 0（保持時間對齊）
@@ -1116,36 +1129,10 @@ function updateChartData(kd, trades) {
     });
     S.gkSeries.setData(gkFull);
 
-    // SMA200 斜率
+    // SMA200 斜率（移到主圖左軸）
     if (S.slopeSeries && kd.sma_slope) {
         S.slopeData = kd.sma_slope;
         S.slopeSeries.setData(kd.sma_slope);
-    }
-
-    // ── Regime 背景帶（slope 副圖底部色塊）──
-    if (S.regimeBandSeries) {
-        const REG_COLOR = {
-            UP:      'rgba(239,83,80,0.45)',   // 紅
-            MILD_UP: 'rgba(38,166,154,0.45)',  // 青綠
-            DOWN:    'rgba(91,134,229,0.45)',  // 藍
-            SIDE:    'rgba(240,185,11,0.45)',  // 金
-            NA:      'rgba(0,0,0,0)',
-        };
-        // 把 segments 展開成每個 candle 一筆 histogram point
-        const segs = kd.regime_segments || [];
-        const bandData = [];
-        let segIdx = 0;
-        for (const c of candles) {
-            // 找 c.time 落在哪個 segment
-            while (segIdx < segs.length && c.time >= segs[segIdx].to) segIdx++;
-            const seg = segs[segIdx];
-            if (seg && c.time >= seg.from && c.time < seg.to) {
-                bandData.push({ time: c.time, value: 1, color: REG_COLOR[seg.regime] || 'rgba(0,0,0,0)' });
-            } else {
-                bandData.push({ time: c.time, value: 0, color: 'rgba(0,0,0,0)' });
-            }
-        }
-        S.regimeBandSeries.setData(bandData);
     }
 
     // ── 候選 bar markers + Trade markers 合併到 candleSeries ──
