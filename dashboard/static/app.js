@@ -870,9 +870,8 @@ function initCharts() {
                 scaleMargins: { top: 0.15, bottom: 0.15 },
             },
         });
-        S.fundingSeries = S.fundingChart.addAreaSeries({
-            lineColor: '#00bcd4', lineWidth: 2,
-            topColor: 'rgba(0,188,212,0.30)', bottomColor: 'rgba(0,188,212,0.02)',
+        S.fundingSeries = S.fundingChart.addHistogramSeries({
+            base: 0,
             priceFormat: { type: 'price', precision: 4, minMove: 0.0001 },
             title: '資金費率%',
             autoscaleInfoProvider: (orig) => {
@@ -883,6 +882,9 @@ function initCharts() {
                     if (p.value < mn) mn = p.value;
                     if (p.value > mx) mx = p.value;
                 }
+                // 強制 0 軸對稱可見
+                mn = Math.min(mn, 0);
+                mx = Math.max(mx, 0);
                 const span = Math.max(mx - mn, 0.02);
                 const pad = span * 0.20;
                 return { priceRange: { minValue: mn - pad, maxValue: mx + pad } };
@@ -1110,10 +1112,16 @@ function updateChartData(kd, trades) {
     if (S.volumeSeries) {
         S.volumeSeries.setData(kd.volume || []);
     }
-    // 資金費率（底部副圖，area）
+    // 資金費率（底部副圖，histogram，正綠負紅）
     if (S.fundingSeries) {
-        S.fundingData = kd.funding_rate || [];
-        S.fundingSeries.setData(S.fundingData);
+        const raw = kd.funding_rate || [];
+        S.fundingData = raw;
+        const colored = raw.map(p => ({
+            time: p.time,
+            value: p.value,
+            color: p.value >= 0 ? 'rgba(38,166,154,0.85)' : 'rgba(239,83,80,0.85)',
+        }));
+        S.fundingSeries.setData(colored);
     }
 
     // 用 candles 的時間建立完整時間集合，GK 沒值的 bar 填 0（保持時間對齊）
