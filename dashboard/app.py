@@ -622,6 +622,34 @@ async def api_klines(limit: int = Query(1500, ge=50, le=1500)):
     if last_regime is not None and seg_start is not None and len(candles) > 0:
         regime_segs.append({"from": seg_start, "to": candles[-1]["time"], "regime": last_regime})
 
+    # ── 資金費率（Binance Futures 每 8h 一筆，最多 1000 筆 ≈ 333 天）──
+    # 對齊到 candle 時間：每根 bar 取「最近一次已生效」的費率（stepped line 用）
+    funding_rate = []
+    try:
+        import requests
+        fr_resp = requests.get(
+            "https://fapi.binance.com/fapi/v1/fundingRate",
+            params={"symbol": "ETHUSDT", "limit": 1000},
+            timeout=5,
+        )
+        if fr_resp.ok:
+            fr_data = fr_resp.json()
+            # fr_data: [{ symbol, fundingTime(ms), fundingRate("0.0001") }, ...] 已升冪
+            fr_pts = [(int(x["fundingTime"]) // 1000, float(x["fundingRate"])) for x in fr_data]
+            if fr_pts:
+                fr_pts.sort(key=lambda p: p[0])
+                fi = 0
+                last_fr = None
+                for c in candles:
+                    ct = c["time"]
+                    while fi < len(fr_pts) and fr_pts[fi][0] <= ct:
+                        last_fr = fr_pts[fi][1]
+                        fi += 1
+                    if last_fr is not None:
+                        funding_rate.append({"time": ct, "value": round(last_fr * 100, 4)})  # 轉百分比
+    except Exception:
+        funding_rate = []
+
     return {
         "candles": candles,
         "ema20": ema20,
@@ -632,6 +660,7 @@ async def api_klines(limit: int = Query(1500, ge=50, le=1500)):
         "candidates_l": candidates_l,
         "candidates_s": candidates_s,
         "regime_segments": regime_segs,
+        "funding_rate": funding_rate,
         "regime_th_up": 4.5,
         "regime_th_side": 1.0,
         "l_gk_thresh": L_GK,

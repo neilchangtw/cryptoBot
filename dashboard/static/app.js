@@ -18,12 +18,13 @@ const S = {
     slopeData: [],   // 給 autoscaleInfoProvider 引用
     chartRO: null,   // ResizeObserver（避免重複建立）
     volumeSeries: null,
+    fundingSeries: null,     // 資金費率（左側價軸）
     regimeBandSeries: null,  // slope 副圖 regime 背景帶（histogram）
     klineCache: null,        // 最近一次 /api/klines 結果（toggle 重繪用）
     tradeMarkers: [],         // 交易進出場 markers（合併到 candleSeries）
     candidateMarkers: [],     // 進場候選 markers（依 toggle 開關決定是否合併）
     chartLayers: {            // 顯示開關狀態（從 localStorage 讀）
-        ema20: true, volume: true, candidates: true, positions: true, gk: true, slope: true,
+        ema20: true, volume: true, candidates: true, positions: true, funding: false, gk: true, slope: true,
     },
     chartRange: '1m',         // 當前選取的範圍鈕
     chartUserZoomed: false,   // 使用者手動 zoom 後不再 auto-scroll
@@ -803,10 +804,11 @@ function initCharts() {
         rightPriceScale: { borderColor: '#2B2B43', minimumWidth: 80 },
     };
 
-    // 主圖
+    // 主圖（左軸給資金費率用，預設顯示）
     S.mainChart = LightweightCharts.createChart(mc, {
         ...baseOpts, width: mc.clientWidth, height: mc.clientHeight || 480,
         timeScale: { visible: false, borderColor: '#2B2B43' },
+        leftPriceScale: { visible: false, borderColor: '#2B2B43' },
     });
     S.candleSeries = S.mainChart.addCandlestickSeries({
         upColor: '#26a69a', downColor: '#ef5350',
@@ -824,6 +826,13 @@ function initCharts() {
         visible: false,
     });
     S.ema20Series = S.mainChart.addLineSeries({ color: '#f0b90b', lineWidth: 2, title: 'EMA20' });
+    // 資金費率（左側軸，階梯線；toggle 開關時才顯示，預設關閉避免左軸佔位）
+    S.fundingSeries = S.mainChart.addLineSeries({
+        color: '#00bcd4', lineWidth: 2, lineType: 1,  // 1 = WithSteps
+        priceScaleId: 'left', title: '資金費率%',
+        priceFormat: { type: 'price', precision: 4, minMove: 0.0001 },
+        visible: false,
+    });
     // L/S 進場候選 bar markers：合併到 candleSeries（避免獨立 series 拉壞 price scale + markers 擠在單點）
 
     // GK 副圖
@@ -979,6 +988,7 @@ function initCharts() {
             const gks = (cache.gk_pctile_s || []).find(g => g.time === param.time);
             const slp = (cache.sma_slope || []).find(s => s.time === param.time);
             const vol = (cache.volume || []).find(v => v.time === param.time);
+            const fr  = (cache.funding_rate || []).find(f => f.time === param.time);
             const dirCls = candle.close >= candle.open ? 'pnl-pos' : 'pnl-neg';
             const emaDist = (ema && ema.value > 0) ? ((candle.close - ema.value) / ema.value * 100).toFixed(2) : null;
             const fmtT = (ts) => {
@@ -996,6 +1006,7 @@ function initCharts() {
                 ${gk != null ? `<div class="ro-row"><span class="ro-label">GK 多</span><span>${gk.value.toFixed(1)}</span></div>` : ''}
                 ${gks != null ? `<div class="ro-row"><span class="ro-label">GK 空</span><span>${gks.value.toFixed(1)}</span></div>` : ''}
                 ${slp != null ? `<div class="ro-row"><span class="ro-label">斜率</span><span>${(slp.value>=0?'+':'')+slp.value.toFixed(2)}%</span></div>` : ''}
+                ${fr  != null ? `<div class="ro-row"><span class="ro-label">資金費</span><span class="${fr.value>=0?'pnl-pos':'pnl-neg'}">${(fr.value>=0?'+':'')+fr.value.toFixed(4)}%</span></div>` : ''}
             `;
             readout.classList.add('show');
         });
@@ -1034,6 +1045,11 @@ function applyChartLayers() {
     const L = S.chartLayers;
     if (S.ema20Series) S.ema20Series.applyOptions({ visible: L.ema20 });
     if (S.volumeSeries) S.volumeSeries.applyOptions({ visible: L.volume });
+    if (S.fundingSeries) {
+        S.fundingSeries.applyOptions({ visible: L.funding });
+        // 左軸只在資金費率顯示時才開（避免空軸佔位）
+        if (S.mainChart) S.mainChart.priceScale('left').applyOptions({ visible: L.funding });
+    }
     // 候選 markers toggle：重組 markers 合集（候選 + 交易），交給 candleSeries
     setCombinedMarkers();
     // 副圖隱藏：DOM display:none，會觸發 ResizeObserver 跳過更新
@@ -1081,6 +1097,10 @@ function updateChartData(kd, trades) {
     // 成交量 histogram
     if (S.volumeSeries) {
         S.volumeSeries.setData(kd.volume || []);
+    }
+    // 資金費率（左側軸，階梯線）
+    if (S.fundingSeries) {
+        S.fundingSeries.setData(kd.funding_rate || []);
     }
 
     // 用 candles 的時間建立完整時間集合，GK 沒值的 bar 填 0（保持時間對齊）
