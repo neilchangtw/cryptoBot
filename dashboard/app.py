@@ -369,10 +369,35 @@ async def api_status(mode: str = Query("paper")):
                 return v.lower() not in ('false', '0', '')
             return bool(v) if v is not None else False
 
+        # ── Breakout 門檻（下一根 bar 的觸發價）──
+        # L 門檻 = 最近 15 根 close 的最大值（含剛收盤這根）；下一根 close 必須 > 此值
+        # S 門檻 = 最近 15 根 close 的最小值；下一根 close 必須 < 此值
+        brk_threshold_l = None
+        brk_threshold_s = None
+        try:
+            recent_closes = snap_df["close"].dropna().tail(15)
+            if len(recent_closes) >= 15:
+                brk_threshold_l = round(float(recent_closes.max()), 2)
+                brk_threshold_s = round(float(recent_closes.min()), 2)
+            else:
+                # Fallback：bar_snapshots 不足 15 根 → 用 live data
+                import data_feed as _df_mod
+                _live_df = _df_mod.fetch_klines("ETHUSDT", "1h", 30)
+                _closes = _live_df["close"].tail(15)
+                if len(_closes) >= 15:
+                    brk_threshold_l = round(float(_closes.max()), 2)
+                    brk_threshold_s = round(float(_closes.min()), 2)
+        except Exception:
+            pass
+
         # L 進場條件（V14+R: GK<25 + BRK15 + Session_L + slope<=+4.5%）
         l_conds = {
             "gk": {"label": "GK < 25", "value": gk, "threshold": 25, "pass": bool(gk is not None and gk < 25)},
-            "breakout": {"label": "向上突破 15bar", "pass": bool(_brk_pass(brk_long))},
+            "breakout": {
+                "label": "向上突破 15bar",
+                "pass": bool(_brk_pass(brk_long)),
+                "threshold": brk_threshold_l,  # 下一根 close 必須 > 此值
+            },
             "session": {"label": "時段允許", "pass": bool(session_ok_l)},
             "regime": {"label": "非強多頭 (slope≤+4.5%)", "value": slope_raw, "pass": bool(regime_ok_l)},
         }
@@ -381,11 +406,22 @@ async def api_status(mode: str = Query("paper")):
         # S 進場條件（V14+R: GK_S<35 + BRK15 + Session_S + |slope|>=1%）
         s_conds = {
             "gk": {"label": "GK < 35", "value": gk_s, "threshold": 35, "pass": bool(gk_s is not None and gk_s < 35)},
-            "breakout": {"label": "向下突破 15bar", "pass": bool(_brk_pass(brk_short))},
+            "breakout": {
+                "label": "向下突破 15bar",
+                "pass": bool(_brk_pass(brk_short)),
+                "threshold": brk_threshold_s,  # 下一根 close 必須 < 此值
+            },
             "session": {"label": "時段允許", "pass": bool(session_ok_s)},
             "regime": {"label": "非橫盤 (|slope|≥1%)", "value": slope_raw, "pass": bool(regime_ok_s)},
         }
         s_total = sum([s_conds["gk"]["pass"], s_conds["breakout"]["pass"], s_conds["session"]["pass"], s_conds["regime"]["pass"]])
+
+        # 頂層也帶 breakout_thresholds（供 chart 浮動面板 + 主圖門檻線使用）
+        result["breakout_thresholds"] = {
+            "l_threshold": brk_threshold_l,
+            "s_threshold": brk_threshold_s,
+            "lookback": 15,
+        }
 
         result["entry_conditions"] = {
             "L": {"conditions": l_conds, "passed": l_total, "total": 4},

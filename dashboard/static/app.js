@@ -23,6 +23,7 @@ const S = {
     klineCache: null,        // 最近一次 /api/klines 結果（toggle 重繪用）
     tradeMarkers: [],         // 交易進出場 markers（合併到 candleSeries）
     candidateMarkers: [],     // 進場候選 markers（依 toggle 開關決定是否合併）
+    brkLines: [],             // L/S 突破門檻 priceLines（每次 status 更新重建）
     chartLayers: {            // 顯示開關狀態（從 localStorage 讀）
         ema20: true, volume: true, candidates: true, positions: true, funding: true, gk: true, slope: true,
     },
@@ -430,7 +431,11 @@ function renderEntryConditions(ec, positions, cooldowns) {
         </div>`;
     lHtml += cooldownBadge('L');
     if (lc.gk) lHtml += condRow('', lc.gk.pass, 'GK < 25（壓縮）', lc.gk.value != null ? lc.gk.value.toFixed(1) : '-');
-    if (lc.breakout) lHtml += condRow('', lc.breakout.pass, '向上突破 15bar', '');
+    if (lc.breakout) {
+        const t = lc.breakout.threshold;
+        const lcStr = t != null ? `≥ $${t.toFixed(2)}` : '';
+        lHtml += condRow('', lc.breakout.pass, '向上突破 15bar', lcStr);
+    }
     if (lc.session) lHtml += condRow('', lc.session.pass, '時段允許', sessionTimeStr('L'));
     if (lc.regime) lHtml += condRow('', lc.regime.pass, '非強多頭 (slope≤+4.5%)', lc.regime.value != null ? (lc.regime.value * 100).toFixed(2) + '%' : '-');
     lHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${lPct}%;background:${lColor}"></div></div>`;
@@ -450,7 +455,11 @@ function renderEntryConditions(ec, positions, cooldowns) {
         </div>`;
     sHtml += cooldownBadge('S');
     if (sc.gk) sHtml += condRow('', sc.gk.pass, 'GK < 35（壓縮）', sc.gk.value != null ? sc.gk.value.toFixed(1) : '-');
-    if (sc.breakout) sHtml += condRow('', sc.breakout.pass, '向下突破 15bar', '');
+    if (sc.breakout) {
+        const t = sc.breakout.threshold;
+        const scStr = t != null ? `≤ $${t.toFixed(2)}` : '';
+        sHtml += condRow('', sc.breakout.pass, '向下突破 15bar', scStr);
+    }
     if (sc.session) sHtml += condRow('', sc.session.pass, '時段允許', sessionTimeStr('S'));
     if (sc.regime) sHtml += condRow('', sc.regime.pass, '非橫盤 (|slope|≥1%)', sc.regime.value != null ? (sc.regime.value * 100).toFixed(2) + '%' : '-');
     sHtml += `<div class="entry-bar"><div class="entry-bar-fill" style="width:${sPct}%;background:${sColor}"></div></div>`;
@@ -1313,6 +1322,21 @@ function updateChartStatusPanel(d) {
         `;
     }
 
+    // 突破門檻（下一根 bar 的觸發價）
+    const bt = d.breakout_thresholds || {};
+    let brkHtml = '';
+    if (bt.l_threshold != null || bt.s_threshold != null) {
+        const lT = bt.l_threshold;
+        const sT = bt.s_threshold;
+        const lDist = (lT != null && lc > 0) ? ((lT - lc) / lc * 100) : null;
+        const sDist = (sT != null && lc > 0) ? ((lc - sT) / lc * 100) : null;
+        brkHtml = `
+            <div class="csp-divider"></div>
+            <div class="csp-row"><span class="csp-label">L 突破門檻</span><span class="pnl-pos">≥ $${lT != null ? lT.toFixed(2) : '-'}${lDist != null ? ` (差 ${lDist >= 0 ? '+' : ''}${lDist.toFixed(2)}%)` : ''}</span></div>
+            <div class="csp-row"><span class="csp-label">S 突破門檻</span><span class="pnl-neg">≤ $${sT != null ? sT.toFixed(2) : '-'}${sDist != null ? ` (差 ${sDist >= 0 ? '+' : ''}${sDist.toFixed(2)}%)` : ''}</span></div>
+        `;
+    }
+
     el.innerHTML = `
         <div class="csp-row"><span class="csp-label">Regime</span>${regTag}</div>
         <div class="csp-row"><span class="csp-label">Slope</span><span>${slopeStr}</span></div>
@@ -1320,8 +1344,31 @@ function updateChartStatusPanel(d) {
         <div class="csp-divider"></div>
         <div class="csp-row"><span class="csp-label">GK_L (5/20)</span><span style="color:${gkLClr}">${gkLStr}</span></div>
         <div class="csp-row"><span class="csp-label">GK_S (10/30)</span><span style="color:${gkSClr}">${gkSStr}</span></div>
+        ${brkHtml}
         ${posHtml}
     `;
+
+    // K 線主圖加 L/S 突破門檻虛線（每次更新先刪舊再加新）
+    if (S.candleSeries) {
+        if (S.brkLines) {
+            for (const ln of S.brkLines) {
+                try { S.candleSeries.removePriceLine(ln); } catch (e) {}
+            }
+        }
+        S.brkLines = [];
+        if (bt.l_threshold != null) {
+            S.brkLines.push(S.candleSeries.createPriceLine({
+                price: bt.l_threshold, color: '#26a69a', lineWidth: 1, lineStyle: 2,
+                axisLabelVisible: true, title: 'L 突破',
+            }));
+        }
+        if (bt.s_threshold != null) {
+            S.brkLines.push(S.candleSeries.createPriceLine({
+                price: bt.s_threshold, color: '#ef5350', lineWidth: 1, lineStyle: 2,
+                axisLabelVisible: true, title: 'S 突破',
+            }));
+        }
+    }
 }
 
 function scrollChartTo(ts) {
