@@ -1044,6 +1044,22 @@ def main():
                         gk_parts.append(f"S😴{gk_val_s:.0f}")
                 gk_status = " | ".join(gk_parts) if gk_parts else "N/A"
 
+                # 15-bar 突破門檻（下一根 close 觸發價）
+                brk_status = "N/A"
+                try:
+                    if idx >= strategy.BRK_LOOK - 1:
+                        recent_closes = df.iloc[idx - strategy.BRK_LOOK + 1: idx + 1]["close"]
+                        if len(recent_closes) >= strategy.BRK_LOOK:
+                            brk_l = float(recent_closes.max())
+                            brk_s = float(recent_closes.min())
+                            cur = float(bar_data["close"])
+                            l_dist = (brk_l - cur) / cur * 100
+                            s_dist = (brk_s - cur) / cur * 100
+                            brk_status = (f"L≥${brk_l:.2f}({l_dist:+.2f}%) ｜ "
+                                          f"S≤${brk_s:.2f}({s_dist:+.2f}%)")
+                except Exception:
+                    pass
+
                 # 風控狀態
                 cb_info = ""
                 if executor.consec_losses >= 2:
@@ -1122,10 +1138,11 @@ def main():
                 check_text = "\n".join(checks)
 
                 hb_msg = (
-                    f"<b>🖨 V14 運轉中…（第 {executor.bar_counter} 張）</b>\n"
+                    f"<b>🖨 V14 運轉中…（第 {executor.bar_counter} 根）</b>\n"
                     f"━━━━━━━━━━━━━━━\n"
                     f"💵 ETH：${bar_data['close']:.2f}\n"
                     f"🔋 壓縮能量：{gk_status}\n"
+                    f"🎯 突破門檻：{brk_status}\n"
                     f"🎰 持倉：\n{pos_text}\n"
                     f"💰 金庫：${executor.account_balance:.2f}{cb_info}\n"
                     f"━━━━━━━━━━━━━━━\n"

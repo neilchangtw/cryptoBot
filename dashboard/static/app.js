@@ -372,7 +372,7 @@ function sessionTimeStr(side) {
     if (inBlock) {
         return `${dayNames[d]} ${h}:00（封鎖中）`;
     }
-    return side === 'S' ? '二~五 3-11,13-23' : '二~六 3-11,13-23';
+    return side === 'S' ? '二~五 3-11,13-23' : '一~五 3-11,13-23';
 }
 
 function renderEntryConditions(ec, positions, cooldowns) {
@@ -518,14 +518,15 @@ function renderExitProgress(ep, sub) {
             const safeLabel = pct < 30 ? '安全' : pct < 70 ? '注意' : '危險';
             items += exitBarHtml('安全網 -3.5%', pct, clr, `已用 ${lossAmt.toFixed(1)}% / 3.5%（${safeLabel}）`);
         }
-        // L: TP +3.5%
+        // L: TP（regime-adjusted：DOWN→4.0%, 其他→3.5%）
         const tp = ep.tp;
         if (tp) {
+            const tpThr = tp.threshold || 3.5;  // backend 按 entry_regime 帶
             const profit = Math.max(0, tp.current);
-            const pct = Math.min(100, profit / 3.5 * 100);
+            const pct = Math.min(100, profit / tpThr * 100);
             const clr = pct > 70 ? 'var(--green)' : pct > 40 ? 'var(--gold)' : 'var(--text-dim)';
-            const label = pct >= 100 ? '即將止盈！' : `已賺 ${profit.toFixed(2)}% / 3.5%`;
-            items += exitBarHtml('止盈 +3.5%', pct, clr, label);
+            const label = pct >= 100 ? '即將止盈！' : `已賺 ${profit.toFixed(2)}% / ${tpThr.toFixed(1)}%`;
+            items += exitBarHtml(`止盈 +${tpThr.toFixed(1)}%`, pct, clr, label);
         }
         // L: MFE Trailing（V14 新增）
         const mft = ep.mfe_trail;
@@ -564,12 +565,13 @@ function renderExitProgress(ep, sub) {
             const safeLabel = pct < 30 ? '安全' : pct < 70 ? '注意' : '危險';
             items += exitBarHtml('安全網 +4.0%', pct, clr, `已虧 ${lossAmt.toFixed(1)}% / 4.0%（${safeLabel}）`);
         }
-        // S: MaxHold 10 bar
+        // S: MaxHold（regime-adjusted：UP→8, 其他→10）
         const mh = ep.max_hold;
         if (mh) {
-            const pct = Math.min(100, mh.bars_held / 10 * 100);
+            const th = mh.threshold || 10;
+            const pct = Math.min(100, mh.bars_held / th * 100);
             const clr = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--gold)' : 'var(--text-dim)';
-            items += exitBarHtml('時間止損 10h', pct, clr, `${mh.bars_held}/10h（剩 ${mh.remaining}h）`);
+            items += exitBarHtml(`時間止損 ${th}h`, pct, clr, `${mh.bars_held}/${th}h（剩 ${mh.remaining}h）`);
         }
     }
     return `<div class="exit-progress">${items}</div>`;
@@ -1588,7 +1590,7 @@ function regimeExplainHTML() {
                 <tbody>
                     <tr><td><b>UP</b></td><td>slope &gt; +4.5%</td><td>強多頭</td>
                         <td style="color:var(--gold)">只 S</td><td>-</td><td>-</td><td><b style="color:var(--green)">8</b></td></tr>
-                    <tr><td><b>MILD_UP</b></td><td>0 &lt; slope ≤ +4.5%</td><td>溫和多頭</td>
+                    <tr><td><b>MILD_UP</b></td><td>+1.0% ≤ slope ≤ +4.5%</td><td>溫和多頭</td>
                         <td>L + S</td><td>3.5%</td><td><b style="color:var(--green)">7</b></td><td>10</td></tr>
                     <tr><td><b>DOWN</b></td><td>slope &lt; -1.0%</td><td>下跌</td>
                         <td>L + S</td><td><b style="color:var(--green)">4.0%</b></td><td>6</td><td>10</td></tr>
@@ -1641,7 +1643,7 @@ function renderRegimeCompare(perf) {
     const order = ['UP', 'MILD_UP', 'DOWN', 'SIDE'];
     const descMap = {
         'UP':      ['強多頭 slope>+4.5%', 'L 理論被擋，僅 S 可進'],
-        'MILD_UP': ['溫和多頭 0<slope≤+4.5%', 'L+S 皆可進'],
+        'MILD_UP': ['溫和多頭 +1%≤slope≤+4.5%', 'L+S 皆可進'],
         'DOWN':    ['下跌 slope<0 且 |slope|≥1%', 'L+S 皆可進'],
         'SIDE':    ['橫盤 |slope|<1%', 'S 理論被擋，僅 L 可進'],
     };
@@ -2557,7 +2559,7 @@ function loadGuide() {
             <thead><tr><th>Regime</th><th>斜率範圍</th><th>狀態</th><th>R gate 作用</th></tr></thead>
             <tbody>
               <tr><td><b>UP</b></td><td>slope &gt; +4.5%</td><td>強多頭</td><td class="al">擋 L（僅 S 可進）</td></tr>
-              <tr><td><b>MILD_UP</b></td><td>0 &lt; slope ≤ +4.5%</td><td>溫和多頭</td><td class="ok">L+S 皆可</td></tr>
+              <tr><td><b>MILD_UP</b></td><td>+1.0% ≤ slope ≤ +4.5%</td><td>溫和多頭</td><td class="ok">L+S 皆可</td></tr>
               <tr><td><b>DOWN</b></td><td>slope &lt; −1.0%</td><td>下跌</td><td class="ok">L+S 皆可</td></tr>
               <tr><td><b>SIDE</b></td><td>|slope| &lt; 1.0%</td><td>橫盤</td><td class="al">擋 S（僅 L 可進）</td></tr>
             </tbody>
