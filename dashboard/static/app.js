@@ -2074,6 +2074,11 @@ async function runBacktest() {
         renderBtTrades();
 
         $('bt-status').textContent = `完成 — ${S.btResult.symbol} / ${S.btResult.elapsed_ms}ms / ${S.btResult.summary.total_trades} 筆 / ${S.btResult.data_range}`;
+
+        // 手機版自動捲到結果區（避免結果出現在參數面板下方看不到）
+        if (window.matchMedia('(max-width: 600px)').matches) {
+            setTimeout(() => $('bt-summary-cards').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+        }
     } catch (e) {
         $('bt-status').textContent = `錯誤: ${e.message}`;
         alert(`回測執行失敗\n\n${e.message}`);

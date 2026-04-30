@@ -1085,6 +1085,31 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
 
     /* Regime 說明摺疊面板字縮小 */
     .regime-explain summary { font-size: 11px !important; }
+
+    /* Backtest tab: 手機版單欄堆疊，取消 sticky 與高度限制 */
+    .bt-layout { gap: 12px !important; display: block !important; }
+    .bt-params-panel {
+        position: static !important;
+        max-height: none !important;
+        overflow-y: visible !important;
+        padding: 12px 14px !important;
+        margin-bottom: 12px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .bt-results { width: 100%; box-sizing: border-box; }
+    .bt-params-title { font-size: 12px; }
+    .bt-section-label { font-size: 10px; margin: 10px 0 6px; }
+    .bt-param-grid { grid-template-columns: 1fr; gap: 8px; }
+    .bt-param-row label { font-size: 11px; }
+    .bt-param-row input, .bt-select { font-size: 12px; padding: 6px 8px; }
+    .bt-actions { flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .bt-run-btn, .bt-audit-btn { font-size: 12px; padding: 8px 12px; }
+    .bt-reset-btn { font-size: 11px; padding: 8px 10px; }
+    .bt-placeholder { padding: 40px 16px; font-size: 12px; }
+    .bt-trades-header h3 { font-size: 12px; }
+    #bt-equity-chart, #bt-monthly-chart { height: 220px; }
+    /* 回測結果表格沿用 .table-wrap 的 overflow-x */
 }
 
 /* ── Responsive: 超小螢幕 (iPhone SE 等，<=400px) ── */
@@ -1099,6 +1124,12 @@ tr.clickable:hover td { border-left: 2px solid var(--gold); }
     .guide-card { font-size: 11px; padding: 10px 12px; }
     .guide-card h3 { font-size: 12px; }
     .guide-formula { font-size: 10px; }
+
+    /* Backtest tab: 超窄螢幕進一步壓縮 */
+    .bt-params-panel { padding: 10px 12px; }
+    .bt-param-row input, .bt-select { font-size: 11px; padding: 5px 7px; }
+    .bt-run-btn, .bt-audit-btn, .bt-reset-btn { font-size: 11px; padding: 7px 10px; }
+    #bt-equity-chart, #bt-monthly-chart { height: 200px; }
 }
 
 /* ── Connection indicator ── */
@@ -1464,7 +1495,15 @@ tbody tr:hover td { background: var(--bg-hover) !important; }
     gap: 20px;
     align-items: start;
 }
-@media (max-width: 1000px) { .bt-layout { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) {
+    .bt-layout { grid-template-columns: 1fr; }
+    /* 單欄堆疊時 sticky 會讓 params 黏住，results 往上捲跑到後面被擋 → 取消 sticky */
+    .bt-params-panel {
+        position: static;
+        max-height: none;
+        overflow-y: visible;
+    }
+}
 
 .bt-params-panel {
     background: var(--bg-card);
