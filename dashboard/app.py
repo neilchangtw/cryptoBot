@@ -19,6 +19,7 @@ from pathlib import Path
 # 加入專案根目錄，讓 import data_feed / strategy / check_health 可用
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
+sys.path.insert(0, str(ROOT_DIR / "backtest" / "research"))
 
 import pandas as pd
 import numpy as np
@@ -926,6 +927,166 @@ async def api_analytics(mode: str = Query("paper")):
         "strategy_comparison": strat_comp,
         "regime_performance": regime_perf,
     })
+    return result
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# OOS 月度 / 21d 分佈百分位 API
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+_OOS_CACHE_FILE = ROOT_DIR / "data" / "oos_distribution.json"
+_OOS_CACHE_TTL_SECONDS = 86400  # 24 小時刷新
+
+
+def _compute_oos_distribution():
+    """跑 2 年 V14+R+V25-D 完整回測，回傳月度 + 21d 滾動 PnL 分佈。"""
+    import strategy as _strategy
+    from live_review_37d import simulate as _lr_simulate
+
+    raw = pd.read_csv(
+        ROOT_DIR / "data" / "ETHUSDT_1h_latest730d.csv",
+        parse_dates=["datetime"],
+    )
+    ind = _strategy.compute_indicators(raw).reset_index(drop=True)
+    # 跳過 warmup（~310 bar，給 R gate）後從第 400 bar 起算，留緩衝
+    warmup_skip = 400
+    start_dt = str(ind["datetime"].iloc[warmup_skip])
+    end_dt = str(ind["datetime"].iloc[-1])
+
+    bt = _lr_simulate(ind, start_dt, end_dt)
+    if len(bt) == 0:
+        return None
+    bt["entry_dt"] = pd.to_datetime(bt["entry_dt"])
+    bt["month"] = bt["entry_dt"].dt.to_period("M").astype(str)
+
+    # 月度 PnL（只算完整月份 — 排除起始月和結束月可能不完整）
+    monthly_groups = bt.groupby("month")["pnl"].sum()
+    monthly = monthly_groups.tolist()
+    months_labels = monthly_groups.index.tolist()
+
+    # 21d 滾動 PnL（以每筆交易的 entry_dt 為窗口右端）
+    bt_sorted = bt.sort_values("entry_dt").reset_index(drop=True)
+    rolling = []
+    for _, t in bt_sorted.iterrows():
+        end_ts = t["entry_dt"]
+        start_ts = end_ts - pd.Timedelta(days=21)
+        in_win = bt_sorted[(bt_sorted["entry_dt"] >= start_ts) & (bt_sorted["entry_dt"] <= end_ts)]
+        rolling.append(float(in_win["pnl"].sum()))
+
+    return {
+        "monthly_pnls": [float(x) for x in monthly],
+        "monthly_labels": months_labels,
+        "rolling_21d_pnls": rolling,
+        "summary": {
+            "n_months": len(monthly),
+            "month_mean": float(np.mean(monthly)),
+            "month_median": float(np.median(monthly)),
+            "month_std": float(np.std(monthly)),
+            "month_min": float(min(monthly)),
+            "month_max": float(max(monthly)),
+            "month_positive_pct": float((np.array(monthly) > 0).mean() * 100),
+            "rolling_21d_worst": float(min(rolling)),
+            "rolling_21d_mean": float(np.mean(rolling)),
+        },
+        "computed_at": pd.Timestamp.utcnow().isoformat(),
+        "data_through": end_dt,
+        "n_trades": int(len(bt)),
+    }
+
+
+def _get_oos_distribution(force_refresh: bool = False):
+    """取得 OOS 分佈，24h 內用快取。"""
+    if not force_refresh and _OOS_CACHE_FILE.exists():
+        try:
+            mtime = _OOS_CACHE_FILE.stat().st_mtime
+            if time.time() - mtime < _OOS_CACHE_TTL_SECONDS:
+                with open(_OOS_CACHE_FILE, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+
+    dist = _compute_oos_distribution()
+    if dist is None:
+        return None
+    try:
+        _OOS_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_OOS_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(dist, f, ensure_ascii=False)
+    except Exception:
+        pass
+    return dist
+
+
+@app.get("/api/percentile-vs-oos")
+async def api_percentile_vs_oos(mode: str = Query("paper"),
+                                refresh: bool = Query(False)):
+    """
+    比較實盤本月 + 近 21 天 PnL 對應 OOS 分佈百分位。
+    refresh=true 強制重算 OOS 分佈（否則 24h 內走快取）。
+    """
+    paths = get_paths(mode)
+    trades_file = paths["data_dir"] / "trades.csv"
+    df = read_csv_safe(trades_file)
+
+    result = {
+        "month": {"pnl": 0.0, "percentile": None, "n_trades": 0, "label": None},
+        "rolling_21d": {"pnl": 0.0, "percentile": None, "n_trades": 0},
+        "distribution_summary": {},
+        "computed_at": None,
+        "data_through": None,
+        "error": None,
+    }
+
+    # 取 OOS 分佈（先取，失敗則直接回）
+    try:
+        dist = _get_oos_distribution(force_refresh=refresh)
+    except Exception as e:
+        result["error"] = f"OOS compute failed: {e}"
+        return result
+    if dist is None:
+        result["error"] = "OOS distribution unavailable"
+        return result
+
+    result["distribution_summary"] = dist.get("summary", {})
+    result["computed_at"] = dist.get("computed_at")
+    result["data_through"] = dist.get("data_through")
+
+    if len(df) == 0 or "net_pnl_usd" not in df.columns:
+        return result
+
+    # 只算有 PnL 的交易（已平倉）
+    df["net_pnl_usd"] = pd.to_numeric(df["net_pnl_usd"], errors="coerce")
+    closed = df[df["net_pnl_usd"].notna()].copy()
+    if len(closed) == 0:
+        return result
+    closed["entry_dt"] = pd.to_datetime(closed["entry_time_utc8"], errors="coerce")
+    closed = closed.dropna(subset=["entry_dt"])
+
+    now = pd.Timestamp.now()
+    # 本月（UTC+8 概念，因為 entry_time_utc8 本就 UTC+8）
+    cur_month = now.strftime("%Y-%m")
+    month_trades = closed[closed["entry_dt"].dt.strftime("%Y-%m") == cur_month]
+    month_pnl = float(month_trades["net_pnl_usd"].sum())
+
+    # 近 21 天
+    cutoff = now - pd.Timedelta(days=21)
+    rolling_trades = closed[closed["entry_dt"] >= cutoff]
+    rolling_pnl = float(rolling_trades["net_pnl_usd"].sum())
+
+    monthly_arr = np.array(dist["monthly_pnls"])
+    rolling_arr = np.array(dist["rolling_21d_pnls"])
+
+    result["month"] = {
+        "pnl": round(month_pnl, 2),
+        "percentile": float((monthly_arr <= month_pnl).mean() * 100),
+        "n_trades": int(len(month_trades)),
+        "label": cur_month,
+    }
+    result["rolling_21d"] = {
+        "pnl": round(rolling_pnl, 2),
+        "percentile": float((rolling_arr <= rolling_pnl).mean() * 100),
+        "n_trades": int(len(rolling_trades)),
+    }
     return result
 
 

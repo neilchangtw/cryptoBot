@@ -162,6 +162,7 @@ async function loadStatus() {
         renderGK(d);
         renderEntryConditions(d.entry_conditions, d.positions, d.cooldowns);
         renderRecentTrades(d.recent_trades || [], d.positions);
+        loadPercentile();  // 非同步，獨立失敗不影響狀態頁
         renderBreakers(d.breakers);
         renderHealth(d.health);
         triggerValuePop();
@@ -169,6 +170,98 @@ async function loadStatus() {
         setConnStatus(false);
         $('status-cards').innerHTML = `<div class="loading">載入失敗: ${e.message}</div>`;
     }
+}
+
+// OOS 百分位（獨立載入，因為要跑 2 年回測；有 24h cache）
+let _percentileCache = null;
+async function loadPercentile() {
+    try {
+        const d = await api('/api/percentile-vs-oos');
+        _percentileCache = d;
+        renderPercentile(d);
+    } catch (e) {
+        // 靜默失敗（widget 為錦上添花）
+        const el = $('percentile-section');
+        if (el) el.innerHTML = '';
+    }
+}
+
+function renderPercentile(d) {
+    const el = $('percentile-section');
+    if (!el) return;
+    if (!d || d.error || !d.distribution_summary || !d.distribution_summary.n_months) {
+        el.innerHTML = '';
+        return;
+    }
+    const s = d.distribution_summary;
+    const m = d.month || {};
+    const r = d.rolling_21d || {};
+
+    // 百分位 → 顏色 + 文字標籤
+    const tag = (pct) => {
+        if (pct == null) return { color: 'var(--text-dim)', label: '尚無資料' };
+        if (pct >= 75) return { color: 'var(--green)', label: '頂級 (top 25%)' };
+        if (pct >= 50) return { color: '#22c55e', label: '中上 (P50+)' };
+        if (pct >= 25) return { color: 'var(--gold)', label: '中下 (P25-50)' };
+        if (pct >= 10) return { color: '#fb923c', label: '偏弱 (P10-25)' };
+        return { color: 'var(--red)', label: '尾端 (worst 10%)' };
+    };
+
+    const fmtPnl = (v) => (v == null ? '-' : (v > 0 ? '+$' : '-$') + Math.abs(v).toFixed(2));
+
+    const renderBar = (pnl, pct, nTrades, label, worst, mean, best) => {
+        if (pct == null) {
+            return `<div style="color:var(--text-dim);font-size:13px">尚無資料</div>`;
+        }
+        const t = tag(pct);
+        const pctRounded = Math.round(pct);
+        // 進度條位置（百分位 0~100 對應 bar 0~100%）
+        const markerLeft = Math.max(0, Math.min(100, pct));
+        return `
+            <div class="pct-row">
+                <div class="pct-header">
+                    <div class="pct-label">${label}</div>
+                    <div class="pct-value">
+                        <span class="${pnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${fmtPnl(pnl)}</span>
+                        <span class="pct-meta">${nTrades} 筆</span>
+                    </div>
+                </div>
+                <div class="pct-bar-wrap">
+                    <div class="pct-bar-track">
+                        <div class="pct-bar-fill" style="width:${pct}%;background:${t.color}"></div>
+                        <div class="pct-bar-marker" style="left:${markerLeft}%"></div>
+                    </div>
+                    <div class="pct-bar-meta">
+                        <span style="color:var(--red)">${fmtPnl(worst)}</span>
+                        <span style="color:var(--text-dim)">中位 ${fmtPnl(mean)}</span>
+                        <span style="color:var(--green)">${fmtPnl(best)}</span>
+                    </div>
+                </div>
+                <div class="pct-tag" style="color:${t.color}">P${pctRounded} · ${t.label}</div>
+            </div>
+        `;
+    };
+
+    const bestRolling = Math.max(...((d._rolling_arr) || [s.rolling_21d_mean + s.month_std]));
+    el.innerHTML = `
+        <div class="percentile-wrap">
+            <div class="percentile-title">
+                OOS 分佈百分位 (Position vs 2y Backtest)
+                <span class="percentile-sub">${s.n_months} 月 · ${s.month_positive_pct.toFixed(0)}% 正月 · std $${s.month_std.toFixed(0)}</span>
+            </div>
+            ${renderBar(
+                m.pnl, m.percentile, m.n_trades || 0,
+                `本月 (${m.label || '—'})`,
+                s.month_min, s.month_median, s.month_max
+            )}
+            ${renderBar(
+                r.pnl, r.percentile, r.n_trades || 0,
+                '近 21 天滾動',
+                s.rolling_21d_worst, s.rolling_21d_mean,
+                Math.max(s.month_max, s.rolling_21d_mean * 2)
+            )}
+        </div>
+    `;
 }
 
 function renderStatusCards(d) {
