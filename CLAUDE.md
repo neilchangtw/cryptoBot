@@ -127,38 +127,47 @@ cryptoBot/
 
 ## 目前狀態
 
-- **策略版本**：**V14**（線上運行版本）；**V14+R** 已完成研究 12/13 gates PASS，待部署（見 [doc/v23_research.md](doc/v23_research.md)）
+- **策略版本**：**V14+R + V25-D**（兩者皆已部署上線）
+  - V14+R Path R 斜率 gate 部署 commit `3ff1e82` / `74cdd22`（2026-04-22 23:06）
+  - V25-D Regime-conditional exits 部署 commit `971d934`（2026-04-23 11:54）
 - **V14 稽核狀態（2026-04-21）**：G4 參數鄰域 20/20 PASS、G7 WF 5/6、G9 移除最佳月全正 — **參數穩健**；但 **G8 時序翻轉 FAIL**（反轉 OHLCV 後 $-4,627）→ V14 是 **regime-dependent**，依賴 ETH 多頭 drift + 壓縮突破結構，非 risk-neutral alpha。詳見 [doc/v22_research.md](doc/v22_research.md) V14 自稽核章節。
 - **V23 overlay 研究結果（2026-04-22）**：Path R 非對稱 per-side SMA200 斜率 gate 通過 12/13 gates（G5 cascade 97th percentile、G7 WF 4/6、G8 時序翻轉改善 +$438），V14+R 參數 TH_UP=0.045 / TH_SIDE=0.010，2 年回測 PnL +$380 / MDD -$54 / Sharpe +0.91 / Worst30d -$197
 - **V23 G6 驗證（2026-04-22）**：獨立驗證 V14 baseline G6 兩方向全 FAIL（Fwd -113.8% / Bwd +53.2%），V14+R 只 Fwd FAIL（-94.4%）且 Bwd 由 FAIL 轉 PASS（+48.6%）；overlay 貢獻 IS/OOS 同向（+$258 / +$121）但衰退率 52.9% 邊緣 → 情境 A 成立，V14+R 可部署但對 +$380 改善量級須降級信心至 +$120~$380 區間
-- **V25 Regime-conditional exits（2026-04-22）**：V25-D PROMOTED 12/12 gates — `S_MH_UP 10→8` + `L_TP_DOWN 3.5→4.0%` + `L_MH_MILD_UP 6→7`，2Y PnL $6,789（+$206, +3.1%）、WR 62.3%（+0.7%）、**MDD $334（-$39, -10.5%）**、Sharpe 6.23、G4 6/6 鄰域穩定、G8 reversed 改善（-3717 vs -3981）。V25-D 是 V14+R 純出場優化，進場 100% 沿用，適合部署
+- **V25 Regime-conditional exits（2026-04-22）**：V25-D PROMOTED 12/12 gates — `S_MH_UP 10→8` + `L_TP_DOWN 3.5→4.0%` + `L_MH_MILD_UP 6→7`，2Y PnL $6,789（+$206, +3.1%）、WR 62.3%（+0.7%）、**MDD $334（-$39, -10.5%）**、Sharpe 6.23、G4 6/6 鄰域穩定、G8 reversed 改善（-3717 vs -3981）。V25-D 是 V14+R 純出場優化，進場 100% 沿用
 - **模式**：Paper Trading（模擬盤），Binance Testnet
 - **Hedge Mode**：已啟用（dualSidePosition=true），L/S 倉位互不影響
 - **帳戶**：$1,000 / $200 保證金 / 20x / $4,000 名目
-- **演進**：GK v1.1 → v6 L+S → V10 → V11-E → V13 → **V14（L+S $4,549, 12/13 正月, worst -$91）**
+- **演進**：GK v1.1 → v6 L+S → V10 → V11-E → V13 → V14 → **V14+R → V14+R+V25-D（線上）**
 - **Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗
 
-### 模擬盤運行狀態（2026-04-22 21:00 UTC+8 快照）
+### 模擬盤運行狀態（2026-05-20 21:00 UTC+8 快照）
 
-- **線上策略**：V14（strategy.py，commit `f0c324d`）；V14+R 尚未部署（仍為研究結果）
-- **帳戶餘額**：$4,281.60（Testnet 起始非 $1K，cumulative_pnl $3,290 為 Testnet 基準值）
-- **本月（2026-04）**：L +$46.51（3 entries / 20 cap）/ S -$5.40（3 entries / 20 cap）/ 合計 +$41.11 已實現
-- **本日（2026-04-22）**：+$25.74（2 trades opened, 1 closed WIN）
-- **當前持倉**：1 筆 L @ $2,403.41（2026-04-22 20:00 開倉，qty 1.664 ≈ $4,000 notional）
+- **線上策略**：V14+R + V25-D（strategy.py，最新 commit `0bb5161`）
+- **帳戶餘額**：$4,325.54（Testnet 起始非 $1K，cumulative_pnl 為 Testnet 基準值）
+- **累計實現 PnL（37 天，自 2026-04-14 起）**：**+$83.45**（10 筆，平均 $8.3/筆）
+- **本月（2026-05）**：L 2 entries / S 1 entry，月度 PnL L -$12.79 / S -$17.14 = **-$29.93**
+- **當前持倉**：無（trade #10 於 2026-05-20 05:00 出場）
+- **連虧狀態**：連虧 2 筆（trade #9/#10），未到 4 筆冷卻門檻
 
-**已完成交易（5 筆，9 天，自 2026-04-14 起）**
+**已完成交易（10 筆，37 天）**
 
-| # | 時間(UTC+8) | 方向 | 進場 | 出場 | 出場類型 | PnL | 結果 |
-|---|---|---|---:|---:|---|---:|---|
-| 1 | 04-14 14:00 | L | 2372.44 | 2389.20 | BE (ext) | +$12.52 | WIN |
-| 2 | 04-14 22:00 | S | 2359.06 | 2313.31 | TP | +$74.64 | WIN |
-| 3 | 04-16 21:00 | S | 2306.44 | 2346.92 | MaxHold | -$71.79 | LOSS |
-| 4 | 04-21 20:00 | S | 2307.51 | 2310.42 | MaxHold | -$8.25 | LOSS |
-| 5 | 04-22 10:00 | L | 2368.44 | 2390.48 | **MFE-trail** | +$33.99 | WIN |
+| # | 時間(UTC+8) | 方向 | 進場 | 出場 | 出場類型 | 當下版本 | regime | PnL | 結果 |
+|---|---|---|---:|---:|---|---|---|---:|---|
+| 1 | 04-14 14:00 | L | 2372.44 | 2389.20 | BE (ext) | V14 | MILD_UP | +$12.52 | WIN |
+| 2 | 04-14 22:00 | S | 2359.06 | 2313.31 | TP | V14 | MILD_UP | +$74.64 | WIN |
+| 3 | 04-16 21:00 | S | 2306.44 | 2346.92 | MaxHold | V14 | UP | -$71.79 | LOSS |
+| 4 | 04-21 20:00 | S | 2307.51 | 2310.42 | MaxHold | V14 | MILD_UP | -$8.25 | LOSS |
+| 5 | 04-22 10:00 | L | 2368.44 | 2390.48 | MFE-trail | V14 | MILD_UP | +$33.99 | WIN |
+| 6 | 04-22 20:00 | L | 2403.41 | 2395.80 | MaxHold | V14 | MILD_UP | -$15.86 | LOSS |
+| 7 | 04-23 08:00 | S | 2369.70 | 2315.56 | TP | V14+R | MILD_UP | +$88.12 | WIN |
+| 8 | 05-01 09:00 | L | 2266.61 | 2277.22 | MFE-trail | V14+R+V25-D | SIDE | +$15.52 | WIN |
+| 9 | 05-05 11:00 | L | 2382.22 | 2367.27 | MaxHold | V14+R+V25-D | SIDE | -$28.30 | LOSS |
+| 10 | 05-19 19:00 | S | 2110.34 | 2117.69 | MaxHold | V14+R+V25-D | DOWN | -$17.14 | LOSS |
 
-**早期績效（極短樣本，不代表 OOS）**：WR 3/5 = 60%、實現 PnL +$41.11、無 SafeNet 觸發、V14 新特性 MFE-trail 已在 trade #5 實戰觸發驗證
-**出場分佈**：MaxHold 2 / TP 1 / BE 1 / MFE-trail 1 / SafeNet 0
-**熔斷狀態**：未觸發（無連虧 4 冷卻、月虧 L/S 均遠未到上限）
+**績效統計**：WR 5/10 = 50%、實現 PnL +$83.45、無 SafeNet 觸發、無熔斷觸發
+**出場分佈**：MaxHold 5（-$141.34）/ TP 2（+$162.76）/ MFE-trail 2（+$49.51）/ BE 1（+$12.52）/ SafeNet 0
+**月度**：2026-04 +$113.37（7 筆）/ 2026-05 -$29.93（3 筆）
+**版本驗證**：所有出場 hold_bars 與當下版本邏輯一致；V25-D 部署後 3 筆 regime 皆 fallback 到 default（SIDE/DOWN 不在覆寫鍵），V25-D 差異尚未在實盤體現
 
 ---
 
