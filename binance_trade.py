@@ -222,6 +222,78 @@ def round_to_lot(qty, qty_step, min_qty):
 
 
 # ── 下單 ─────────────────────────────────────────────────────
+# Timeout 判別關鍵字（HTTP 408 + Binance code -1007）
+_TIMEOUT_MARKERS = ("-1007", "408", "Timeout waiting for response", "Send status unknown")
+
+
+def _looks_like_timeout(exc: Exception) -> bool:
+    msg = str(exc)
+    return any(m in msg for m in _TIMEOUT_MARKERS)
+
+
+def _send_market_order_with_timeout_recovery(params, position_side, expected_qty,
+                                             poll_count=4, poll_initial_delay=0.5):
+    """
+    送 MARKET 單，遇到 408/-1007 timeout 時透過 get_position_risk 確認是否實際成交。
+
+    Returns:
+        dict: 訂單結果（成功 / timeout 後確認成交）
+        None: timeout 後確認未成交（已 alert）
+    Raises:
+        Exception: 其他錯誤（非 timeout）— 由呼叫端處理
+    """
+    global client
+    symbol = params["symbol"]
+    try:
+        return client.new_order(**params)
+    except Exception as e:
+        if not _looks_like_timeout(e):
+            raise
+
+    # ── Timeout 路徑：訂單實際狀態未知 ──
+    print(f"[ORDER TIMEOUT -1007] {params['side']} {expected_qty} {symbol} ({position_side}) — poll position")
+    for attempt in range(poll_count):
+        time.sleep(poll_initial_delay + attempt * 0.5)
+        try:
+            positions = client.get_position_risk(symbol=symbol)
+            for p in positions:
+                if p.get("positionSide") != position_side:
+                    continue
+                amt = abs(float(p.get("positionAmt", 0)))
+                # 容忍 5% 步進誤差
+                if amt >= float(expected_qty) * 0.95:
+                    avg_p = float(p.get("entryPrice", 0))
+                    print(f"[ORDER TIMEOUT RECOVERED] {position_side} position @ {avg_p:.2f} qty={amt}")
+                    try:
+                        send_telegram_message(
+                            f"<b>ℹ️ 下單超時但已成交</b>\n"
+                            f"{params['side']} {amt} {symbol} ({position_side}) @ ${avg_p:.2f}\n"
+                            f"從 position 查詢恢復"
+                        )
+                    except Exception:
+                        pass
+                    return {
+                        "orderId": "TIMEOUT-RECOVERED",
+                        "avgPrice": str(avg_p),
+                        "executedQty": str(amt),
+                        "status": "FILLED",
+                    }
+        except Exception as poll_e:
+            print(f"  position poll {attempt + 1}/{poll_count} error: {poll_e}")
+
+    # 確認未成交
+    try:
+        send_telegram_message(
+            f"<b>⚠️ 下單超時且無 position</b>\n"
+            f"{params['side']} {expected_qty} {symbol} ({position_side})\n"
+            f"-1007 Send status unknown，{poll_count} 次 poll 均無新 position\n"
+            f"視為未成交，本根 bar 跳過進場"
+        )
+    except Exception:
+        pass
+    return None
+
+
 def place_order(symbol, side, qty=None, stop_loss=None, take_profit=None,
                 reduce_only=False, strategy_id="v3", position_side=None):
     """
@@ -281,7 +353,12 @@ def place_order(symbol, side, qty=None, stop_loss=None, take_profit=None,
             "positionSide": position_side,
         }
 
-        res = client.new_order(**params)
+        res = _send_market_order_with_timeout_recovery(
+            params, position_side, expected_qty=qty,
+        )
+        if res is None:
+            # 確認未成交（已 alert）— 視為下單失敗
+            return None
         order_id = res.get("orderId", "?")
         avg_price = float(res.get("avgPrice", 0))
         exec_qty = float(res.get("executedQty", 0))
