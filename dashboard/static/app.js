@@ -2857,8 +2857,29 @@ function loadGuide() {
     el.dataset.rendered = '1';
 }
 
-(function init() {
-    // Restore mode
+async function syncModeWithEnv() {
+    // 開啟時讀 .env 的 PAPER_TRADING，若與 localStorage 不一致 → 以 env 為準
+    // 避免「env=live 但 UI 預設 paper」的混淆
+    try {
+        const resp = await fetch('/api/status?mode=paper');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const envMode = data.env_mode;
+        if (envMode && envMode !== S.mode) {
+            console.log(`Mode auto-sync: localStorage='${S.mode}' → env='${envMode}'`);
+            S.mode = envMode;
+            localStorage.setItem('cb_mode', envMode);
+        }
+    } catch (e) {
+        console.warn('Mode sync skipped:', e);
+    }
+}
+
+(async function init() {
+    // 0. 與 .env 同步 mode（必須在按鈕高亮 / loadStatus 之前）
+    await syncModeWithEnv();
+
+    // 1. Restore mode
     document.querySelectorAll('.mode-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.mode === S.mode));
     loadStatus();
