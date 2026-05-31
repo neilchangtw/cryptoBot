@@ -224,6 +224,8 @@ def round_to_lot(qty, qty_step, min_qty):
 # ── 下單 ─────────────────────────────────────────────────────
 # Timeout 判別關鍵字（HTTP 408 + Binance code -1007）
 _TIMEOUT_MARKERS = ("-1007", "408", "Timeout waiting for response", "Send status unknown")
+# Hedge Mode 不匹配判別關鍵字（Binance code -4061）
+_POSITION_SIDE_MISMATCH_MARKERS = ("-4061", "position side does not match")
 
 
 def _looks_like_timeout(exc: Exception) -> bool:
@@ -231,22 +233,87 @@ def _looks_like_timeout(exc: Exception) -> bool:
     return any(m in msg for m in _TIMEOUT_MARKERS)
 
 
+def _looks_like_position_side_mismatch(exc: Exception) -> bool:
+    msg = str(exc)
+    return any(m in msg for m in _POSITION_SIDE_MISMATCH_MARKERS)
+
+
+def _try_reset_hedge_mode() -> bool:
+    """偵測 -4061 後嘗試把 dualSidePosition 切回 true。
+    Returns True 表示成功切換（從 false→true），False 表示已是 true 或切換失敗。
+    """
+    global client
+    try:
+        mode = client.get_position_mode()
+        if mode.get("dualSidePosition"):
+            return False  # 已是 hedge，但 -4061 仍出現 — 異常情況
+        client.change_position_mode(dualSidePosition="true")
+        print("[HEDGE MODE RESET] dualSidePosition was false, switched to true")
+        return True
+    except Exception as e:
+        print(f"[HEDGE MODE RESET FAILED] {e}")
+        return False
+
+
 def _send_market_order_with_timeout_recovery(params, position_side, expected_qty,
                                              poll_count=4, poll_initial_delay=0.5):
     """
-    送 MARKET 單，遇到 408/-1007 timeout 時透過 get_position_risk 確認是否實際成交。
+    送 MARKET 單，含兩種錯誤的恢復邏輯：
+      1. 408/-1007 timeout：透過 get_position_risk 確認是否實際成交
+      2. -4061 position side mismatch：自動 reset Hedge Mode 後重試一次
 
     Returns:
-        dict: 訂單結果（成功 / timeout 後確認成交）
-        None: timeout 後確認未成交（已 alert）
+        dict: 訂單結果（成功 / timeout 後確認成交 / -4061 reset+retry 成功）
+        None: 確認未成交（已 alert）
     Raises:
-        Exception: 其他錯誤（非 timeout）— 由呼叫端處理
+        Exception: 其他錯誤（非 timeout、非 -4061）— 由呼叫端處理
     """
     global client
     symbol = params["symbol"]
     try:
         return client.new_order(**params)
     except Exception as e:
+        # ── -4061 路徑：Hedge Mode 被改回 one-way ──
+        if _looks_like_position_side_mismatch(e):
+            print(f"[ORDER -4061] {params['side']} {expected_qty} {symbol} "
+                  f"({position_side}) — Hedge Mode mismatch, attempting reset")
+            was_fixed = _try_reset_hedge_mode()
+            if was_fixed:
+                try:
+                    res = client.new_order(**params)
+                    print(f"[ORDER -4061 RECOVERED] retry succeeded after Hedge Mode reset")
+                    try:
+                        send_telegram_message(
+                            f"<b>⚠️ Hedge Mode 自動修復後下單成功</b>\n"
+                            f"{params['side']} {expected_qty} {symbol} ({position_side})\n"
+                            f"偵測 dualSidePosition=false，已切回 true 並重試"
+                        )
+                    except Exception:
+                        pass
+                    return res
+                except Exception as retry_e:
+                    print(f"[ORDER -4061 RETRY FAILED] {retry_e}")
+                    try:
+                        send_telegram_message(
+                            f"<b>🚨 Hedge Mode 修復後重試仍失敗</b>\n"
+                            f"{params['side']} {expected_qty} {symbol} ({position_side})\n"
+                            f"重試錯誤：{retry_e}\n"
+                            f"本根 bar 跳過進場，請手動檢查"
+                        )
+                    except Exception:
+                        pass
+                    return None
+            else:
+                try:
+                    send_telegram_message(
+                        f"<b>🚨 -4061 但 Hedge Mode reset 失敗</b>\n"
+                        f"{params['side']} {expected_qty} {symbol} ({position_side})\n"
+                        f"dualSidePosition 查詢/設定失敗或已為 true，請手動檢查 Binance 帳戶\n"
+                        f"本根 bar 跳過進場"
+                    )
+                except Exception:
+                    pass
+                return None
         if not _looks_like_timeout(e):
             raise
 
