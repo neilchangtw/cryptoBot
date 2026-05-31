@@ -1,0 +1,248 @@
+
+========================================================================
+§1. 績效 vs 同期回測（V14+R+V25-D）
+========================================================================
+                       Live       Backtest        Diff
+trades                   11             14          +3
+PnL                   98.52          75.10      -23.42
+WR%                    54.5           42.9
+avg PnL                8.96           5.36
+
+逐筆對齊（按進場時間配對）：
+  #  side           live_entry             bt_entry   live_pnl     bt_pnl  live_exit    bt_exit
+  1     L  2026-04-14 14:00:00  2026-04-14 14:00:00      12.52     -37.83         BE  MFE-trail
+  2     S  2026-04-14 22:00:00  2026-04-14 22:00:00      74.64      76.00         TP         TP
+  3     S  2026-04-16 21:00:00  2026-04-16 21:00:00     -71.79     -60.97    MaxHold    MaxHold
+  4     S  2026-04-21 20:00:00  2026-04-21 20:00:00      -8.25      -9.29    MaxHold    MaxHold
+  5     L  2026-04-22 10:00:00  2026-04-22 10:00:00      33.99      34.35  MFE-trail  MFE-trail
+  6     L  2026-04-22 20:00:00  2026-04-22 20:00:00     -15.86     -15.81    MaxHold    MaxHold
+  7     S  2026-04-23 08:00:00  2026-04-23 07:00:00      88.12      76.00         TP         TP
+  8     L  2026-05-01 09:00:00  2026-05-01 09:00:00      15.52      12.94  MFE-trail  MFE-trail
+  9     L  2026-05-05 11:00:00  2026-05-05 11:00:00     -28.30     -24.75    MaxHold    MaxHold
+  +     L            (missing)  2026-05-19 15:00:00          -     -46.21          -    MaxHold
+ 10     S  2026-05-19 19:00:00  2026-05-19 19:00:00     -17.14     -15.87    MaxHold    MaxHold
+  +     S            (missing)  2026-05-22 14:00:00          -      -4.00          -         BE
+ 11     L  2026-05-25 18:00:00  2026-05-25 18:00:00      15.07      14.54     MH-ext     MH-ext
+  +     S            (missing)  2026-05-27 21:00:00          -      76.00          -         TP
+
+========================================================================
+§2. 11 筆逐筆解剖
+========================================================================
+
+#1 [L] 2026-04-14 14:00:00 → 2026-04-14 21:00:00  (BE)
+  進場條件：GK_pctile=3.0  breakout_strength=+0.15%  regime=MILD_UP
+  進場價/出場價：2372.44 → 2389.20  (7h, 7 bars)
+  MAE/MFE：-0.25% ($-9.81) / +0.96% ($+38.54)
+  距 SafeNet：325.0 bp   距 TP：254.0 bp
+  PnL：$+12.52 (+6.26%)  commission $1.61
+
+#2 [S] 2026-04-14 22:00:00 → 2026-04-15 02:00:00  (TP)
+  進場條件：GK_pctile=2.0  breakout_strength=-0.17%  regime=MILD_UP
+  進場價/出場價：2359.06 → 2313.31  (4h, 4 bars)
+  MAE/MFE：-0.50% ($-20.06) / +2.18% ($+87.34)
+  距 SafeNet：350.0 bp   距 TP：18.0 bp
+  PnL：$+74.64 (+37.32%)  commission $3.18
+
+#3 [S] 2026-04-16 21:00:00 → 2026-04-17 07:00:00  (MaxHold)
+  進場條件：GK_pctile=28.3  breakout_strength=+1.06%  regime=UP
+  進場價/出場價：2306.44 → 2346.92  (10h, 10 bars)
+  MAE/MFE：-2.48% ($-99.25) / +1.03% ($+41.17)
+  距 SafeNet：152.0 bp   距 TP：97.0 bp
+  PnL：$-71.79 (-35.90%)  commission $1.60
+
+#4 [S] 2026-04-21 20:00:00 → 2026-04-22 06:00:00  (MaxHold)
+  進場條件：GK_pctile=6.1  breakout_strength=-0.02%  regime=MILD_UP
+  進場價/出場價：2307.51 → 2310.42  (10h, 10 bars)
+  MAE/MFE：-0.97% ($-38.99) / +1.16% ($+46.27)
+  距 SafeNet：303.0 bp   距 TP：84.0 bp
+  PnL：$-8.25 (-4.12%)  commission $3.20
+
+#5 [L] 2026-04-22 10:00:00 → 2026-04-22 14:00:00  (MFE-trail)
+  進場條件：GK_pctile=8.1  breakout_strength=+1.82%  regime=MILD_UP
+  進場價/出場價：2368.44 → 2390.48  (4h, 4 bars)
+  MAE/MFE：-0.47% ($-18.92) / +1.94% ($+77.54)
+  距 SafeNet：303.0 bp   距 TP：156.0 bp
+  PnL：$+33.99 (+17.00%)  commission $3.21
+
+#6 [L] 2026-04-22 20:00:00 → 2026-04-23 02:00:00  (MaxHold)
+  進場條件：GK_pctile=1.0  breakout_strength=+0.24%  regime=MILD_UP
+  進場價/出場價：2403.41 → 2395.80  (6h, 6 bars)
+  MAE/MFE：-0.84% ($-33.49) / +0.82% ($+32.60)
+  距 SafeNet：266.0 bp   距 TP：268.0 bp
+  PnL：$-15.86 (-7.93%)  commission $3.19
+
+#7 [S] 2026-04-23 08:00:00 → 2026-04-23 18:00:00  (TP)
+  進場條件：GK_pctile=25.2  breakout_strength=+0.14%  regime=MILD_UP
+  進場價/出場價：2369.70 → 2315.56  (10h, 10 bars)
+  MAE/MFE：-0.10% ($-4.00) / +2.52% ($+100.80)
+  距 SafeNet：390.0 bp   距 TP：52.0 bp
+  PnL：$+88.12 (+44.06%)  commission $3.16
+
+#8 [L] 2026-05-01 09:00:00 → 2026-05-01 14:00:00  (MFE-trail)
+  進場條件：GK_pctile=4.0  breakout_strength=+0.09%  regime=SIDE
+  進場價/出場價：2266.61 → 2277.22  (5h, 5 bars)
+  MAE/MFE：-0.16% ($-6.39) / +1.25% ($+50.08)
+  距 SafeNet：334.0 bp   距 TP：225.0 bp
+  PnL：$+15.52 (+7.76%)  commission $3.21
+
+#9 [L] 2026-05-05 11:00:00 → 2026-05-05 17:00:00  (MaxHold)
+  進場條件：GK_pctile=8.1  breakout_strength=+0.51%  regime=SIDE
+  進場價/出場價：2382.22 → 2367.27  (6h, 6 bars)
+  MAE/MFE：-0.72% ($-28.68) / +0.33% ($+13.01)
+  距 SafeNet：278.0 bp   距 TP：317.0 bp
+  PnL：$-28.30 (-14.15%)  commission $3.19
+
+#10 [S] 2026-05-19 19:00:00 → 2026-05-20 05:00:00  (MaxHold)
+  進場條件：GK_pctile=24.2  breakout_strength=+0.14%  regime=DOWN
+  進場價/出場價：2110.34 → 2117.69  (10h, 10 bars)
+  MAE/MFE：-0.79% ($-31.48) / +0.81% ($+32.56)
+  距 SafeNet：321.0 bp   距 TP：119.0 bp
+  PnL：$-17.14 (-8.57%)  commission $3.21
+
+#11 [L] 2026-05-25 18:00:00 → 2026-05-26 02:00:00  (MH-ext)
+  進場條件：GK_pctile=21.2  breakout_strength=+0.03%  regime=DOWN
+  進場價/出場價：2116.47 → 2126.14  (8h, 8 bars)
+  MAE/MFE：-0.26% ($-10.26) / +1.19% ($+47.49)
+  距 SafeNet：324.0 bp   距 TP：231.0 bp
+  PnL：$+15.07 (+7.53%)  commission $3.21
+
+========================================================================
+§3. Regime / 訊號分佈
+========================================================================
+分析窗口：1098 bars (45.8 天)
+
+Regime 分佈：
+        DOWN:  424 bars ( 38.6%)
+        SIDE:  419 bars ( 38.2%)
+     MILD_UP:  200 bars ( 18.2%)
+          UP:   55 bars (  5.0%)
+
+Breakout 出現率（按 regime）：
+    regime   bars  brk_L  brk_S   brk_L%   brk_S%
+        UP     55      3     10    5.45%   18.18%
+   MILD_UP    200     21     30   10.50%   15.00%
+      SIDE    419     63     51   15.04%   12.17%
+      DOWN    424     54     48   12.74%   11.32%
+
+L 候選 bar：raw(GK+brk+session)=15 → 過 regime gate 15 → 實際進場 7
+  R gate 擋下：0  其他（CD/cap/maxTotal）擋下：8
+S 候選 bar：raw(GK+brk+session)=20 → 過 regime gate 9 → 實際進場 7
+  R gate 擋下：11  其他（CD/cap/maxTotal）擋下：2
+
+實際進場 regime 分佈：
+entry_regime  DOWN  MILD_UP  SIDE  UP
+sub_strategy                         
+L                1        3     2   0
+S                1        3     0   1
+
+========================================================================
+§4. 風險 / 執行品質
+========================================================================
+進場滑價：avg unfavorable -1.89 bp  max 9.23 bp  min -29.68 bp
+Commission 總和：$31.97  / 平均 $2.91 / 筆
+
+最深 MAE 距 SafeNet：min 1.52 %pt  median 3.21 %pt
+最接近 SafeNet 的 trade：
+ trade_number sub_strategy  max_adverse_excursion_pct  sn_buffer_pct exit_type
+            3            S                      -2.48           1.52   MaxHold
+            6            L                      -0.84           2.66   MaxHold
+            9            L                      -0.72           2.78   MaxHold
+
+Hold bars 分佈（按 exit_type）：
+           count  mean  min  max
+exit_type                       
+BE             1   7.0    7    7
+MFE-trail      2   4.5    4    5
+MH-ext         1   8.0    8    8
+MaxHold        5   8.4    6   10
+TP             2   7.0    4   10
+
+累計 PnL：$98.52  Max DD：$80.04
+
+月度績效：
+                      count      sum
+month   sub_strategy                
+2026-04 L                 3  30.6560
+        S                 4  82.7234
+2026-05 L                 3   2.2832
+        S                 1 -17.1422
+
+========================================================================
+§5. V25-D 真實影響量化（48 天）
+========================================================================
+V25-D 覆寫規則：
+  L_TP_DOWN     = 4.0% (V14: 3.5%)
+  L_MH_MILD_UP  = 7  bar (V14: 6)
+  S_MH_UP       = 8  bar (V14: 10)
+
+Live 11 筆 V25-D 覆寫命中：
+  #  side     regime    override?    exit_type      pnl
+  1     L    MILD_UP     L_MH 6→7           BE   +12.52
+  2     S    MILD_UP            -           TP   +74.64
+  3     S         UP    S_MH 10→8      MaxHold   -71.79
+  4     S    MILD_UP            -      MaxHold    -8.25
+  5     L    MILD_UP     L_MH 6→7    MFE-trail   +33.99
+  6     L    MILD_UP     L_MH 6→7      MaxHold   -15.86
+  7     S    MILD_UP            -           TP   +88.12
+  8     L       SIDE            -    MFE-trail   +15.52
+  9     L       SIDE            -      MaxHold   -28.30
+ 10     S       DOWN            -      MaxHold   -17.14
+ 11     L       DOWN L_TP 3.5→4.0       MH-ext   +15.07
+
+========================================================================
+§5.1 同期回測：V14+R+V25-D vs V14+R only
+========================================================================
+                     V14+R+V25-D      V14+R only     V25-D Δ
+trades                        14              14          +0
+PnL                        75.10           95.84      -20.74
+WR%                         42.9            42.9
+
+V25-D 改變了哪些 trade 的出場（同期回測對齊）：
+               entry  side     regime   v25_reason   v25_pnl   v14_reason   v14_pnl
+ 2026-04-14 14:00:00     L    MILD_UP    MFE-trail    -37.83           BE     -4.00
+ 2026-04-16 21:00:00     S         UP      MaxHold    -60.97      MaxHold    -72.97
+ 2026-04-22 20:00:00     L    MILD_UP      MaxHold    -15.81      MaxHold    -16.90
+
+========================================================================
+§6. Go-Live 風險檢視（Testnet → Mainnet checklist）
+========================================================================
+6.1 進場滑價分布（Testnet）：
+  mean unfavorable: -1.89 bp  /  p50: 0.31 bp  /  p95: 7.26 bp  /  max: 9.23 bp
+  -> Mainnet 預期：ETH 流動性比 Testnet 好，滑價應 <= 此值，但須在前 5 筆 mainnet trade 重新驗證
+
+6.2 Commission 與毛 PnL 比：
+  總 commission: $31.97  /  總 net PnL: $98.52  /  毛 PnL: $130.49
+  commission/毛 PnL: 24.5%（11 筆樣本，mainnet maker rebate 可能略低）
+
+6.3 SafeNet 風險：
+  48 天無任何 SafeNet 觸發  /  buffer min: 1.52 %pt
+  buffer < 1%pt 的 trade（離 SL 1% 內）：0 筆
+
+6.4 訂單異常統計：
+  alerts.log：408 出現 0 次，-1007 出現 0 次，'error' 出現 42 次
+
+6.5 帳戶風險估計：
+  48 天 max DD（實現 PnL）: $80.04
+  最大單筆虧損（live）: $-71.79（trade #3）
+  V23 worst30d 回測基準: -$197（V14+R），實盤 48 天最大 30 日累計: -$28.30 + -$17.14 = $-45.44
+  $1K mainnet 帳戶最大單筆預期虧損: ~$158（L SafeNet 含 25% 穿透）/ ~$200（S SafeNet）
+
+6.6 Go-Live Checklist（從 48 天執行數據盤點）：
+  [OK] Hedge Mode 持倉互不影響
+      → 11 筆 L/S 完全獨立，月度 entry cap/loss cap 各自獨立
+  [OK] SL Algo Order 未誤觸
+      → 0 SafeNet 觸發 / min buffer 1.52%pt
+  [OK] 連虧熔斷未觸發
+      → consec_losses 最高 2（trade #9/#10），未達 4 筆門檻
+  [OK] 月虧熔斷未觸發
+      → 5 月 L -$13/S -$17 距各自 cap (-$75/-$150) 有大量 buffer
+  [OK] 進場滑價可控
+      → p95 < 10 bp，但 Testnet 撮合機制可能優於 mainnet 微結構
+  [!! ] V25-D 增益尚未在實盤體現
+      → 見 §5：4 筆 V25-D 上線後交易，命中覆寫鍵的僅 trade #11 L DOWN，且該 trade 是 MH-ext 出場，覆寫鍵未實際作用
+  [!! ] 樣本對 mainnet 行為不足
+      → 11 筆樣本對 monthly DD 估計信賴區間極寬；前 30 天 mainnet 建議降槓桿觀察
+  [?? ] mainnet API key 權限/IP 白名單
+      → 切換前需在 .env 確認 BINANCE_TESTNET=false、API key 已啟用 futures-trade 權限
+  [?? ] eth_state_live.json 初始化
+      → 目前 data_live/ 目錄不存在，第一次 live run 需手動建立或讓 executor 自動建
