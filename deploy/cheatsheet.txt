@@ -1,0 +1,73 @@
+==================================================================
+ CryptoBot VPS 維運速查表  (Hostinger / Ubuntu 24.04 / systemd)
+==================================================================
+ VPS:   ssh cryptobot@187.127.108.237   (固定 IP，已白名單於 Binance)
+ 專案:  /home/cryptobot/cryptoBot
+ 服務:  systemd unit = cryptobot  (enabled，開機自啟 + 崩潰自動重啟)
+ 模式:  LIVE mainnet → 資料寫在 data_live/（不是 data/）
+
+ 前提：用 cryptobot 帳號登入並先 cd，相對路徑才正確
+   ssh cryptobot@187.127.108.237
+   cd ~/cryptoBot
+ （Hostinger 網頁 overview 的終端預設是 root，~ 會變成 /root，
+   要嘛 su - cryptobot，要嘛一律用絕對路徑 /home/cryptobot/cryptoBot/...）
+
+------------------------------------------------------------------
+ 服務控制
+------------------------------------------------------------------
+systemctl is-active cryptobot        # 一秒看是否在跑 (active/inactive)
+sudo systemctl status cryptobot      # 詳細狀態 + 最近日誌
+sudo systemctl restart cryptobot     # 重啟（改設定後）
+sudo systemctl stop cryptobot        # 停止（暫停交易；有持倉不會自動平倉）
+sudo systemctl start cryptobot       # 啟動
+
+------------------------------------------------------------------
+ 日誌（systemd journal + 程式自己的 log）
+------------------------------------------------------------------
+journalctl -u cryptobot -f                    # 即時跟（Ctrl+C 離開）
+journalctl -u cryptobot -n 50 --no-pager      # 最近 50 行
+journalctl -u cryptobot --since "1 hour ago"  # 近 1 小時
+journalctl -u cryptobot -p err --no-pager     # 只看錯誤等級（最快抓問題）
+
+tail -f  ~/cryptoBot/logs/system.log    # 主循環日誌（每小時一筆）
+tail -30 ~/cryptoBot/logs/signal.log    # 進出場信號專用
+tail -30 ~/cryptoBot/logs/alerts.log    # 錯誤/告警（最該定期看）
+
+------------------------------------------------------------------
+ 交易與資料（LIVE → data_live/）
+------------------------------------------------------------------
+ls -lh   ~/cryptoBot/data_live/                     # 有哪些 CSV、多大、何時更新
+tail -5  ~/cryptoBot/data_live/bar_snapshots.csv    # 最近幾根 bar 快照
+tail -10 ~/cryptoBot/data_live/trades.csv           # 交易記錄（有成交才有此檔）
+cat      ~/cryptoBot/data_live/daily_summary.csv    # 每日彙總
+column -s, -t ~/cryptoBot/data_live/trades.csv | less -S   # 表格對齊（q 離開）
+
+------------------------------------------------------------------
+ 健康 / 帳戶 / 持倉狀態
+------------------------------------------------------------------
+.venv/bin/python verify_mainnet.py             # 唯讀全面體檢（連線/餘額/Hedge/持倉，不下單）
+.venv/bin/python check_health.py --days 30     # 策略健康報告（勝率/PF/DD）
+cat ~/cryptoBot/eth_state_live.json | python3 -m json.tool   # 目前持倉/計數器/餘額
+
+------------------------------------------------------------------
+ 系統資源
+------------------------------------------------------------------
+timedatectl       # 時鐘是否同步（synchronized: yes）
+df -h /           # 磁碟用量
+free -h           # 記憶體（bot 約 100MB）
+uptime            # 開機時長 / 負載
+
+------------------------------------------------------------------
+ 每日一瞄（一條搞定：服務活著 + 近期無告警 + bar 持續在寫）
+------------------------------------------------------------------
+systemctl is-active cryptobot; tail -5 ~/cryptoBot/logs/alerts.log; tail -3 ~/cryptoBot/data_live/bar_snapshots.csv
+
+==================================================================
+ 重要提醒
+==================================================================
+- 只能有一個機器人跑：家裡 Windows 的 start.bat 別再開（同帳戶會重複下單）
+- 真錢交易：改 binance_trade.py / executor.py / 下單流程務必格外小心
+- 部位大小寫死在 strategy.py（MARGIN=200 / LEVERAGE=20 / NOTIONAL=4000）；
+  .env 的 LEVERAGE 不被 bot 使用（只有 verify_mainnet.py 顯示用）
+- 懷疑連線/權限問題 → 先跑 verify_mainnet.py
+==================================================================

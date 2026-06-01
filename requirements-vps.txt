@@ -1,0 +1,14 @@
+# CryptoBot — Linux VPS 實際依賴（bot 本體，不含儀表板 pywebview）
+# 用法：pip install -r requirements-vps.txt
+# 注意：根目錄的 requirements.txt 是舊 Anaconda freeze，請勿在 Linux 使用。
+
+binance-futures-connector==4.1.0
+pandas>=2.0
+numpy>=1.24
+requests>=2.31
+python-dotenv>=1.0
+
+# 以下僅在你想於 VPS 另跑 FastAPI 監控 server（非原生視窗）時才需要：
+fastapi>=0.110
+uvicorn>=0.27
+pydantic>=2.0

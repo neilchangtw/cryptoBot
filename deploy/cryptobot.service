@@ -1,0 +1,17 @@
+[Unit]
+Description=CryptoBot ETH 1h V14+R+V25-D live trader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cryptobot
+WorkingDirectory=/home/cryptobot/cryptoBot
+ExecStart=/home/cryptobot/cryptoBot/.venv/bin/python -u main_eth.py
+Restart=always
+RestartSec=15
+# 確保時鐘已同步（Linux 由 systemd-timesyncd/chrony 自動 NTP）
+# 日誌進 journald：journalctl -u cryptobot -f
+
+[Install]
+WantedBy=multi-user.target
