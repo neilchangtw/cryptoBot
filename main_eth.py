@@ -414,6 +414,30 @@ def _handle_analysis(executor, cmd_logger, cmd=""):
         send_telegram_message(f"❌ 分析失敗：{str(e)[:200]}")
 
 
+def _handle_signal(executor, cmd_logger):
+    """即時開單條件檢查（L/S 每個 gate 的 ✅/❌ + 可開單時段）。"""
+    try:
+        import signal_status
+        eth_df, _btc_df = data_feed.fetch_eth_and_btc()
+        df = strategy.compute_indicators(eth_df)
+        idx = len(df) - 2  # 最新已收盤 bar，與主迴圈一致
+        st = {
+            "bar_counter": executor.bar_counter,
+            "last_exits": executor.last_exits,
+            "monthly_pnl": executor.monthly_pnl,
+            "monthly_entries": executor.monthly_entries,
+            "positions": executor.positions,
+            "consec_losses": executor.consec_losses,
+            "consec_loss_cooldown_until": executor.consec_loss_cooldown_until,
+            "paused": executor.paused,
+        }
+        msg = signal_status.build_signal_status(df, idx, st, html=True)
+        send_telegram_message(msg)
+    except Exception as e:
+        cmd_logger.error(f"Signal error: {e}")
+        send_telegram_message(f"❌ 條件查詢失敗：{str(e)[:200]}")
+
+
 def _handle_trades(executor, cmd_logger):
     """回報最近 5 筆交易。"""
     try:
@@ -579,6 +603,7 @@ def _handle_help():
         "/bal — 帳戶餘額 + 未實現損益\n"
         "/pnl — 今日 / 本月損益報表\n"
         "/analysis [天數] — 收益分析（WR/PF/回撤/出場分佈/L vs S/regime）\n"
+        "/signal — 即時開單條件檢查（L/S 各 gate + 可開單時段）\n"
         "/trades — 最近 5 筆交易\n"
         "/alerts — 今日告警日誌\n"
         "/cb — 風控熔斷狀態\n"
@@ -693,6 +718,8 @@ def main():
                             _handle_pnl(executor, cmd_logger)
                         elif cmd_lower in ("/analysis", "/stats", "/report"):
                             _handle_analysis(executor, cmd_logger, cmd)
+                        elif cmd_lower in ("/signal", "/cond", "/check"):
+                            _handle_signal(executor, cmd_logger)
                         elif cmd_lower == "/trades":
                             _handle_trades(executor, cmd_logger)
                         elif cmd_lower in ("/alerts", "/warn"):

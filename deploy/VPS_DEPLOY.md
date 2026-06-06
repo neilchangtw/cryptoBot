@@ -123,11 +123,14 @@ cd ~/cryptoBot
 .venv/bin/python analyze.py -t         # 對齊好讀的交易列表（最近 20 筆）
 .venv/bin/python analyze.py -t 50      # 交易列表最近 50 筆
 .venv/bin/python analyze.py --paper    # 強制看模擬盤 data/（若有帶資料上來）
+.venv/bin/python check_signal.py       # 即時開單條件：L/S 每個 gate ✅/❌ + 可開單時段（即時抓 K 線）
 ```
 
-> Telegram 也有對應指令：`/analysis`（彙總）/ `/analysis 30`（近 30 天）/ `/trades`（近 5 筆）/ `/pnl`。
-> `analyze.py` 與 `/analysis` 共用 `analysis_report.py` 同一套計算，數字一致。
-> `analyze.py` 只讀 CSV、不碰 bot，**不用重啟服務**即可使用。
+> Telegram 對應指令（手機輸入）：`/analysis [天數]`（收益分析）/ `/signal`（開單條件）/
+> `/trades`（近 5 筆）/ `/pnl`（今日/本月/近 7 天）/ `/status` `/bal` `/cb`（持倉/餘額/風控）。
+> 終端機 ↔ Telegram 對照：`analyze.py` = `/analysis`、`analyze.py -t` = `/trades`、
+> `check_signal.py` = `/signal`、`verify_mainnet.py` ≈ `/status`+`/bal`。共用計算模組數字一致。
+> `analyze.py` / `check_signal.py` 只讀檔、不碰 bot，**不用重啟服務**即可使用。
 
 ### 在 VPS 跑回測
 
@@ -155,7 +158,7 @@ VPS 是用 tar/scp 部署（**不含 `.git`，不能 `git pull`**）。改了本
 ```cmd
 :: 本機 CMD / PowerShell（在專案根目錄）
 cd C:\Users\wei\IdeaProjects\cryptoBot
-scp main_eth.py analysis_report.py analyze.py fetch_backtest_data.py cryptobot@187.127.108.237:~/cryptoBot/
+scp main_eth.py analysis_report.py analyze.py signal_status.py check_signal.py fetch_backtest_data.py cryptobot@187.127.108.237:~/cryptoBot/
 ```
 
 ```bash
