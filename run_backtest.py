@@ -38,6 +38,7 @@ def main():
     ap.add_argument("--end", default="", metavar="YYYY-MM-DD", help="結束日期（空=最新）")
     ap.add_argument("--symbol", default="ETHUSDT")
     ap.add_argument("--refresh", action="store_true", help="跑之前先抓最新 730 天 K 線")
+    ap.add_argument("-t", "--trades", action="store_true", help="印每筆進出場明細表")
     args = ap.parse_args()
 
     csv_path = os.path.join(ROOT, "data", f"{args.symbol}_1h_latest730d.csv")
@@ -109,6 +110,22 @@ def main():
     print(f" 最佳/最差 : ${float(tdf['pnl_usd'].max()):+.2f} / ${float(tdf['pnl_usd'].min()):+.2f}")
     print(f" L 做多    : ${float(l['pnl_usd'].sum()):+.2f}（{len(l)} 筆，WR {l_wr:.0f}%）")
     print(f" S 做空    : ${float(s['pnl_usd'].sum()):+.2f}（{len(s)} 筆，WR {s_wr:.0f}%）")
+
+    # 每筆進出場明細（-t）
+    if args.trades:
+        print("\n 進出場明細（Reason: TP止盈 / MH最長持倉 / MFE浮盈回吐 / MHx延長超時 / BE平保 / SN安全網）")
+        hdr = (f"{'#':>4} {'Dir':<3} {'Entry (UTC+8)':<16} {'EntryPx':>9} "
+               f"{'Exit (UTC+8)':<16} {'ExitPx':>9} {'Rsn':<4} {'Hold':>4} "
+               f"{'PnL($)':>9} {'PnL%':>6} {'Regime':<8}")
+        print(" " + hdr)
+        print(" " + "-" * len(hdr))
+        for k, t in enumerate(trades, 1):
+            edt = str(t["entry_dt"])[:16].replace("T", " ")
+            xdt = str(t["exit_dt"])[:16].replace("T", " ")
+            print(f" {k:>4} {t['side']:<3} {edt:<16} {t['entry_price']:>9.2f} "
+                  f"{xdt:<16} {t['exit_price']:>9.2f} {t['exit_reason']:<4} "
+                  f"{t['bars_held']:>4} {t['pnl_usd']:>+9.2f} {t['pnl_pct']:>+6.2f} "
+                  f"{str(t.get('entry_regime', 'NA')):<8}")
 
     # 出場分佈
     print("\n 出場分佈：")
