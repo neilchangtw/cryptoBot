@@ -158,8 +158,10 @@ VPS 是用 tar/scp 部署（**不含 `.git`，不能 `git pull`**）。改了本
 ```cmd
 :: 本機 CMD / PowerShell（在專案根目錄）
 cd C:\Users\wei\IdeaProjects\cryptoBot
-scp main_eth.py analysis_report.py analyze.py signal_status.py check_signal.py fetch_backtest_data.py cryptobot@187.127.108.237:~/cryptoBot/
+scp main_eth.py strategy.py analysis_report.py analyze.py signal_status.py check_signal.py fetch_backtest_data.py cryptobot@187.127.108.237:~/cryptoBot/
 ```
+> ⚠️ 若這次改了 `strategy.py` 的部位大小來源，**先確認 VPS `.env` 的 `LEVERAGE` 是你要的值再 scp + restart**，
+> 否則重啟後會以 `.env` 的值下單（例如 `.env=10` 會變成只開半倉）。
 
 ```bash
 # VPS：只有改到 bot 主程式（main_eth.py / strategy.py / executor.py / binance_trade.py）才需重啟
@@ -179,8 +181,10 @@ sudo systemctl status cryptobot --no-pager
 2. **Live 模式資料在 `data_live/`，不是 `data/`**（paper 才用 `data/`）。
 3. **網頁終端貼多行 / 長指令會被自動縮排或截斷** → 用本機 CMD 的 scp 傳檔，或用 `nano` 編輯，避免 inline 多行貼上。
 4. **只能有一個機器人跑**：家裡 Windows 的 `start.bat` 別再開（同帳戶重複下單）。
-5. **槓桿有兩個來源，必須一致**（2026-06-06 修正先前的誤解）：
-   - `strategy.py` 寫死 `LEVERAGE=20` → 開機 `set_leverage()` 設**幣安帳戶槓桿**。
-   - `binance_trade.py` 讀 **`.env` 的 `LEVERAGE`** → 算**下單名目**（`notional = MARGIN_PER_TRADE × LEVERAGE`，line 402）。
-   - ⚠️ 所以 `.env` 的 `LEVERAGE` **確實會影響實際下單大小**。曾經 `.env=10` 但 `strategy.py=20`，
-     結果帳戶 20x、卻只開 $2,000 名目（半倉）。**改槓桿要同時確保兩邊一致**，改 `.env` 後 `systemctl restart`。
+5. **部位大小單一來源 = `.env`**（2026-06-06 統一；先前有過誤解，已釐清）：
+   - 實盤下單金額 = `strategy.NOTIONAL`（`executor.py` 用 `NOTIONAL/entry` 算 qty 並明確傳給 `place_order`）。
+   - `strategy.py` 已改成讀 `.env` 的 `LEVERAGE` / `MARGIN_PER_TRADE` 算 `NOTIONAL`（預設 20x / $200）。
+     `verify_mainnet.py`、`binance_trade.py` 也讀同一組 `.env`，三者保證一致。
+   - ⚠️ **改 `.env` 的 `LEVERAGE` = 改實際下單大小**，改完務必 `systemctl restart`。
+   - 歷史註記：統一前 `binance_trade.py` line 402 的 `MARGIN_PER_TRADE × LEVERAGE` 只在 `qty=None`
+     時用到（bot 永遠有傳 qty，故當時 `.env` 對實盤無效、僅 verify 顯示用）。現已全部走 `.env`。

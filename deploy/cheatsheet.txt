@@ -99,8 +99,8 @@ systemctl is-active cryptobot; tail -5 ~/cryptoBot/logs/alerts.log; tail -3 ~/cr
 ==================================================================
 - 只能有一個機器人跑：家裡 Windows 的 start.bat 別再開（同帳戶會重複下單）
 - 真錢交易：改 binance_trade.py / executor.py / 下單流程務必格外小心
-- 槓桿兩個來源要一致：strategy.py 寫死 LEVERAGE=20（設幣安帳戶槓桿）；
-  binance_trade.py 讀 .env 的 LEVERAGE 算下單名目（notional=MARGIN×LEVERAGE）。
-  → .env 的 LEVERAGE 會影響實際下單大小！改完 .env 要 systemctl restart。
+- 部位大小單一來源 = .env：strategy.py 讀 .env 的 LEVERAGE/MARGIN_PER_TRADE 算 NOTIONAL，
+  executor 用 NOTIONAL/entry 算下單 qty。verify_mainnet.py / binance_trade.py 也讀同一組 .env。
+  → 改 .env 的 LEVERAGE = 改實際下單大小！改完務必 systemctl restart。
 - 懷疑連線/權限問題 → 先跑 verify_mainnet.py
 ==================================================================

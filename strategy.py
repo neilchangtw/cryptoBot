@@ -16,8 +16,13 @@ V14→V14+R 變更（新增 regime gate，出場邏輯不動）：
     - L 被阻擋：slope > +4.5%
     - S 被阻擋：|slope| < 1.0%
 """
+import os
+
 import numpy as np
 import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()  # 確保模組層級讀得到 .env（無論被誰先 import）
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 共用常數
@@ -32,9 +37,12 @@ BLOCK_H = {0, 1, 2, 12}    # UTC+8 封鎖時段（L/S 共用）
 L_BLOCK_D = {5, 6}         # L 封鎖星期（Sat=5, Sun=6）
 S_BLOCK_D = {0, 5, 6}      # S 封鎖星期（Mon=0, Sat=5, Sun=6）
 FEE = 4.0                  # 每筆交易成本（含滑價）$4
-MARGIN = 200               # 每筆保證金 $200
-LEVERAGE = 20              # 槓桿倍數
-NOTIONAL = MARGIN * LEVERAGE  # $4,000 名目金額
+# ── 部位大小：單一來源 = .env（MARGIN_PER_TRADE / LEVERAGE）──
+# strategy.NOTIONAL 是實盤下單金額的唯一依據（executor.py 用 NOTIONAL/entry 算 qty）。
+# verify_mainnet.py / binance_trade.py 也讀同一組 .env，三者保證一致。
+MARGIN = float(os.getenv("MARGIN_PER_TRADE", 200))  # 每筆保證金（預設 $200）
+LEVERAGE = int(os.getenv("LEVERAGE", 20))           # 槓桿倍數（預設 20x）
+NOTIONAL = MARGIN * LEVERAGE                          # 名目金額 = 保證金 × 槓桿
 
 # ── V14+R Regime Gate ──
 R_SMA_WIN = 200            # SMA 窗口
