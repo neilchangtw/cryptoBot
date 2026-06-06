@@ -124,8 +124,12 @@ def build_signal_status(df, idx, st, html: bool = False) -> str:
             positions / consec_losses / consec_loss_cooldown_until / paused
         html: True → Telegram HTML；False → 終端機純文字
     """
+    # html 模式用 sentinel 標記粗體，最後統一 escape 內容（避免 < > 被當成 HTML 標籤），
+    # 再把 sentinel 還原成 <b></b>。這樣 "（<25）" 之類的 < 不會炸掉 Telegram parser。
+    BOLD_L, BOLD_R = "\x00B\x00", "\x00b\x00"
+
     def b(t):
-        return f"<b>{t}</b>" if html else t
+        return f"{BOLD_L}{t}{BOLD_R}" if html else t
 
     row = df.iloc[idx]
     bar_time = str(row["datetime"])[:16]
@@ -183,4 +187,9 @@ def build_signal_status(df, idx, st, html: bool = False) -> str:
         f"  S：{sw['S']}",
         "  （封鎖 00–02、12 點；冷卻/暖機另計）",
     ]
-    return "\n".join(lines)
+    text = "\n".join(lines)
+    if html:
+        import html as _html
+        text = _html.escape(text, quote=False)  # & < > → 實體，避免被當標籤
+        text = text.replace(BOLD_L, "<b>").replace(BOLD_R, "</b>")
+    return text

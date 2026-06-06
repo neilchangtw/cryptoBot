@@ -118,11 +118,15 @@ def build_report(data_dir: str, days: int = None, html: bool = False) -> str:
         days: 只算最近 N 天（依出場時間）；None = 全期間
         html: True 用 Telegram HTML 標籤；False 用純文字（終端機）
     """
+    # html 模式用 sentinel 標記，最後統一 escape 內容再還原標籤（避免 < > 炸掉 Telegram parser）
+    BOLD_L, BOLD_R = "\x00B\x00", "\x00b\x00"
+    ITAL_L, ITAL_R = "\x00I\x00", "\x00i\x00"
+
     def b(t):  # 粗體
-        return f"<b>{t}</b>" if html else t
+        return f"{BOLD_L}{t}{BOLD_R}" if html else t
 
     def i(t):  # 斜體
-        return f"<i>{t}</i>" if html else t
+        return f"{ITAL_L}{t}{ITAL_R}" if html else t
 
     trades_path = os.path.join(data_dir, "trades.csv")
     if not os.path.exists(trades_path):
@@ -267,4 +271,10 @@ def build_report(data_dir: str, days: int = None, html: bool = False) -> str:
                 rwr = w / c * 100 if c else 0
                 lines.append(f"  {rg}：{c} 筆 ${s:+.2f}（WR {rwr:.0f}%）")
 
-    return "\n".join(lines)
+    text = "\n".join(lines)
+    if html:
+        import html as _html
+        text = _html.escape(text, quote=False)
+        text = (text.replace(BOLD_L, "<b>").replace(BOLD_R, "</b>")
+                    .replace(ITAL_L, "<i>").replace(ITAL_R, "</i>"))
+    return text
