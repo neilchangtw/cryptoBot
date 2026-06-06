@@ -336,12 +336,32 @@ def _handle_pnl(executor, cmd_logger):
         s_entries = executor.monthly_entries.get("S", 0)
 
         # 最近 7 天彙總
+        # 注意：不能用 executor.daily_stats — flush_daily_summary() 每日 rollover
+        # 會 pop 掉已結算的日期，記憶體中通常只剩「今天」，導致近 7 天恆為 $0。
+        # 改從持久化的 trades.csv 讀取，依 exit_time_utc8 過濾最近 7 天。
+        import csv as _csv
         week_pnl = 0.0
         week_trades = 0
-        for key in sorted(executor.daily_stats.keys(), reverse=True)[:7]:
-            d = executor.daily_stats[key]
-            week_pnl += d.get("pnl", 0.0)
-            week_trades += d.get("trades_closed", 0)
+        data_dir = os.path.join(os.path.dirname(__file__),
+                                "data" if PAPER_TRADING else "data_live")
+        trades_path = os.path.join(data_dir, "trades.csv")
+        cutoff = (datetime.utcnow() + timedelta(hours=8)) - timedelta(days=7)
+        if os.path.exists(trades_path):
+            with open(trades_path, "r", encoding="utf-8") as f:
+                for row in _csv.DictReader(f):
+                    if not row.get("exit_type"):
+                        continue  # 未平倉
+                    exit_t = row.get("exit_time_utc8", "")
+                    try:
+                        exit_dt = datetime.strptime(exit_t[:19], "%Y-%m-%d %H:%M:%S")
+                    except (ValueError, TypeError):
+                        try:
+                            exit_dt = datetime.strptime(exit_t[:10], "%Y-%m-%d")
+                        except (ValueError, TypeError):
+                            continue
+                    if exit_dt >= cutoff:
+                        week_pnl += float(row.get("net_pnl_usd", 0) or 0)
+                        week_trades += 1
 
         lines = [
             "<b>📊 損益報表</b>",
@@ -362,6 +382,36 @@ def _handle_pnl(executor, cmd_logger):
     except Exception as e:
         cmd_logger.error(f"PnL error: {e}")
         send_telegram_message(f"❌ 查詢失敗：{str(e)[:200]}")
+
+
+def _handle_analysis(executor, cmd_logger, cmd=""):
+    """收益分析（Telegram 文字版的 dashboard 收益分析）。
+
+    用法：
+      /analysis      → 全期間統計
+      /analysis 30   → 只算最近 30 天（依出場時間）
+    指標：總損益 / WR / PF / 最大回撤 / 出場分佈 / L vs S / regime。
+    計算邏輯共用 analysis_report.build_report（同樣供 analyze.py CLI 使用）。
+    """
+    try:
+        import analysis_report
+
+        # 解析可選天數參數
+        days = None
+        parts = cmd.split()
+        if len(parts) > 1:
+            try:
+                days = int(parts[1])
+            except ValueError:
+                days = None
+
+        data_dir = os.path.join(os.path.dirname(__file__),
+                                "data" if PAPER_TRADING else "data_live")
+        msg = analysis_report.build_report(data_dir, days=days, html=True)
+        send_telegram_message(msg)
+    except Exception as e:
+        cmd_logger.error(f"Analysis error: {e}")
+        send_telegram_message(f"❌ 分析失敗：{str(e)[:200]}")
 
 
 def _handle_trades(executor, cmd_logger):
@@ -528,6 +578,7 @@ def _handle_help():
         "/status — 倉位同步狀態（內部 vs Binance）\n"
         "/bal — 帳戶餘額 + 未實現損益\n"
         "/pnl — 今日 / 本月損益報表\n"
+        "/analysis [天數] — 收益分析（WR/PF/回撤/出場分佈/L vs S/regime）\n"
         "/trades — 最近 5 筆交易\n"
         "/alerts — 今日告警日誌\n"
         "/cb — 風控熔斷狀態\n"
@@ -640,6 +691,8 @@ def main():
                             _handle_balance(executor, cmd_logger)
                         elif cmd_lower == "/pnl":
                             _handle_pnl(executor, cmd_logger)
+                        elif cmd_lower in ("/analysis", "/stats", "/report"):
+                            _handle_analysis(executor, cmd_logger, cmd)
                         elif cmd_lower == "/trades":
                             _handle_trades(executor, cmd_logger)
                         elif cmd_lower in ("/alerts", "/warn"):

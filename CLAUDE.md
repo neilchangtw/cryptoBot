@@ -62,6 +62,10 @@ cryptoBot/
 │
 │  ── 診斷工具 ──
 ├── check_health.py        # 策略健康報告（8 項指標：月交易量/SafeNet率/勝率/PF/DD...）
+├── analysis_report.py     # 收益分析共用計算（Telegram /analysis + analyze.py 共用，只讀 CSV）
+├── analyze.py             # 終端機收益分析 CLI（彙總 + -t 交易列表，VPS 上免開 dashboard 看績效）
+├── fetch_backtest_data.py # 補回測 K 線快取（Binance 公開端點分頁抓 730 天，VPS 跑回測用）
+├── verify_mainnet.py      # 正式盤上線前唯讀體檢（API/餘額/Hedge Mode/精度/K線）
 │
 │  ── 儀表板（Dashboard） ──
 ├── dashboard/
@@ -108,9 +112,9 @@ cryptoBot/
 | `bar_snapshots.csv` | 每根 K 線的快照（指標值、信號、持倉狀態） | recorder.py |
 | `position_lifecycle.csv` | 持倉期間每根 bar 的狀態追蹤 | recorder.py |
 | `daily_summary.csv` | 每日彙總（交易數、PnL、勝率...） | recorder.py |
-| `ETHUSDT_1h_latest730d.csv` | ETH 1h K 線快取（730 天，~2.5MB） | data_feed.py |
-| `BTCUSDT_1h_latest730d.csv` | BTC 1h K 線快取（回測/對比用） | data_feed.py |
-| `ETHUSDT_4h_latest730d.csv` | ETH 4h K 線快取（回測研究用） | data_feed.py |
+| `ETHUSDT_1h_latest730d.csv` | ETH 1h K 線快取（730 天，~2.5MB） | fetch_backtest_data.py |
+| `BTCUSDT_1h_latest730d.csv` | BTC 1h K 線快取（回測/對比用） | fetch_backtest_data.py |
+| `ETHUSDT_4h_latest730d.csv` | ETH 4h K 線快取（回測研究用） | fetch_backtest_data.py |
 | `bar_snapshots_v5_backup.csv` | v5 升級前的備份 | 一次性 |
 
 ---
@@ -441,7 +445,39 @@ call .venv\Scripts\activate
 python dashboard/app.py         # 啟動儀表板（自動啟動機器人）
 python main_eth.py              # 單獨啟動機器人（不開儀表板）
 python check_health.py --days 30  # 健康報告
+
+# 終端機看績效（VPS 無 dashboard 時用；依 .env PAPER_TRADING 自動選 data/ 或 data_live/）
+python analyze.py               # 收益分析彙總（總損益/WR/PF/最大回撤/出場分佈/L vs S/regime）
+python analyze.py 30            # 收益分析（最近 30 天）
+python analyze.py -t            # 對齊好讀的交易列表（最近 20 筆）
+python analyze.py -t 50 --live  # 交易列表近 50 筆，強制讀 data_live/
+
+# 回測前補 K 線快取（data/ 被 gitignore，fresh 環境/VPS 需先抓）
+python fetch_backtest_data.py   # Binance 公開端點分頁抓 ETH+BTC 1h 730 天 → data/
 ```
+
+> VPS 維運 / 部署 / 更新檔案見 **[deploy/VPS_DEPLOY.md](deploy/VPS_DEPLOY.md)**（含 scp 更新流程、
+> Telegram 指令、`analyze.py` 與回測用法）。
+
+---
+
+## Telegram 指令（main_eth.py 內建，每 10s 輪詢）
+
+| 指令 | 功能 |
+|------|------|
+| `/status`（`/pos`） | 倉位同步狀態（內部 vs Binance） |
+| `/bal`（`/balance`） | 帳戶餘額 + 未實現損益 |
+| `/pnl` | 今日 / 本月 / 近 7 天損益報表 |
+| `/analysis [天數]`（`/stats`、`/report`） | 收益分析（WR/PF/最大回撤/出場分佈/L vs S/regime），可帶天數如 `/analysis 30` |
+| `/trades` | 最近 5 筆交易 |
+| `/alerts`（`/warn`） | 今日告警日誌 |
+| `/cb` | 風控熔斷狀態 |
+| `/pause` / `/resume` | 暫停 / 恢復開新倉 |
+| `/cleanup`（`/clean`） | 清理孤兒倉位 |
+| `/help` | 顯示指令列表 |
+
+> `/pnl` 近 7 天與 `/analysis` 都改讀持久化的 `trades.csv`（`daily_stats` 每日 rollover 會被清空，
+> 不能當歷史來源）。`/analysis` 與終端機 `analyze.py` 共用 `analysis_report.py`，數字一致。
 
 ---
 
@@ -460,6 +496,9 @@ python check_health.py --days 30  # 健康報告
 - `theory_*`：理論驗證（ADX, Parkinson, FVG, Inside Bar...）
 
 這些腳本是歷史研究記錄，不影響機器人運行。
+
+> 多數腳本讀 `data/ETHUSDT_1h_latest730d.csv`。`data/` 被 gitignore，**fresh clone / VPS 上要先跑
+> `python fetch_backtest_data.py` 補快取**才能執行。
 
 ---
 
