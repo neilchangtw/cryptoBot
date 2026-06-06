@@ -22,11 +22,14 @@ MENU = r"""
 
  旗標：--paper / --live 強制資料來源；analyze.py 第一個數字 = 最近 N 天
 
- 回測
+ 回測（⚠️ 版本不一，看清楚再跑）
  ──────────────────────────────────────────────────────────────
- .venv/bin/python fetch_backtest_data.py      補 730 天 K 線快取 → data/（含 ETH+BTC，BTC 僅作對照背景）
- .venv/bin/python backtest/research/v14_r5_champion_validation.py   跑 ETH 研究腳本（v14_*/v23_*/v25_*）
-   註：實盤策略是 ETH-only；研究目錄裡檔名 btc_* 的是早期 BTC 研究(未採用)，那些才需 export MPLBACKEND=Agg
+ .venv/bin/python fetch_backtest_data.py      先補 730 天 K 線快取 → data/（ETH+BTC，BTC 僅背景對照）
+ 版本對照：
+   線上實盤      = strategy.py + executor.py        → V14+R + V25-D（最新）
+   儀表板回測 tab = research/v14_export_trades.py     → V14+R（無 V25-D）
+   研究腳本 v25_r2b_combined.py / v25_r3_audit.py     → 含 V25-D（最接近線上）
+   其他 v14_*/v23_* 與 btc_* = 各實驗當下的歷史快照，非線上版（btc_* 才需 MPLBACKEND=Agg）
 
  服務控制（systemd）
  ──────────────────────────────────────────────────────────────
