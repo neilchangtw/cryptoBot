@@ -72,6 +72,35 @@ CB_S_MONTH = -150
 CB_CONSEC = 4
 CB_CONSEC_CD = 24
 
+# =========================================================================
+# V25-D: regime 條件出場（與線上實盤一致）
+# 優先用 strategy.py 的同一份查表 + classify_regime（單一來源，避免漂移）；
+# 獨立執行（import 失敗）時用等值 fallback。classify 用固定 0.045/0.010，
+# 與 strategy.R_TH_UP/R_TH_SIDE 一致，不受 dashboard 對 R 門檻的 what-if patch 影響。
+# =========================================================================
+try:
+    from strategy import (classify_regime as _classify_regime,
+                          L_TP_BY_REGIME as _L_TP_BR,
+                          L_MH_BY_REGIME as _L_MH_BR,
+                          S_MH_BY_REGIME as _S_MH_BR)
+except Exception:  # standalone fallback（值同 strategy.py）
+    _L_TP_BR, _L_MH_BR, _S_MH_BR = {"DOWN": 0.040}, {"MILD_UP": 7}, {"UP": 8}
+
+    def _classify_regime(s):
+        try:
+            if s is None or np.isnan(s):
+                return "NA"
+        except TypeError:
+            return "NA"
+        s = float(s)
+        if s > 0.045:
+            return "UP"
+        if abs(s) < 0.010:
+            return "SIDE"
+        if s < -0.010:
+            return "DOWN"
+        return "MILD_UP"
+
 
 def rolling_pctile(vals, window):
     """與 strategy.py _rank_pctile 完全一致：strict < 且 /（n-1）"""
@@ -141,6 +170,7 @@ def compute_indicators(df):
         'brk_up': brk_up, 'brk_dn': brk_dn,
         'hours': hours, 'dows': dows, 'months': months, 'days': days,
         'regime_block_l': regime_block_l, 'regime_block_s': regime_block_s,
+        'slope': slope_use,  # V25-D: 進場 regime 分類用（昨日斜率，與 gate 同源）
     }
 
 
@@ -159,6 +189,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
     months, days = ind['months'], ind['days']
     rblk_l = ind.get('regime_block_l')
     rblk_s = ind.get('regime_block_s')
+    slope = ind.get('slope')  # V25-D: 進場 regime 分類
     n = len(o)
 
     sim_start = max(start_bar, WARMUP) if start_bar is not None else WARMUP
@@ -176,6 +207,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
     lp_ext = False
     lp_ext_bars = 0
     lp_gk_pctile = 0.0
+    lp_regime = "NA"
 
     # S position state
     sp_active = False
@@ -187,6 +219,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
     sp_ext = False
     sp_ext_bars = 0
     sp_gk_pctile = 0.0
+    sp_regime = "NA"
 
     # Cooldowns & caps
     l_last_exit = -999
@@ -235,12 +268,16 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
             ex_price = 0.0
             ex_reason = ''
 
+            # V25-D: regime 條件 TP/MH（DOWN→TP 4.0%, MILD_UP→MH 7；default=基準值）
+            l_tp_eff = _L_TP_BR.get(lp_regime, L_TP)
+            l_mh_eff = _L_MH_BR.get(lp_regime, L_MH)
+
             sn_lv = ep * (1 - L_SN)
             if li <= sn_lv:
                 ex_price = sn_lv - (sn_lv - li) * L_SN_SLIP
                 ex_reason = 'SN'
-            elif hi >= ep * (1 + L_TP):
-                ex_price = ep * (1 + L_TP)
+            elif hi >= ep * (1 + l_tp_eff):
+                ex_price = ep * (1 + l_tp_eff)
                 ex_reason = 'TP'
             else:
                 cpnl = (ci - ep) / ep
@@ -252,7 +289,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
                     if bh == L_CMH_BAR and cpnl <= L_CMH_TH:
                         lp_reduced = True
 
-                    mh = L_CMH_MH if lp_reduced else L_MH
+                    mh = L_CMH_MH if lp_reduced else l_mh_eff
                     if not lp_ext:
                         if bh >= mh:
                             if cpnl > 0:
@@ -288,6 +325,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
                     'mfe_pct': round(lp_mfe * 100, 3),
                     'mae_pct': round(lp_mae * 100, 3),
                     'gk_pctile': round(lp_gk_pctile, 1),
+                    'entry_regime': lp_regime,
                 })
                 lp_active = False
                 l_last_exit = i
@@ -316,6 +354,9 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
             ex_price = 0.0
             ex_reason = ''
 
+            # V25-D: regime 條件 MH（UP→8；default=S_MH）
+            s_mh_eff = _S_MH_BR.get(sp_regime, S_MH)
+
             sn_lv = ep * (1 + S_SN)
             if hi >= sn_lv:
                 ex_price = sn_lv + (hi - sn_lv) * S_SN_SLIP
@@ -327,7 +368,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
                 cpnl = (ep - ci) / ep
 
                 if not sp_ext:
-                    if bh >= S_MH:
+                    if bh >= s_mh_eff:
                         if cpnl > 0:
                             sp_ext = True
                             sp_ext_bars = 0
@@ -361,6 +402,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
                     'mfe_pct': round(sp_mfe * 100, 3),
                     'mae_pct': round(sp_mae * 100, 3),
                     'gk_pctile': round(sp_gk_pctile, 1),
+                    'entry_regime': sp_regime,
                 })
                 sp_active = False
                 s_last_exit = i
@@ -393,6 +435,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
             lp_ext = False
             lp_ext_bars = 0
             lp_gk_pctile = pL[i]
+            lp_regime = _classify_regime(slope[i]) if slope is not None else "NA"
             l_m_entries += 1
 
         # S entry: signal bar close 立即進場（與實盤一致）
@@ -410,6 +453,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
             sp_ext = False
             sp_ext_bars = 0
             sp_gk_pctile = pS[i]
+            sp_regime = _classify_regime(slope[i]) if slope is not None else "NA"
             s_m_entries += 1
 
     return trades
