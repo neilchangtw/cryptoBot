@@ -24,7 +24,10 @@ MENU = r"""
 
  回測（⚠️ 版本不一，看清楚再跑）
  ──────────────────────────────────────────────────────────────
- .venv/bin/python fetch_backtest_data.py      先補 730 天 K 線快取 → data/（ETH+BTC，BTC 僅背景對照）
+ .venv/bin/python run_backtest.py                     終端機回測（= 儀表板回測 tab，V14+R+V25-D）
+ .venv/bin/python run_backtest.py --start 2025-01-01 --end 2025-06-30   選日期範圍
+ .venv/bin/python run_backtest.py --refresh           先抓最新 K 線再跑
+ .venv/bin/python fetch_backtest_data.py      只補 730 天 K 線快取 → data/（ETH+BTC，BTC 僅背景對照）
  版本對照：
    線上實盤      = strategy.py + executor.py        → V14+R + V25-D
    儀表板回測/稽核 = research/v14_export_trades.py     → V14+R + V25-D（已對齊線上）

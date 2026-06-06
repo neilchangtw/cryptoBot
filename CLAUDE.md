@@ -67,6 +67,7 @@ cryptoBot/
 ├── signal_status.py       # 即時開單條件共用計算（Telegram /signal + check_signal.py 共用）
 ├── check_signal.py        # 終端機開單條件 CLI（L/S 每 gate ✅/❌ + 可開單時段；勿命名 signal.py 會撞內建模組）
 ├── menu.py                # 終端機指令清單（等同 Telegram /help，列出所有 CLI + Telegram 指令）
+├── run_backtest.py        # 終端機回測 CLI（可選日期範圍，= 儀表板回測 tab 同引擎 V14+R+V25-D）
 ├── fetch_backtest_data.py # 補回測 K 線快取（Binance 公開端點分頁抓 730 天，VPS 跑回測用）
 ├── verify_mainnet.py      # 正式盤上線前唯讀體檢（API/餘額/Hedge Mode/精度/K線）
 │
@@ -457,7 +458,12 @@ python analyze.py -t 50 --live  # 交易列表近 50 筆，強制讀 data_live/
 python check_signal.py          # 即時開單條件（=/signal）L/S 每個 gate ✅/❌ + 可開單時段
 python menu.py                  # 終端機指令清單（=/help）忘記指令時看這個
 
-# 回測前補 K 線快取（data/ 被 gitignore，fresh 環境/VPS 需先抓）
+# 終端機回測（= 儀表板回測 tab，V14+R+V25-D，可選日期範圍；VPS 上免儀表板）
+python run_backtest.py                              # 全期間
+python run_backtest.py --start 2025-01-01 --end 2025-06-30   # 選日期
+python run_backtest.py --refresh                   # 先抓最新 K 線再跑
+
+# 回測前補 K 線快取（data/ 被 gitignore，fresh 環境/VPS 需先抓；run_backtest --refresh 會自動補）
 python fetch_backtest_data.py   # Binance 公開端點分頁抓 ETH+BTC 1h 730 天 → data/
 ```
 
