@@ -24,8 +24,9 @@ MENU = r"""
 
  回測
  ──────────────────────────────────────────────────────────────
- .venv/bin/python fetch_backtest_data.py      補 730 天 K 線快取 → data/
- .venv/bin/python backtest/research/<腳本>.py  跑研究腳本（btc_* 先 export MPLBACKEND=Agg）
+ .venv/bin/python fetch_backtest_data.py      補 730 天 K 線快取 → data/（含 ETH+BTC，BTC 僅作對照背景）
+ .venv/bin/python backtest/research/v14_r5_champion_validation.py   跑 ETH 研究腳本（v14_*/v23_*/v25_*）
+   註：實盤策略是 ETH-only；研究目錄裡檔名 btc_* 的是早期 BTC 研究(未採用)，那些才需 export MPLBACKEND=Agg
 
  服務控制（systemd）
  ──────────────────────────────────────────────────────────────
