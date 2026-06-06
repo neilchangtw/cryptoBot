@@ -26,9 +26,8 @@ MENU = r"""
  ──────────────────────────────────────────────────────────────
  .venv/bin/python fetch_backtest_data.py      先補 730 天 K 線快取 → data/（ETH+BTC，BTC 僅背景對照）
  版本對照：
-   線上實盤      = strategy.py + executor.py        → V14+R + V25-D（最新）
-   儀表板回測 tab = research/v14_export_trades.py     → V14+R（無 V25-D）
-   研究腳本 v25_r2b_combined.py / v25_r3_audit.py     → 含 V25-D（最接近線上）
+   線上實盤      = strategy.py + executor.py        → V14+R + V25-D
+   儀表板回測/稽核 = research/v14_export_trades.py     → V14+R + V25-D（已對齊線上）
    其他 v14_*/v23_* 與 btc_* = 各實驗當下的歷史快照，非線上版（btc_* 才需 MPLBACKEND=Agg）
 
  服務控制（systemd）
