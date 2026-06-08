@@ -31,6 +31,7 @@ load_dotenv()
 
 PAPER_TRADING = os.getenv("PAPER_TRADING", "true").lower() == "true"
 SYMBOL = os.getenv("SYMBOL", "ETHUSDT")
+INITIAL_BALANCE = float(os.getenv("INITIAL_BALANCE", "1000.0"))
 logger = logging.getLogger("executor")
 
 
@@ -849,7 +850,7 @@ class Executor:
             "avg_hold_hours": round(avg_hold, 1),
             "longest_hold_hours": d["max_hold_hours"],
             "account_balance": round(self.account_balance, 2),
-            "cumulative_pnl": round(self.account_balance - 1000.0, 2),
+            "cumulative_pnl": round(self.account_balance - INITIAL_BALANCE, 2),
             "open_position": open_pos,
             "system_alerts": 0,
         }
