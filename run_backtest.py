@@ -23,6 +23,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)  # 讓引擎內 `from strategy import ...` 找得到（單一來源 V25-D）
 
+import labels  # 中文(英文)詞彙對照 + 全形對齊
+
 
 def _load_engine():
     path = os.path.join(ROOT, "backtest", "research", "v14_export_trades.py")
@@ -39,7 +41,12 @@ def main():
     ap.add_argument("--symbol", default="ETHUSDT")
     ap.add_argument("--refresh", action="store_true", help="跑之前先抓最新 730 天 K 線")
     ap.add_argument("-t", "--trades", action="store_true", help="印每筆進出場明細表")
+    ap.add_argument("--ideal", action="store_true",
+                    help="用理想化成交（TP 鎖理論價）；預設貼近實盤（TP/BE 用市價收盤成交）")
+    ap.add_argument("--slip", type=float, default=0.0, metavar="BPS",
+                    help="每次市價成交逆向滑價 bp（1bp=0.01%），預設 0；高波動可設 2~5 壓測")
     args = ap.parse_args()
+    realistic = not args.ideal
 
     csv_path = os.path.join(ROOT, "data", f"{args.symbol}_1h_latest730d.csv")
 
@@ -67,15 +74,21 @@ def main():
             if str(dt) >= args.start:
                 start_bar = j
                 break
-    trades = eng.simulate_v14_detailed(ind, datetimes, start_bar=start_bar)
+    trades = eng.simulate_v14_detailed(ind, datetimes, start_bar=start_bar,
+                                       realistic=realistic, slip_bps=args.slip)
     if args.end:
         trades = [t for t in trades if str(t["entry_dt"]) <= args.end + " 23:59:59"]
 
     dr_start = args.start or str(df["datetime"].iloc[0])
     dr_end = args.end or str(df["datetime"].iloc[-1])
 
+    if realistic:
+        mode_str = f"貼近實盤（TP/BE 市價收盤成交，滑價 {args.slip:.0f}bp）"
+    else:
+        mode_str = "理想化（TP 鎖理論價，= 研究/儀表板基準）"
     print("══════════════════════════════════════════")
     print(f" 回測 {args.symbol}  V14+R + V25-D（= 線上實盤）")
+    print(f" 成交假設：{mode_str}")
     print(f" 範圍：{dr_start[:16]} ~ {dr_end[:16]}")
     print(f" 資料：{df['datetime'].iloc[0]} ~ {df['datetime'].iloc[-1]}（{len(df)} 根）")
     print("══════════════════════════════════════════")
@@ -113,25 +126,29 @@ def main():
 
     # 每筆進出場明細（-t）
     if args.trades:
-        print("\n 進出場明細（Reason: TP止盈 / MH最長持倉 / MFE浮盈回吐 / MHx延長超時 / BE平保 / SN安全網）")
+        print("\n 進出場明細（時間=實際成交時刻 K 棒收盤，對齊實戰）")
+        RSN_W, RG_W = 16, 16
         hdr = (f"{'#':>4} {'Dir':<3} {'Entry (UTC+8)':<16} {'EntryPx':>9} "
-               f"{'Exit (UTC+8)':<16} {'ExitPx':>9} {'Rsn':<4} {'Hold':>4} "
-               f"{'PnL($)':>9} {'PnL%':>6} {'Regime':<8}")
+               f"{'Exit (UTC+8)':<16} {'ExitPx':>9} "
+               f"{labels.ljust_disp('出場 (Reason)', RSN_W)} {'Hold':>4} "
+               f"{'PnL($)':>9} {'PnL%':>6} {labels.ljust_disp('進場趨勢 (Regime)', RG_W)}")
         print(" " + hdr)
-        print(" " + "-" * len(hdr))
+        print(" " + "-" * labels.disp_width(hdr))
         for k, t in enumerate(trades, 1):
             edt = str(t["entry_dt"])[:16].replace("T", " ")
             xdt = str(t["exit_dt"])[:16].replace("T", " ")
+            rsn = labels.ljust_disp(labels.exit_label(t["exit_reason"]), RSN_W)
+            rg = labels.ljust_disp(labels.regime_label(t.get("entry_regime", "NA")), RG_W)
             print(f" {k:>4} {t['side']:<3} {edt:<16} {t['entry_price']:>9.2f} "
-                  f"{xdt:<16} {t['exit_price']:>9.2f} {t['exit_reason']:<4} "
-                  f"{t['bars_held']:>4} {t['pnl_usd']:>+9.2f} {t['pnl_pct']:>+6.2f} "
-                  f"{str(t.get('entry_regime', 'NA')):<8}")
+                  f"{xdt:<16} {t['exit_price']:>9.2f} "
+                  f"{rsn} {t['bars_held']:>4} {t['pnl_usd']:>+9.2f} {t['pnl_pct']:>+6.2f} "
+                  f"{rg}")
 
     # 出場分佈
     print("\n 出場分佈：")
     for reason, cnt in tdf["exit_reason"].value_counts().items():
         sub = tdf[tdf["exit_reason"] == reason]["pnl_usd"].sum()
-        print(f"   {reason:6s}: {cnt:3d} 筆（${float(sub):+.2f}）")
+        print(f"   {labels.ljust_disp(labels.exit_label(reason), 18)}: {cnt:3d} 筆（${float(sub):+.2f}）")
 
     # 月度
     tdf["_month"] = tdf["entry_dt"].astype(str).str[:7]

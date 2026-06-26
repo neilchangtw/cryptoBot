@@ -174,14 +174,25 @@ def compute_indicators(df):
     }
 
 
-def simulate_v14_detailed(ind, datetimes, start_bar=None):
+def simulate_v14_detailed(ind, datetimes, start_bar=None,
+                          realistic=False, slip_bps=0.0):
     """Run V14 L+S simulation with full trade detail (MAE/MFE/GK pctile).
 
     Args:
         start_bar: 從此 bar 開始交易（模擬機器人在該時間點啟動）。
                    之前的 bar 不進場/出場，熔斷狀態從零開始。
                    若為 None 則從 WARMUP 開始（完整回測模式）。
+        realistic: True = 貼近實盤的成交假設（預設 False，保留理想化結果供研究/儀表板對齊）。
+                   實盤機器人沒掛 TP 限價單，是每小時用「市價」平倉，成交在偵測到那根的
+                   收盤價而非理論 TP 價；BE 同理（市價平不是剛好平在進場價）。
+                   realistic=True 時：
+                     - 進場：訊號 bar 收盤價 ± 滑價（市價單成交）
+                     - TP / BE / MH / MFE / MHx：用偵測 bar 的「收盤價」± 滑價成交
+                     - SafeNet：維持理論止損價 + 25% 穿透（實盤掛真實 stop 單，不變）
+        slip_bps: 每次市價成交的逆向滑價（bp，1bp=0.01%）。預設 0（FEE 已含少量滑價估計）。
+                  進場：買進付高/賣出收低；出場：賣出收低/買回付高，方向恆不利。
     """
+    slip = slip_bps / 10000.0
     o, h, l, c = ind['o'], ind['h'], ind['l'], ind['c']
     pL, pS = ind['pctile_L'], ind['pctile_S']
     brk_up, brk_dn = ind['brk_up'], ind['brk_dn']
@@ -272,18 +283,21 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
             l_tp_eff = _L_TP_BR.get(lp_regime, L_TP)
             l_mh_eff = _L_MH_BR.get(lp_regime, L_MH)
 
+            l_mkt = ci * (1 - slip) if realistic else ci  # L 平倉=市價賣出（收更低）
+
             sn_lv = ep * (1 - L_SN)
             if li <= sn_lv:
-                ex_price = sn_lv - (sn_lv - li) * L_SN_SLIP
+                ex_price = sn_lv - (sn_lv - li) * L_SN_SLIP  # 真實 stop 單，維持理論價+穿透
                 ex_reason = 'SN'
             elif hi >= ep * (1 + l_tp_eff):
-                ex_price = ep * (1 + l_tp_eff)
+                # 實盤無 TP 限價單：偵測到觸價後每小時用市價平 → 成交在收盤價
+                ex_price = l_mkt if realistic else ep * (1 + l_tp_eff)
                 ex_reason = 'TP'
             else:
                 cpnl = (ci - ep) / ep
 
                 if lp_mfe >= L_MFE_ACT and (lp_mfe - cpnl) >= L_MFE_TR and bh >= 1:
-                    ex_price = ci
+                    ex_price = l_mkt
                     ex_reason = 'MFE'
                 else:
                     if bh == L_CMH_BAR and cpnl <= L_CMH_TH:
@@ -296,15 +310,16 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
                                 lp_ext = True
                                 lp_ext_bars = 0
                             else:
-                                ex_price = ci
+                                ex_price = l_mkt
                                 ex_reason = 'MH'
                     else:
                         lp_ext_bars += 1
                         if li <= ep:
-                            ex_price = ep
+                            # 實盤 BE 也是市價平（非剛好平在進場價）
+                            ex_price = l_mkt if realistic else ep
                             ex_reason = 'BE'
                         elif lp_ext_bars >= L_EXT:
-                            ex_price = ci
+                            ex_price = l_mkt
                             ex_reason = 'MHx'
 
             if ex_price > 0:
@@ -357,12 +372,15 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
             # V25-D: regime 條件 MH（UP→8；default=S_MH）
             s_mh_eff = _S_MH_BR.get(sp_regime, S_MH)
 
+            s_mkt = ci * (1 + slip) if realistic else ci  # S 平倉=市價買回（付更高）
+
             sn_lv = ep * (1 + S_SN)
             if hi >= sn_lv:
-                ex_price = sn_lv + (hi - sn_lv) * S_SN_SLIP
+                ex_price = sn_lv + (hi - sn_lv) * S_SN_SLIP  # 真實 stop 單，維持理論價+穿透
                 ex_reason = 'SN'
             elif li <= ep * (1 - S_TP):
-                ex_price = ep * (1 - S_TP)
+                # 實盤無 TP 限價單：偵測到觸價後每小時用市價平 → 成交在收盤價
+                ex_price = s_mkt if realistic else ep * (1 - S_TP)
                 ex_reason = 'TP'
             else:
                 cpnl = (ep - ci) / ep
@@ -373,15 +391,16 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
                             sp_ext = True
                             sp_ext_bars = 0
                         else:
-                            ex_price = ci
+                            ex_price = s_mkt
                             ex_reason = 'MH'
                 else:
                     sp_ext_bars += 1
                     if hi >= ep:
-                        ex_price = ep
+                        # 實盤 BE 也是市價平（非剛好平在進場價）
+                        ex_price = s_mkt if realistic else ep
                         ex_reason = 'BE'
                     elif sp_ext_bars >= S_EXT:
-                        ex_price = ci
+                        ex_price = s_mkt
                         ex_reason = 'MHx'
 
             if ex_price > 0:
@@ -426,7 +445,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
             not (rblk_l is not None and bool(rblk_l[i])) and
             not np.isnan(pL[i]) and pL[i] < L_GK_TH and brk_up[i]):
             lp_active = True
-            lp_entry = ci
+            lp_entry = ci * (1 + slip) if realistic else ci  # 市價買進付高
             lp_bar = i
             lp_held = 0
             lp_mfe = 0.0
@@ -445,7 +464,7 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None):
             not (rblk_s is not None and bool(rblk_s[i])) and
             not np.isnan(pS[i]) and pS[i] < S_GK_TH and brk_dn[i]):
             sp_active = True
-            sp_entry = ci
+            sp_entry = ci * (1 - slip) if realistic else ci  # 市價賣出收低
             sp_bar = i
             sp_held = 0
             sp_mfe = 0.0

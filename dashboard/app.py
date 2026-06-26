@@ -1207,7 +1207,8 @@ def _run_backtest(params: BacktestParams):
                     start_bar = j
                     break
 
-        all_trades = bt_simulate(ind, datetimes, start_bar=start_bar)
+        # realistic=True：貼近實盤成交（TP/BE 用市價收盤成交，非理論價），與 run_backtest 一致
+        all_trades = bt_simulate(ind, datetimes, start_bar=start_bar, realistic=True)
     finally:
         for k, v in originals.items():
             setattr(_bt_mod, k, v)

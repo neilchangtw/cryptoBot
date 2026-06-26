@@ -70,18 +70,18 @@ def check_health(days: int = 30) -> dict:
     else:
         status = "ALERT"
     checks.append({
-        "name": "Monthly trade count",
+        "name": "月交易數 (Monthly trades)",
         "value": f"{monthly_rate:.1f}",
         "threshold": "10-30",
         "status": status,
-        "detail": f"{n_closed} trades in {days}d",
+        "detail": f"{n_closed} 筆 / {days} 天",
     })
 
     if n_closed == 0:
         return {
             "overall": "WARNING",
             "checks": checks,
-            "summary": f"No closed trades in last {days} days",
+            "summary": f"近 {days} 天無已平倉交易 (No closed trades)",
         }
 
     # ── 2. SafeNet 觸發率 ──
@@ -92,11 +92,11 @@ def check_health(days: int = 30) -> dict:
         sn_count = 0
         sn_rate = 0
     checks.append({
-        "name": "SafeNet trigger rate",
+        "name": "安全網觸發率 (SafeNet rate)",
         "value": f"{sn_rate:.1f}%",
         "threshold": "<15%",
         "status": "OK" if sn_rate < 15 else ("WARNING" if sn_rate < 25 else "ALERT"),
-        "detail": f"{sn_count}/{n_closed}",
+        "detail": f"{sn_count}/{n_closed} 筆",
     })
 
     # ── 3. 24-48h 持倉勝率 ──
@@ -113,22 +113,22 @@ def check_health(days: int = 30) -> dict:
 
     if mid_wr is not None:
         checks.append({
-            "name": "24-48h hold WR",
+            "name": "24-48h 持倉勝率 (24-48h WR)",
             "value": f"{mid_wr:.0f}%",
             "threshold": ">=70%",
             "status": "OK" if mid_wr >= 70 else ("WARNING" if mid_wr >= 50 else "ALERT"),
-            "detail": f"{len(mid_hold)} trades in 24-48h bucket",
+            "detail": f"{len(mid_hold)} 筆落在 24-48h",
         })
 
     # ── 4. 平均持倉時間 ──
     if "hold_bars" in closed.columns:
         avg_hold = closed["hold_bars"].mean()
         checks.append({
-            "name": "Avg hold time",
+            "name": "平均持倉 (Avg hold)",
             "value": f"{avg_hold:.1f}h",
             "threshold": ">=18h",
             "status": "OK" if avg_hold >= 18 else ("WARNING" if avg_hold >= 12 else "ALERT"),
-            "detail": f"Median: {closed['hold_bars'].median():.1f}h",
+            "detail": f"中位數 {closed['hold_bars'].median():.1f}h",
         })
 
     # ── 5. MFE/MAE 比值 ──
@@ -138,11 +138,11 @@ def check_health(days: int = 30) -> dict:
         if mae > 0:
             mfe_mae = mfe / mae
             checks.append({
-                "name": "MFE/MAE ratio",
+                "name": "盈虧擺動比 (MFE/MAE)",
                 "value": f"{mfe_mae:.2f}",
                 "threshold": ">1.5",
                 "status": "OK" if mfe_mae > 1.5 else ("WARNING" if mfe_mae > 1.0 else "ALERT"),
-                "detail": f"Avg MFE: {mfe:.2f}%, Avg MAE: {mae:.2f}%",
+                "detail": f"平均盈擺 {mfe:.2f}% / 平均虧擺 {mae:.2f}%",
             })
 
     # ── 6. 整體 PnL ──
@@ -150,11 +150,11 @@ def check_health(days: int = 30) -> dict:
         total_pnl = pd.to_numeric(closed["net_pnl_usd"], errors="coerce").sum()
         win_rate = (closed["win_loss"] == "WIN").mean() * 100 if "win_loss" in closed.columns else 0
         checks.append({
-            "name": "Total PnL",
+            "name": "總損益 (Total PnL)",
             "value": f"${total_pnl:+.2f}",
             "threshold": ">$0",
             "status": "OK" if total_pnl > 0 else ("WARNING" if total_pnl > -200 else "ALERT"),
-            "detail": f"WR: {win_rate:.1f}%",
+            "detail": f"勝率 {win_rate:.1f}%",
         })
 
     # ── 7. Profit Factor ──
@@ -164,11 +164,11 @@ def check_health(days: int = 30) -> dict:
         loss_sum = abs(pnl_series[pnl_series < 0].sum())
         pf = wins_sum / loss_sum if loss_sum > 0 else 999
         checks.append({
-            "name": "Profit Factor",
+            "name": "獲利因子 (Profit Factor)",
             "value": f"{pf:.2f}",
             "threshold": ">=1.5",
             "status": "OK" if pf >= 1.5 else ("WARNING" if pf >= 1.0 else "ALERT"),
-            "detail": f"Wins: ${wins_sum:.0f}, Losses: ${loss_sum:.0f}",
+            "detail": f"獲利 ${wins_sum:.0f} / 虧損 ${loss_sum:.0f}",
         })
 
     # ── 8. Max Drawdown ──
@@ -179,11 +179,11 @@ def check_health(days: int = 30) -> dict:
         max_dd = dd.min()
         max_dd_pct = abs(max_dd) / strategy.MARGIN * 100 if strategy.MARGIN > 0 else 0
         checks.append({
-            "name": "Max Drawdown",
+            "name": "最大回撤 (Max Drawdown)",
             "value": f"${max_dd:.2f}",
             "threshold": ">-$500",
             "status": "OK" if max_dd > -500 else ("WARNING" if max_dd > -800 else "ALERT"),
-            "detail": f"{max_dd_pct:.1f}% of margin",
+            "detail": f"{max_dd_pct:.1f}% 保證金",
         })
 
     # ── 整體評估 ──
@@ -197,11 +197,17 @@ def check_health(days: int = 30) -> dict:
     else:
         overall = "NORMAL"
 
-    summary_lines = [f"Health Check ({days}d): {overall}"]
-    summary_lines.append(f"Trades: {n_closed} | Checks: {len(checks)}")
+    overall_zh = {
+        "NORMAL": "正常 (NORMAL)",
+        "WARNING": "警告 (WARNING)",
+        "PAUSE": "建議暫停 (PAUSE)",
+    }.get(overall, overall)
+
+    summary_lines = [f"健康檢查（{days} 天）：{overall_zh}"]
+    summary_lines.append(f"交易：{n_closed} 筆 ｜ 檢查：{len(checks)} 項")
     for c in checks:
-        mark = "v" if c["status"] == "OK" else ("!" if c["status"] == "WARNING" else "X")
-        summary_lines.append(f"  [{mark}] {c['name']}: {c['value']} (threshold: {c['threshold']}) — {c['detail']}")
+        mark = "✅" if c["status"] == "OK" else ("⚠️" if c["status"] == "WARNING" else "❌")
+        summary_lines.append(f"  [{mark}] {c['name']}：{c['value']}（門檻 {c['threshold']}）— {c['detail']}")
 
     return {
         "overall": overall,
@@ -221,7 +227,9 @@ def main():
 
     if args.telegram:
         from telegram_notify import send_telegram_message
-        msg = f"<b>Health: {result['overall']}</b>\n<pre>{result['summary']}</pre>"
+        overall_zh = {"NORMAL": "正常", "WARNING": "警告", "PAUSE": "建議暫停"}.get(
+            result["overall"], result["overall"])
+        msg = f"<b>🩺 健康檢查：{overall_zh} ({result['overall']})</b>\n<pre>{result['summary']}</pre>"
         send_telegram_message(msg)
 
 

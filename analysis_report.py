@@ -12,6 +12,8 @@ import os
 import csv
 from datetime import datetime, timedelta
 
+import labels  # 中文(英文)詞彙對照 + 全形對齊
+
 
 def _parse_dt(s):
     s = str(s)
@@ -24,6 +26,17 @@ def _parse_dt(s):
         return datetime.strptime(s[:10], "%Y-%m-%d")
     except (ValueError, TypeError):
         return None
+
+
+def to_exec_time(s, fmt="%Y-%m-%d %H:%M"):
+    """trades.csv 存的是訊號 bar 的「開盤時刻」（data_feed datetime = open_time）。
+    但機器人是在該 bar「收盤」後（整點 +10s）才下單，幣安實際成交時間 = 開盤 + 1h。
+    交易列表顯示成成交時刻，才會與幣安後台 / 回測明細對齊（回測已用收盤時刻標記）。
+    解析失敗則原樣回傳前 16 字元。"""
+    dt = _parse_dt(s)
+    if dt is None:
+        return str(s)[:16]
+    return (dt + timedelta(hours=1)).strftime(fmt)
 
 
 def _load_closed(data_dir: str, days: int = None):
@@ -72,25 +85,28 @@ def build_trades_table(data_dir: str, days: int = None, limit: int = 20) -> str:
     rows.sort(key=lambda r: r["_exit_dt"] or datetime.min)
     shown = rows[-limit:] if limit else rows
 
+    TYPE_W, RG_W = 20, 15
     header = (f"{'#':>5} {'Dir':<4} {'Entry (UTC+8)':<16} {'EntryPx':>9} "
-              f"{'Exit (UTC+8)':<16} {'ExitPx':>9} {'Type':<9} {'Hold':>4} "
-              f"{'PnL($)':>9} {'Regime':<8}")
-    sep = "─" * len(header)
-    out = ["交易列表（# 編號 / Dir 方向 / Entry 進場 / Exit 出場 / Type 出場類型 / "
-           "Hold 持倉小時 / PnL 損益 / Regime 進場盤勢）",
+              f"{'Exit (UTC+8)':<16} {'ExitPx':>9} "
+              f"{labels.ljust_disp('出場類型 (Type)', TYPE_W)} {'Hold':>4} "
+              f"{'PnL($)':>9} {labels.ljust_disp('進場趨勢 (Regime)', RG_W)}")
+    sep = "─" * labels.disp_width(header)
+    out = ["交易列表（# 編號 / Dir 方向 / Entry 進場 / Exit 出場 / 出場類型 / "
+           "Hold 持倉小時 / PnL 損益 / 進場趨勢）",
+           "（時間=實際成交時刻 K 棒收盤，對齊幣安後台 / 回測明細）",
            header, sep]
     total = 0.0
     for r in shown:
         num = r.get("trade_number", "") or r.get("trade_id", "")[:6]
         d = str(r.get("sub_strategy", ""))
-        et = str(r.get("entry_time_utc8", ""))[:16]
+        et = to_exec_time(r.get("entry_time_utc8", ""))  # 顯示成交時刻（對齊幣安）
         ep = r.get("entry_price", "")
-        xt = str(r.get("exit_time_utc8", ""))[:16]
+        xt = to_exec_time(r.get("exit_time_utc8", ""))
         xp = r.get("exit_price", "")
-        typ = str(r.get("exit_type", ""))[:9]
+        typ = labels.ljust_disp(labels.exit_label(r.get("exit_type", "")), TYPE_W)
         hold = int(r["_hold"])
         pnl = r["_pnl"]
-        rg = str(r.get("entry_regime", "") or "")[:8]
+        rg = labels.ljust_disp(labels.regime_label(r.get("entry_regime", "")), RG_W)
         total += pnl
         try:
             ep_s = f"{float(ep):.2f}"
@@ -101,8 +117,8 @@ def build_trades_table(data_dir: str, days: int = None, limit: int = 20) -> str:
         except (ValueError, TypeError):
             xp_s = str(xp)
         out.append(f"{str(num):>5} {d:<4} {et:<16} {ep_s:>9} "
-                   f"{xt:<16} {xp_s:>9} {typ:<9} {hold:>4} "
-                   f"{pnl:>+9.2f} {rg:<8}")
+                   f"{xt:<16} {xp_s:>9} {typ} {hold:>4} "
+                   f"{pnl:>+9.2f} {rg}")
     out.append(sep)
     n = len(shown)
     wins = sum(1 for r in shown if r["_pnl"] > 0)
@@ -243,7 +259,8 @@ def build_report(data_dir: str, days: int = None, html: bool = False) -> str:
         i(scope),
         sep,
         f"💵 總損益：${total_pnl:+.2f}",
-        f"📝 交易：{n} 筆（{len(wins)}W {len(losses)}L）",
+        f"📝 交易：{n} 筆（做多 L {strat.get('L', (0,))[0]} / "
+        f"做空 S {strat.get('S', (0,))[0]}；{len(wins)}W {len(losses)}L）",
         f"🎯 勝率：{wr:.1f}%",
         f"⚖️ 獲利因子 PF：{pf:.2f}",
         f"📉 最大回撤：${max_dd:.2f}",
@@ -254,7 +271,7 @@ def build_report(data_dir: str, days: int = None, html: bool = False) -> str:
         b("出場分佈"),
     ]
     for et, (c, s) in sorted(exit_dist.items(), key=lambda x: -x[1][0]):
-        lines.append(f"  {et}：{c} 筆（${s:+.2f}）")
+        lines.append(f"  {labels.exit_label(et)}：{c} 筆（${s:+.2f}）")
 
     lines += ["", b("L vs S")]
     for sub in ("L", "S"):
@@ -264,12 +281,12 @@ def build_report(data_dir: str, days: int = None, html: bool = False) -> str:
             lines.append(f"  {tag}：{cnt} 筆 ${sp:+.2f}（WR {swr:.0f}%，均 ${savg:+.2f}）")
 
     if regime:
-        lines += ["", b("Regime（進場 SMA 斜率）")]
+        lines += ["", b("進場趨勢（Regime，SMA 斜率）")]
         for rg in ("UP", "MILD_UP", "SIDE", "DOWN"):
             if rg in regime:
                 c, s, w = regime[rg]
                 rwr = w / c * 100 if c else 0
-                lines.append(f"  {rg}：{c} 筆 ${s:+.2f}（WR {rwr:.0f}%）")
+                lines.append(f"  {labels.regime_label(rg)}：{c} 筆 ${s:+.2f}（WR {rwr:.0f}%）")
 
     text = "\n".join(lines)
     if html:

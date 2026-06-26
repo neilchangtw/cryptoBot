@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 
 import strategy
 import recorder
+import labels  # 中文(英文)詞彙對照
 from telegram_notify import send_telegram_message
 
 load_dotenv()
@@ -495,8 +496,9 @@ class Executor:
             f"{action}\n"
             f"🏷 策略：{sub_label}\n"
             f"💲 進場價：${entry_price:.2f}\n"
-            f"🎯 止盈：{tp_pct*100:.1f}% ｜ ⏰ 最長 {max_hold}h\n"
-            f"🛡 安全網：${sn_price:.2f}（{safenet_pct*100:.1f}%）\n"
+            f"🎯 止盈 (TP)：{tp_pct*100:.1f}% ｜ ⏰ 最長持倉 (MaxHold) {max_hold}h\n"
+            f"🛡 安全網 (SafeNet)：${sn_price:.2f}（{safenet_pct*100:.1f}%）\n"
+            f"📊 進場趨勢：{labels.regime_label(entry_regime)}\n"
             f"🔋 壓縮能量：{gk_pctile:.1f}\n"
             f"📝 第 {self.trade_number} 筆 ｜ 💰 金庫 ${self.account_balance:.2f}"
         )

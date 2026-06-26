@@ -59,15 +59,18 @@ cryptoBot/
 ├── binance_trade.py       # Binance API 下單模組（Hedge Mode, Algo Order SL）
 ├── recorder.py            # 4 層 CSV 記錄系統
 ├── telegram_notify.py     # Telegram 通知（進出場、每日摘要、錯誤告警）
+├── labels.py              # 共用中文(英文)詞彙對照（出場原因/進場趨勢/方向）+ 全形對齊工具
+│                          # 所有顯示層（analyze/check_health/run_backtest/Telegram）統一取詞，改字只改這一處
 │
 │  ── 診斷工具 ──
-├── check_health.py        # 策略健康報告（8 項指標：月交易量/SafeNet率/勝率/PF/DD...）
-├── analysis_report.py     # 收益分析共用計算（Telegram /analysis + analyze.py 共用，只讀 CSV）
+├── check_health.py        # 策略健康報告（8 項指標，中文(英文)輸出：月交易量/安全網率/勝率/PF/回撤...）
+├── analysis_report.py     # 收益分析共用計算（Telegram /analysis + analyze.py 共用，只讀 CSV；中文(英文) 出場/趨勢）
 ├── analyze.py             # 終端機收益分析 CLI（彙總 + -t 交易列表，VPS 上免開 dashboard 看績效）
 ├── signal_status.py       # 即時開單條件共用計算（Telegram /signal + check_signal.py 共用）
 ├── check_signal.py        # 終端機開單條件 CLI（L/S 每 gate ✅/❌ + 可開單時段；勿命名 signal.py 會撞內建模組）
 ├── menu.py                # 終端機指令清單（等同 Telegram /help，列出所有 CLI + Telegram 指令）
 ├── run_backtest.py        # 終端機回測 CLI（可選日期範圍，= 儀表板回測 tab 同引擎 V14+R+V25-D）
+│                          # 預設「貼近實盤」成交（TP/BE 市價收盤成交）；--ideal 切理論價、--slip 加滑價
 ├── fetch_backtest_data.py # 補回測 K 線快取（Binance 公開端點分頁抓 730 天，VPS 跑回測用）
 ├── verify_mainnet.py      # 正式盤上線前唯讀體檢（API/餘額/Hedge Mode/精度/K線）
 │
@@ -142,13 +145,16 @@ cryptoBot/
 - **V23 overlay 研究結果（2026-04-22）**：Path R 非對稱 per-side SMA200 斜率 gate 通過 12/13 gates（G5 cascade 97th percentile、G7 WF 4/6、G8 時序翻轉改善 +$438），V14+R 參數 TH_UP=0.045 / TH_SIDE=0.010，2 年回測 PnL +$380 / MDD -$54 / Sharpe +0.91 / Worst30d -$197
 - **V23 G6 驗證（2026-04-22）**：獨立驗證 V14 baseline G6 兩方向全 FAIL（Fwd -113.8% / Bwd +53.2%），V14+R 只 Fwd FAIL（-94.4%）且 Bwd 由 FAIL 轉 PASS（+48.6%）；overlay 貢獻 IS/OOS 同向（+$258 / +$121）但衰退率 52.9% 邊緣 → 情境 A 成立，V14+R 可部署但對 +$380 改善量級須降級信心至 +$120~$380 區間
 - **V25 Regime-conditional exits（2026-04-22）**：V25-D PROMOTED 12/12 gates — `S_MH_UP 10→8` + `L_TP_DOWN 3.5→4.0%` + `L_MH_MILD_UP 6→7`，2Y PnL $6,789（+$206, +3.1%）、WR 62.3%（+0.7%）、**MDD $334（-$39, -10.5%）**、Sharpe 6.23、G4 6/6 鄰域穩定、G8 reversed 改善（-3717 vs -3981）。V25-D 是 V14+R 純出場優化，進場 100% 沿用
-- **模式**：Paper Trading（模擬盤），Binance Testnet
+- **模式**：**LIVE 正式盤（mainnet 真錢）**，資料寫在 `data_live/`（VPS systemd 服務跑；連線/維運/部署見 [deploy/cheatsheet.txt](deploy/cheatsheet.txt)）
 - **Hedge Mode**：已啟用（dualSidePosition=true），L/S 倉位互不影響
 - **帳戶**：$1,000 / $200 保證金 / 20x / $4,000 名目
 - **演進**：GK v1.1 → v6 L+S → V10 → V11-E → V13 → V14 → **V14+R → V14+R+V25-D（線上）**
-- **Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗
+- **Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗（**目前已停用，改用終端機 + Telegram**）
+- **顯示慣例**：所有終端機/Telegram 輸出的出場原因、進場趨勢、方向一律「中文 (英文)」格式，統一由 `labels.py` 產生（如 `止盈 (TP)`、`偏多 (MILD_UP)`）；交易列表時間顯示為**實際成交時刻**（K 棒收盤 = 開盤+1h，對齊幣安後台）
+- **每小時心跳**：有持倉時額外顯示該倉的出場條件（止盈/安全網價位、最長持倉剩餘、浮盈回吐狀態）
+- **回測成交假設**：`run_backtest.py` 預設「貼近實盤」（TP/BE 用市價收盤成交，非理論價；SafeNet 維持真實 stop），`--ideal` 可切回理論價對照、`--slip` 加滑價壓測；引擎 `simulate_v14_detailed(realistic=,slip_bps=)`，研究腳本預設仍理想化
 
-### 模擬盤運行狀態（2026-05-20 21:00 UTC+8 快照）
+### 模擬盤運行狀態（2026-05-20 21:00 UTC+8 快照；此為轉正式盤前的 Testnet 模擬期紀錄）
 
 - **線上策略**：V14+R + V25-D（strategy.py，最新 commit `0bb5161`）
 - **帳戶餘額**：$4,325.54（Testnet 起始非 $1K，cumulative_pnl 為 Testnet 基準值）
@@ -459,8 +465,12 @@ python check_signal.py          # 即時開單條件（=/signal）L/S 每個 gat
 python menu.py                  # 終端機指令清單（=/help）忘記指令時看這個
 
 # 終端機回測（= 儀表板回測 tab，V14+R+V25-D，可選日期範圍；VPS 上免儀表板）
-python run_backtest.py                              # 全期間
+# 預設「貼近實盤」成交：TP/BE 用市價收盤成交（實盤無 TP 限價單，每小時市價平）；
+# SafeNet 維持真實 stop 模型。差異主要在 TP 筆，MH/MFE 兩模式相同。
+python run_backtest.py                              # 全期間（貼近實盤）
 python run_backtest.py --start 2025-01-01 --end 2025-06-30   # 選日期
+python run_backtest.py --ideal                     # 理想化成交（TP 鎖理論價，= 舊版/研究基準）對照
+python run_backtest.py --slip 2                     # 加 2bp 市價滑價壓測（高波動更保守）
 python run_backtest.py --refresh                   # 先抓最新 K 線再跑
 
 # 回測前補 K 線快取（data/ 被 gitignore，fresh 環境/VPS 需先抓；run_backtest --refresh 會自動補）

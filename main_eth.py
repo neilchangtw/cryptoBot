@@ -25,6 +25,7 @@ import threading
 import strategy
 import data_feed
 import recorder
+import labels  # 中文(英文)詞彙對照
 from executor import Executor
 from telegram_notify import send_telegram_message, get_pending_commands, skip_old_updates
 
@@ -462,13 +463,14 @@ def _handle_trades(executor, cmd_logger):
             send_telegram_message("📭 尚無已平倉交易")
             return
 
+        import analysis_report
         lines = ["<b>📋 最近交易</b>", "━━━━━━━━━━━━━━━"]
         for t in reversed(recent):
             side = "🟢L" if t.get("sub_strategy") == "L" else "🔴S"
             pnl = float(t.get("net_pnl_usd", 0))
             wl = "✅" if pnl > 0 else ("❌" if pnl < 0 else "➖")
-            entry_time = t.get("entry_time_utc8", "")[:16]
-            exit_type = t.get("exit_type", "")
+            entry_time = analysis_report.to_exec_time(t.get("entry_time_utc8", ""))
+            exit_type = labels.exit_label(t.get("exit_type", ""))
             hold = t.get("hold_hours", "?")
             lines.append(
                 f"{wl} {side} ${pnl:+.2f} | {exit_type} | {hold}h | {entry_time}"
@@ -1090,16 +1092,40 @@ def main():
 
                 if positions:
                     lines = []
-                    if l_pos:
-                        for p in l_pos:
-                            if p["entry_price"] > 0:
-                                unr = (bar_data["close"] - p["entry_price"]) / p["entry_price"] * 100
-                                lines.append(f"📈 L 多單（{unr:+.1f}%，抱{p['bars_held']}h）")
-                    if s_pos:
-                        for p in s_pos:
-                            if p["entry_price"] > 0:
-                                unr = (p["entry_price"] - bar_data["close"]) / p["entry_price"] * 100
-                                lines.append(f"📉 S 空單（{unr:+.1f}%，抱{p['bars_held']}h）")
+                    cur_close = bar_data["close"]
+                    # 持倉時一併顯示出場條件（TP/安全網價位、最長持倉剩餘、浮盈回吐狀態）
+                    for p in l_pos:
+                        ep = p["entry_price"]
+                        if ep <= 0:
+                            continue
+                        unr = (cur_close - ep) / ep * 100
+                        rg = p.get("entry_regime", "NA")
+                        tp_price = ep * (1 + strategy.get_l_tp(rg))
+                        sn_price = ep * (1 - strategy.L_SAFENET_PCT)
+                        eff_mh = (strategy.L_COND_REDUCED_MH if p.get("mh_reduced")
+                                  else strategy.get_l_mh(rg))
+                        mh_left = max(0, eff_mh - p["bars_held"])
+                        mfe_on = ("已啟動" if p.get("running_mfe", 0.0) >= strategy.L_MFE_ACT
+                                  else "未啟動")
+                        lines.append(
+                            f"📈 L 多單（{unr:+.1f}%，抱{p['bars_held']}h，{labels.regime_label(rg)}）\n"
+                            f"   🎯 止盈 (TP) ${tp_price:.2f}｜🛡 安全網 (SafeNet) ${sn_price:.2f}\n"
+                            f"   ⏰ 最長持倉 (MaxHold) 剩{mh_left}h｜📐 浮盈回吐 (MFE-trail) {mfe_on}"
+                        )
+                    for p in s_pos:
+                        ep = p["entry_price"]
+                        if ep <= 0:
+                            continue
+                        unr = (ep - cur_close) / ep * 100
+                        rg = p.get("entry_regime", "NA")
+                        tp_price = ep * (1 - strategy.S_TP_PCT)
+                        sn_price = ep * (1 + strategy.S_SAFENET_PCT)
+                        mh_left = max(0, strategy.get_s_mh(rg) - p["bars_held"])
+                        lines.append(
+                            f"📉 S 空單（{unr:+.1f}%，抱{p['bars_held']}h，{labels.regime_label(rg)}）\n"
+                            f"   🎯 止盈 (TP) ${tp_price:.2f}｜🛡 安全網 (SafeNet) ${sn_price:.2f}\n"
+                            f"   ⏰ 最長持倉 (MaxHold) 剩{mh_left}h"
+                        )
                     pos_text = "\n".join(lines)
                 else:
                     pos_text = "空手中 🏖"
@@ -1211,9 +1237,10 @@ def main():
                     if ds.get("be_count", 0) > 0:
                         v14_reasons.add("BE")
                 if v14_reasons:
-                    checks.append(f"✅ V14 出場已驗證：{','.join(sorted(v14_reasons))}")
+                    shown = "、".join(labels.exit_label(r) for r in sorted(v14_reasons))
+                    checks.append(f"✅ V14 出場已驗證：{shown}")
                 else:
-                    checks.append("⏳ V14 出場待驗證（尚無 MFE-trail/MH-ext/BE）")
+                    checks.append("⏳ V14 出場待驗證（尚無 浮盈回吐/延長超時/平保）")
 
                 check_text = "\n".join(checks)
 
