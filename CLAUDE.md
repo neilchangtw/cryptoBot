@@ -43,6 +43,7 @@ ETH 1h Garman-Klass Compression-Breakout 自動交易機器人（Binance Futures
 | [doc/v23_research.md](doc/v23_research.md) | V23 壓力測試 + 3 條 overlay（**Path R 非對稱 slope gate PROMOTED 12/13 gates**，V14+R: PnL +6%/MDD -11%/Sharpe +18%/Worst30d -35%；Path V/H REJECTED） |
 | [doc/v24_research.md](doc/v24_research.md) | V24 風險工程（B 槓桿線性可調 5x/10x/15x/20x；**A vol overlay REJECTED 0/23、C 多標的分散 REJECTED 0/10**；BEST = V14+R @ 可調槓桿，paper 建議 10x） |
 | [doc/v25_research.md](doc/v25_research.md) | V25 Regime-conditional exits（**V25-D PROMOTED 12/12 gates**，S_MH_UP 10→8 + L_TP_DOWN 3.5→4.0 + L_MH_MILD_UP 6→7：PnL +3.1%、WR +0.7%、MDD -10.5%、G4 6/6 鄰域穩定） |
+| [doc/v26_research.md](doc/v26_research.md) | V26 MaxHold-loss 優化（上線後觸發；**R1 give-up + R2 分批止盈 + R3 分批止損 三面 130+ 配置全 REJECTED**：bar N 時贏家輸家尚未分化——give-up 砍慢熱贏家、止盈 75% 課稅在大贏單、止損 43% 砍在會反彈贏家；WR 可升但 PnL 必降，MH 確認 negative-by-construction 非漏洞） |
 
 ---
 
@@ -332,6 +333,10 @@ L 月虧上限 -$75，S 月虧上限 -$150
 - 拉長 L_MH 在 DOWN 或 SIDE regime（V25 R2：L WIN 已被 MFE-trail 吸收，L_MH_DOWN=7/8/9 全部 -$282~-$409，L_MH_SIDE 各值也全部劣化）
 - 調整 L_TP_MILD_UP（V25 R2：±0.005 都降 PnL，MILD_UP regime L 已是局部最佳）
 - 提升 S_TP 至 2.5%/3.0%（V25 R2：WR 下降 2-4%，不符雙改善（WR+PnL）目標）
+- MFE-floor / running-MFE give-up 出場（V26 R1：K×FLOOR 24+ 配置全劣於 baseline，終端 MFE 的乾淨分離是事後諸葛，因果逐根套用會砍掉慢熱贏家，#GU 常 > 77 筆 MH 總數，最佳僅 -$249）
+- 分批 / scaled-out 止盈降 MH 虧損（V26 R2：N×F 36+ 配置全劣於 baseline，分批 75% 打在最終贏家上削大贏單，最終 MH 輸家近 6 成在 bar N 已在水下分批碰不到，WR 升但 PnL 必降，MH 桶幾乎沒縮）
+- 分批止損 / loss-side scale-out 降 MH 虧損（V26 R3：72 配置全劣於 baseline，43% 砍在會反彈的贏家且恰是後來打 TP 的大單，WR 還降，MH 桶甚至更負；與 R1/R2 同根因——bar N 時贏家輸家未分化）
+- 把「MH 桶虧損大」當可修漏洞去優化（V26：MH 出場 PnL 恆 ≤0 是 V14 設計使然——正報酬單已被送進延長/TP，MH 是 TP 的入場費非 leak）
 
 ---
 
