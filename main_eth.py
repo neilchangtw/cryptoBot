@@ -781,9 +781,8 @@ def main():
             ind = indicators_to_dict(df.iloc[idx])
             btc_context = data_feed.get_btc_context(btc_df)
 
-            logger.info(f"Bar: {bar_time_str} | C={bar_data['close']:.2f} | "
-                        f"GK={ind['gk_pctile']:.1f}" if ind['gk_pctile'] else
-                        f"Bar: {bar_time_str} | C={bar_data['close']:.2f} | GK=NaN")
+            gk_str = f"{ind['gk_pctile']:.1f}" if ind['gk_pctile'] is not None else "NaN"
+            logger.info(f"Bar: {bar_time_str} | C={bar_data['close']:.2f} | GK={gk_str}")
 
             # ── 2. 同步幣安餘額 + 更新風控熔斷 ──
             executor._sync_balance()
@@ -1227,15 +1226,27 @@ def main():
                 else:
                     checks.append("⏳ GK 暖機中")
 
-                # 4. V14 出場機制：檢查歷史出場是否出現 MFE-trail/MH-ext/BE
+                # 4. V14 出場機制：歷史是否出現過 MFE-trail/MH-ext/BE
+                #    讀持久化的 trades.csv，而非 executor.daily_stats —— 後者每日
+                #    rollover 會 pop 掉已結算日期（executor.flush_daily_summary），
+                #    記憶體中通常只剩「今天」，會讓此檢查每天午夜後誤判為「待驗證」。
+                v14_targets = {"MFE-trail", "MH-ext", "BE"}
                 v14_reasons = set()
-                for ds in executor.daily_stats.values():
-                    if ds.get("mfe_trail_count", 0) > 0:
-                        v14_reasons.add("MFE-trail")
-                    if ds.get("mh_ext_count", 0) > 0:
-                        v14_reasons.add("MH-ext")
-                    if ds.get("be_count", 0) > 0:
-                        v14_reasons.add("BE")
+                try:
+                    import csv as _csv4
+                    data_dir = os.path.join(BASE_DIR,
+                                            "data" if PAPER_TRADING else "data_live")
+                    tpath = os.path.join(data_dir, "trades.csv")
+                    if os.path.exists(tpath):
+                        with open(tpath, "r", encoding="utf-8") as f4:
+                            for row in _csv4.DictReader(f4):
+                                et = (row.get("exit_type") or "").strip()
+                                if et in v14_targets:
+                                    v14_reasons.add(et)
+                                    if len(v14_reasons) == len(v14_targets):
+                                        break
+                except Exception:
+                    pass
                 if v14_reasons:
                     shown = "、".join(labels.exit_label(r) for r in sorted(v14_reasons))
                     checks.append(f"✅ V14 出場已驗證：{shown}")
