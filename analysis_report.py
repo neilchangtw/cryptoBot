@@ -123,6 +123,30 @@ def build_trades_table(data_dir: str, days: int = None, limit: int = 20) -> str:
     n = len(shown)
     wins = sum(1 for r in shown if r["_pnl"] > 0)
     out.append(f"共 {n} 筆（{wins}W {n-wins}L），合計 ${total:+.2f}")
+
+    # ── 出場分佈（依顯示的交易，與「共 N 筆」一致；對齊回測明細格式）──
+    exit_dist = {}
+    for r in shown:
+        et = str(r.get("exit_type", "") or "?").strip() or "?"
+        c, s = exit_dist.get(et, (0, 0.0))
+        exit_dist[et] = (c + 1, s + r["_pnl"])
+    out += ["", " 出場分佈："]
+    for et, (c, s) in sorted(exit_dist.items(), key=lambda x: -x[1][0]):
+        out.append(f"   {labels.ljust_disp(labels.exit_label(et), 20)}: {c:3d} 筆（${s:+.2f}）")
+
+    # ── 月度 PnL（依進場成交月份）──
+    monthly = {}
+    for r in shown:
+        mth = to_exec_time(r.get("entry_time_utc8", ""))[:7]  # YYYY-MM
+        s, c = monthly.get(mth, (0.0, 0))
+        monthly[mth] = (s + r["_pnl"], c + 1)
+    out += ["", " 月度 PnL："]
+    for mth in sorted(monthly):
+        s, c = monthly[mth]
+        bar = "🟢" if s > 0 else "🔴"
+        out.append(f"   {mth}  {bar} ${s:+8.2f}（{c} 筆）")
+    pos_months = sum(1 for s, _ in monthly.values() if s > 0)
+    out.append(f"\n 正報酬月份：{pos_months}/{len(monthly)}")
     return "\n".join(out)
 
 

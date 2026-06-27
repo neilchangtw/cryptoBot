@@ -20,6 +20,12 @@ from dotenv import load_dotenv
 
 import analysis_report
 
+# Windows 終端預設 cp950 無法輸出 emoji（🟢/🔴）→ 強制 UTF-8，避免 UnicodeEncodeError
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
+
 load_dotenv()
 
 
