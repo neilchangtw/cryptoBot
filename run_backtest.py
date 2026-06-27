@@ -30,6 +30,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)  # 讓引擎內 `from strategy import ...` 找得到（單一來源 V25-D）
 
 import labels  # 中文(英文)詞彙對照 + 全形對齊
+import analysis_report  # to_exec_time：成交時刻 = bar 開盤 + 1h（對齊幣安/實盤）
 
 
 def _load_engine():
@@ -141,8 +142,10 @@ def main():
         print(" " + hdr)
         print(" " + "-" * labels.disp_width(hdr))
         for k, t in enumerate(trades, 1):
-            edt = str(t["entry_dt"])[:16].replace("T", " ")
-            xdt = str(t["exit_dt"])[:16].replace("T", " ")
+            # 引擎 entry_dt/exit_dt = 訊號 bar 開盤時刻；機器人收盤後才下單，
+            # 成交時刻 = 開盤 + 1h → 用 to_exec_time 對齊幣安後台與 analyze.py
+            edt = analysis_report.to_exec_time(str(t["entry_dt"]).replace("T", " "))
+            xdt = analysis_report.to_exec_time(str(t["exit_dt"]).replace("T", " "))
             rsn = labels.ljust_disp(labels.exit_label(t["exit_reason"]), RSN_W)
             rg = labels.ljust_disp(labels.regime_label(t.get("entry_regime", "NA")), RG_W)
             print(f" {k:>4} {t['side']:<3} {edt:<16} {t['entry_price']:>9.2f} "
