@@ -35,3 +35,17 @@ def logs_dir() -> str:
 def state_file(paper: bool) -> str:
     """持倉狀態檔：paper→ eth_state.json，live→ eth_state_live.json。"""
     return os.path.join(INSTANCE_DIR, "eth_state.json" if paper else "eth_state_live.json")
+
+
+def instance_name() -> str:
+    """實例顯示名（Telegram 訊息前綴用，讓多人各自確認查到自己的）。
+
+    優先用 INSTANCE_NAME；否則從 INSTANCE_DIR 目錄名推斷（多實例時）；
+    單人（未設 INSTANCE_DIR）回空字串 → 訊息不加前綴，維持原樣。
+    """
+    name = os.getenv("INSTANCE_NAME", "").strip()
+    if name:
+        return name
+    if INSTANCE_DIR != CODE_DIR:
+        return os.path.basename(INSTANCE_DIR.rstrip("/\\"))
+    return ""

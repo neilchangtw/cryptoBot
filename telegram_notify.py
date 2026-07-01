@@ -11,6 +11,8 @@ import requests
 from dotenv import load_dotenv
 from datetime import datetime
 
+import paths  # 多實例：訊息前綴顯示實例名
+
 load_dotenv()
 
 logger = logging.getLogger("telegram")
@@ -58,6 +60,12 @@ def send_telegram_message(
     elif not message:
         print("[ERROR] 無訊息內容，未發送通知")
         return
+
+    # 多實例：訊息開頭標上實例名，讓多人各自確認是自己的（單人時 label 為空、不加）
+    label = paths.instance_name()
+    if label:
+        import html as _html
+        message = f"👤 <b>{_html.escape(label)}</b>\n{message}"
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     data = {
