@@ -11,8 +11,12 @@ venv/
 
 # Data / Cache
 data/
+cache/
 *.pkl
 *.xlsx
+
+# 多實例（instances/<名字>/：各自 .env + data_live + logs + 狀態）
+instances/
 
 # IDE
 .idea/

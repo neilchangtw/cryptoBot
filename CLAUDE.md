@@ -156,7 +156,7 @@ cryptoBot/
 - **顯示慣例**：所有終端機/Telegram 輸出的出場原因、進場趨勢、方向一律「中文 (英文)」格式，統一由 `labels.py` 產生（如 `止盈 (TP)`、`偏多 (MILD_UP)`）；交易列表時間顯示為**實際成交時刻**（K 棒收盤 = 開盤+1h，對齊幣安後台）
 - **每小時心跳**：有持倉時額外顯示該倉的出場條件（止盈/安全網價位、最長持倉剩餘、浮盈回吐狀態）
 - **回測成交假設**：`run_backtest.py` 預設「貼近實盤」（TP/BE 用市價收盤成交，非理論價；SafeNet 維持真實 stop），`--ideal` 可切回理論價對照、`--slip` 加滑價壓測；引擎 `simulate_v14_detailed(realistic=,slip_bps=)`，研究腳本預設仍理想化
-- **多實例（多人使用，方案 A）**：一份程式碼 + 每人一個實例（各自 Binance key / Telegram bot / 資料 / 狀態）。靠環境變數 `INSTANCE_DIR` 分流 `data/`·`logs/`·`eth_state*.json`（`paths.py`，未設則沿用程式目錄=單人原行為）。部署用 systemd template `cryptobot@<名字>` + `instances/<名字>/.env`，步驟見 [deploy/cheatsheet.txt](deploy/cheatsheet.txt)「多實例」段。每則 Telegram 訊息開頭標「👤 實例名」（`INSTANCE_NAME`，未設則用目錄名；單人為空不加），讓多人各自確認查到自己的。注意每人需各自一支 Telegram bot（同 token 兩進程會搶更新）
+- **多實例（多人使用，方案 A）**：一份程式碼 + 每人一個實例（各自 Binance key / Telegram bot / 資料 / 狀態）。靠環境變數 `INSTANCE_DIR` 分流 `data/`·`logs/`·`eth_state*.json`（`paths.py`，未設則沿用程式目錄=單人原行為）。部署用 systemd template `cryptobot@<名字>` + `instances/<名字>/.env`，步驟見 [deploy/cheatsheet.txt](deploy/cheatsheet.txt)「多實例」段。每則 Telegram 訊息開頭標「👤 實例名」（`INSTANCE_NAME`，未設則用目錄名；單人為空不加），讓多人各自確認查到自己的。注意每人需各自一支 Telegram bot（同 token 兩進程會搶更新）。**共用 K 線**：多實例時每小時只有一個實例真的抓 Binance、其他讀共用檔（`data_feed.py`，flock 去重，快取在 `cache/`，所有實例共用；fail-open 退回各自抓；單人維持原樣）
 
 ### 模擬盤運行狀態（2026-05-20 21:00 UTC+8 快照；此為轉正式盤前的 Testnet 模擬期紀錄）
 

@@ -91,7 +91,7 @@ uptime            # 開機時長 / 負載
  本機 Windows CMD / PowerShell（先 cd 到這台電腦的專案根目錄；換電腦就改這行）：
    cd <你的本機專案根目錄>          # 例：C:\Users\neil.chang\workspace\cryptoBot
    # 根目錄檔案（labels.py/paths.py 是共用模組，main_eth/executor 會 import → 一定要一起上，否則開機失敗）
-   scp main_eth.py strategy.py executor.py labels.py paths.py analysis_report.py analyze.py signal_status.py check_signal.py check_health.py run_backtest.py fetch_backtest_data.py verify_mainnet.py menu.py CLAUDE.md cryptobot@187.127.108.237:~/cryptoBot/
+   scp main_eth.py strategy.py executor.py data_feed.py telegram_notify.py labels.py paths.py analysis_report.py analyze.py signal_status.py check_signal.py check_health.py run_backtest.py fetch_backtest_data.py verify_mainnet.py menu.py CLAUDE.md cryptobot@187.127.108.237:~/cryptoBot/
    # 子目錄檔案（回測引擎 / 儀表板，要分開 scp 到對應路徑）
    scp backtest\research\v14_export_trades.py cryptobot@187.127.108.237:~/cryptoBot/backtest/research/
    scp dashboard\app.py cryptobot@187.127.108.237:~/cryptoBot/dashboard/
@@ -139,7 +139,11 @@ uptime            # 開機時長 / 負載
 
  提醒：① 每人「各自一支 Telegram bot」（同 token 兩進程會搶更新 → getUpdates 409）
        ② API key 只開交易權限、關提款、IP 白名單綁本 VPS
-       ③ 10 人內單台 VPS 沒問題（每實例約 100MB RAM + 每小時各抓一次 K 線）
+       ③ 10 人內單台 VPS 沒問題（每實例約 100MB RAM）
+
+ 共用 K 線：多實例時每小時只有一個實例真的打 Binance，其他讀共用檔（data_feed.py，
+   flock 去重，快取在 ~/cryptoBot/cache/，所有實例共用）。有任何問題會自動退回各自抓，
+   不影響交易。單人（未設 INSTANCE_DIR）維持原本各自抓。
 
 ------------------------------------------------------------------
  每日一瞄（單人：服務活著 + 近期無告警 + bar 持續在寫）
