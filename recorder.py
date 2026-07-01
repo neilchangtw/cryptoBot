@@ -15,13 +15,15 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 load_dotenv()
 
+import paths  # 多實例路徑（INSTANCE_DIR 分流；未設則沿用程式目錄）
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 路徑（依 PAPER_TRADING 切 data/ 或 data_live/）
+# 路徑（依 PAPER_TRADING 切 data/ 或 data_live/；多實例時放 INSTANCE_DIR 下）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _PAPER = os.getenv("PAPER_TRADING", "true").lower() == "true"
-DATA_DIR = os.path.join(BASE_DIR, "data" if _PAPER else "data_live")
-LOGS_DIR = os.path.join(BASE_DIR, "logs")
+DATA_DIR = paths.data_dir(_PAPER)
+LOGS_DIR = paths.logs_dir()
 
 BAR_SNAPSHOTS_CSV = os.path.join(DATA_DIR, "bar_snapshots.csv")
 POSITION_LIFECYCLE_CSV = os.path.join(DATA_DIR, "position_lifecycle.csv")

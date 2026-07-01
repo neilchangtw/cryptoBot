@@ -156,7 +156,9 @@
       "Bash(awk *)",
       "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('dashboard/static/app.js','utf-8'\\)\\)\")",
       "Bash(curl -s http://127.0.0.1:8050/api/status)",
-      "Bash(node -c dashboard/static/app.js)"
+      "Bash(node -c dashboard/static/app.js)",
+      "Bash(INSTANCE_DIR=/srv/inst/alice .venv/Scripts/python.exe -c ' *)",
+      "Bash(PYTHONPATH=\"C:/Users/neil.chang/workspace/cryptoBot\" .venv/Scripts/python.exe /tmp/tp.py)"
     ]
   }
 }

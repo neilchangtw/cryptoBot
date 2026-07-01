@@ -26,6 +26,7 @@ import strategy
 import data_feed
 import recorder
 import labels  # 中文(英文)詞彙對照
+import paths  # 多實例路徑（INSTANCE_DIR 分流日誌）
 from executor import Executor
 from telegram_notify import send_telegram_message, get_pending_commands, skip_old_updates
 
@@ -36,7 +37,7 @@ SYMBOL = os.getenv("SYMBOL_ETH", "ETHUSDT")
 HEARTBEAT_INTERVAL = 1  # 每小時發一次心跳
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LOGS_DIR = os.path.join(BASE_DIR, "logs")
+LOGS_DIR = paths.logs_dir()  # 多實例：INSTANCE_DIR/logs；未設則程式目錄/logs
 os.makedirs(LOGS_DIR, exist_ok=True)
 
 
@@ -343,8 +344,7 @@ def _handle_pnl(executor, cmd_logger):
         import csv as _csv
         week_pnl = 0.0
         week_trades = 0
-        data_dir = os.path.join(os.path.dirname(__file__),
-                                "data" if PAPER_TRADING else "data_live")
+        data_dir = paths.data_dir(PAPER_TRADING)  # 多實例：INSTANCE_DIR 下
         trades_path = os.path.join(data_dir, "trades.csv")
         cutoff = (datetime.utcnow() + timedelta(hours=8)) - timedelta(days=7)
         if os.path.exists(trades_path):
@@ -406,8 +406,7 @@ def _handle_analysis(executor, cmd_logger, cmd=""):
             except ValueError:
                 days = None
 
-        data_dir = os.path.join(os.path.dirname(__file__),
-                                "data" if PAPER_TRADING else "data_live")
+        data_dir = paths.data_dir(PAPER_TRADING)  # 多實例：INSTANCE_DIR 下
         msg = analysis_report.build_report(data_dir, days=days, html=True)
         send_telegram_message(msg)
     except Exception as e:
@@ -443,8 +442,7 @@ def _handle_trades(executor, cmd_logger):
     """回報最近 5 筆交易。"""
     try:
         import csv
-        data_dir = os.path.join(os.path.dirname(__file__),
-                                "data" if PAPER_TRADING else "data_live")
+        data_dir = paths.data_dir(PAPER_TRADING)  # 多實例：INSTANCE_DIR 下
         trades_path = os.path.join(data_dir, "trades.csv")
         if not os.path.exists(trades_path):
             send_telegram_message("📭 尚無交易記錄")
@@ -1234,8 +1232,7 @@ def main():
                 v14_reasons = set()
                 try:
                     import csv as _csv4
-                    data_dir = os.path.join(BASE_DIR,
-                                            "data" if PAPER_TRADING else "data_live")
+                    data_dir = paths.data_dir(PAPER_TRADING)  # 多實例：INSTANCE_DIR 下
                     tpath = os.path.join(data_dir, "trades.csv")
                     if os.path.exists(tpath):
                         with open(tpath, "r", encoding="utf-8") as f4:

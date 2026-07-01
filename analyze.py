@@ -19,6 +19,7 @@ import argparse
 from dotenv import load_dotenv
 
 import analysis_report
+import paths  # 多實例路徑（INSTANCE_DIR 分流資料）
 
 # Windows 終端預設 cp950 無法輸出 emoji（🟢/🔴）→ 強制 UTF-8，避免 UnicodeEncodeError
 try:
@@ -47,8 +48,7 @@ def main():
     else:
         paper = os.getenv("PAPER_TRADING", "true").lower() == "true"
 
-    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "data" if paper else "data_live")
+    data_dir = paths.data_dir(paper)  # 多實例：INSTANCE_DIR 下；未設則程式目錄
     src = "模擬盤 data/" if paper else "正式盤 data_live/"
     print(f"資料來源：{src}\n")
     if args.trades is not None:

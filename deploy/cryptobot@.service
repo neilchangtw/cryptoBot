@@ -1,0 +1,25 @@
+[Unit]
+# 多實例 systemd template（給多人使用，每人一個實例）。
+# 用法：systemctl start cryptobot@alice  →  %i = alice
+#   - WorkingDirectory 指向該實例目錄 → 程式的 load_dotenv() 自然讀到該實例的 .env
+#     （各自的 Binance key / Telegram bot / 槓桿）
+#   - INSTANCE_DIR 讓 data_live/ 、logs/ 、eth_state_live.json 分流到該實例目錄
+#   - 程式碼共用一份（絕對路徑），改版只更新 /home/cryptobot/cryptoBot 一處
+# 單人跑法仍用舊的 cryptobot.service（不設 INSTANCE_DIR）。
+Description=CryptoBot 實例 %i（ETH 1h V14+R+V25-D live trader）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cryptobot
+WorkingDirectory=/home/cryptobot/instances/%i
+Environment=INSTANCE_DIR=/home/cryptobot/instances/%i
+ExecStart=/home/cryptobot/cryptoBot/.venv/bin/python -u /home/cryptobot/cryptoBot/main_eth.py
+Restart=always
+RestartSec=15
+# 日誌進 journald：journalctl -u cryptobot@alice -f
+#   程式自己的 log 在 /home/cryptobot/instances/%i/logs/
+
+[Install]
+WantedBy=multi-user.target

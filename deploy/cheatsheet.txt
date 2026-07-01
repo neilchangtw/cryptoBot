@@ -90,8 +90,8 @@ uptime            # 開機時長 / 負載
 ------------------------------------------------------------------
  本機 Windows CMD / PowerShell（先 cd 到這台電腦的專案根目錄；換電腦就改這行）：
    cd <你的本機專案根目錄>          # 例：C:\Users\neil.chang\workspace\cryptoBot
-   # 根目錄檔案（labels.py 是共用詞彙模組，main_eth/executor 會 import → 一定要一起上，否則開機失敗）
-   scp main_eth.py strategy.py executor.py labels.py analysis_report.py analyze.py signal_status.py check_signal.py check_health.py run_backtest.py fetch_backtest_data.py menu.py CLAUDE.md cryptobot@187.127.108.237:~/cryptoBot/
+   # 根目錄檔案（labels.py/paths.py 是共用模組，main_eth/executor 會 import → 一定要一起上，否則開機失敗）
+   scp main_eth.py strategy.py executor.py labels.py paths.py analysis_report.py analyze.py signal_status.py check_signal.py check_health.py run_backtest.py fetch_backtest_data.py verify_mainnet.py menu.py CLAUDE.md cryptobot@187.127.108.237:~/cryptoBot/
    # 子目錄檔案（回測引擎 / 儀表板，要分開 scp 到對應路徑）
    scp backtest\research\v14_export_trades.py cryptobot@187.127.108.237:~/cryptoBot/backtest/research/
    scp dashboard\app.py cryptobot@187.127.108.237:~/cryptoBot/dashboard/
@@ -105,9 +105,48 @@ uptime            # 開機時長 / 負載
      回測成交模型改在 run_backtest.py + backtest/research/v14_export_trades.py（+ dashboard/app.py）。
 
 ------------------------------------------------------------------
- 每日一瞄（一條搞定：服務活著 + 近期無告警 + bar 持續在寫）
+ 多實例（多人使用，方案 A）— 一支程式碼，每人一個實例
+------------------------------------------------------------------
+ 概念：程式碼共用 /home/cryptobot/cryptoBot（一份）；每人資料/日誌/狀態/設定各自獨立於
+       /home/cryptobot/instances/<名字>/（由 INSTANCE_DIR 分流）。不設 INSTANCE_DIR = 舊單人跑法不變。
+
+ 一次性安裝 template unit：
+   sudo cp ~/cryptoBot/deploy/cryptobot@.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+
+ 新增一個使用者（以 alice 為例）：
+   mkdir -p /home/cryptobot/instances/alice
+   cp ~/cryptoBot/deploy/instance.env.example /home/cryptobot/instances/alice/.env
+   nano /home/cryptobot/instances/alice/.env      # 填該使用者的 Binance key + 自己的 Telegram bot/chat_id
+   # 上線前唯讀體檢（用該實例的 env/狀態跑）：
+   cd /home/cryptobot/instances/alice && INSTANCE_DIR=$PWD /home/cryptobot/cryptoBot/.venv/bin/python /home/cryptobot/cryptoBot/verify_mainnet.py
+   sudo systemctl enable --now cryptobot@alice    # 開機自啟 + 立即啟動
+
+ 每實例操作（把 alice 換成對應名字）：
+   systemctl is-active cryptobot@alice            # 是否在跑
+   sudo systemctl restart cryptobot@alice         # 重啟（改該實例 .env 或程式後）
+   sudo systemctl stop cryptobot@alice            # 停止該實例
+   journalctl -u cryptobot@alice -f               # 即時日誌
+   tail -30 /home/cryptobot/instances/alice/logs/alerts.log
+
+ 每實例績效/開單條件（要帶該實例的 INSTANCE_DIR + 讀該實例 .env）：
+   cd /home/cryptobot/instances/alice
+   INSTANCE_DIR=$PWD /home/cryptobot/cryptoBot/.venv/bin/python /home/cryptobot/cryptoBot/analyze.py -t
+   INSTANCE_DIR=$PWD /home/cryptobot/cryptoBot/.venv/bin/python /home/cryptobot/cryptoBot/check_signal.py
+
+ 看全部實例：
+   systemctl list-units 'cryptobot@*'
+
+ 提醒：① 每人「各自一支 Telegram bot」（同 token 兩進程會搶更新 → getUpdates 409）
+       ② API key 只開交易權限、關提款、IP 白名單綁本 VPS
+       ③ 10 人內單台 VPS 沒問題（每實例約 100MB RAM + 每小時各抓一次 K 線）
+
+------------------------------------------------------------------
+ 每日一瞄（單人：服務活著 + 近期無告警 + bar 持續在寫）
 ------------------------------------------------------------------
 systemctl is-active cryptobot; tail -5 ~/cryptoBot/logs/alerts.log; tail -3 ~/cryptoBot/data_live/bar_snapshots.csv
+# 多實例版（掃全部）：
+for u in $(systemctl list-units 'cryptobot@*' --no-legend | awk '{print $1}'); do echo "== $u =="; systemctl is-active $u; done
 
 ==================================================================
  重要提醒

@@ -17,6 +17,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import paths  # 多實例路徑（INSTANCE_DIR 分流狀態檔）
+
 OK = "[ OK ]"
 WARN = "[WARN]"
 FAIL = "[FAIL]"
@@ -154,7 +156,7 @@ except Exception as e:
 # ── 9. Live state 檔案 ──
 header("9. eth_state_live.json")
 import json
-sp = "eth_state_live.json"
+sp = paths.state_file(False)  # 多實例：INSTANCE_DIR/eth_state_live.json
 if os.path.exists(sp):
     with open(sp) as f:
         st = json.load(f)

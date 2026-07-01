@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 import data_feed
 import strategy
 import signal_status
+import paths  # 多實例路徑（INSTANCE_DIR 分流狀態檔）
 
 load_dotenv()
 
@@ -37,8 +38,7 @@ def main():
     else:
         paper = os.getenv("PAPER_TRADING", "true").lower() == "true"
 
-    base = os.path.dirname(os.path.abspath(__file__))
-    state_path = os.path.join(base, "eth_state.json" if paper else "eth_state_live.json")
+    state_path = paths.state_file(paper)  # 多實例：INSTANCE_DIR 下；未設則程式目錄
 
     st = {}
     if os.path.exists(state_path):

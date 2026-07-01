@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 import strategy
 import recorder
 import labels  # 中文(英文)詞彙對照
+import paths  # 多實例路徑（INSTANCE_DIR 分流狀態檔）
 from telegram_notify import send_telegram_message
 
 load_dotenv()
@@ -39,9 +40,8 @@ logger = logging.getLogger("executor")
 class Executor:
     def __init__(self, state_path: str = None):
         if state_path is None:
-            # 依 PAPER_TRADING 切 eth_state.json / eth_state_live.json
-            fname = "eth_state.json" if PAPER_TRADING else "eth_state_live.json"
-            state_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), fname)
+            # 依 PAPER_TRADING 切 eth_state.json / eth_state_live.json（多實例放 INSTANCE_DIR 下）
+            state_path = paths.state_file(PAPER_TRADING)
         self.state_path = state_path
 
         # 核心狀態
