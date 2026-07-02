@@ -485,8 +485,11 @@ python run_backtest.py --refresh                   # 先抓最新 K 線再跑
 python fetch_backtest_data.py   # Binance 公開端點分頁抓 ETH+BTC 1h 730 天 → data/
 ```
 
-> VPS 維運 / 部署 / 更新檔案見 **[deploy/VPS_DEPLOY.md](deploy/VPS_DEPLOY.md)**（含 scp 更新流程、
-> Telegram 指令、`analyze.py` 與回測用法）。
+> VPS 維運 / 部署文件（都在 `deploy/`）：
+> - **[deploy/cheatsheet.txt](deploy/cheatsheet.txt)** — 日常維運速查（服務控制/日誌/績效/多實例操作）
+> - **[deploy/new_vps_setup.md](deploy/new_vps_setup.md)** — 換電腦(git clone)、從零架新 VPS、**更新既有 VPS（轉 git checkout → 之後 `git pull`）**、本版新東西
+> - **[deploy/onboarding.md](deploy/onboarding.md)** — 多人：跟對方收集什麼（可轉發）+ 在 VPS 新增一個使用者
+> - **[deploy/VPS_DEPLOY.md](deploy/VPS_DEPLOY.md)** — 單人歷史部署紀錄（tar/scp 時代 + 依賴雷）
 
 ---
 
