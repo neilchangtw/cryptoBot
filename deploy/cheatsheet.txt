@@ -86,23 +86,20 @@ free -h           # 記憶體（bot 約 100MB）
 uptime            # 開機時長 / 負載
 
 ------------------------------------------------------------------
- 更新檔案到 VPS（tar/scp 部署，無 .git → 不能 git pull）
+ 更新程式到 VPS（2026-07-03 起已轉 git 部署，git pull 即可）
 ------------------------------------------------------------------
- 本機 Windows CMD / PowerShell（先 cd 到這台電腦的專案根目錄；換電腦就改這行）：
-   cd <你的本機專案根目錄>          # 例：C:\Users\neil.chang\workspace\cryptoBot
-   # 根目錄檔案（labels.py/paths.py 是共用模組，main_eth/executor 會 import → 一定要一起上，否則開機失敗）
-   scp main_eth.py strategy.py executor.py data_feed.py telegram_notify.py labels.py paths.py analysis_report.py analyze.py signal_status.py check_signal.py check_health.py run_backtest.py fetch_backtest_data.py verify_mainnet.py menu.py CLAUDE.md cryptobot@187.127.108.237:~/cryptoBot/
-   # 子目錄檔案（回測引擎 / 儀表板，要分開 scp 到對應路徑）
-   scp backtest\research\v14_export_trades.py cryptobot@187.127.108.237:~/cryptoBot/backtest/research/
-   scp dashboard\app.py cryptobot@187.127.108.237:~/cryptoBot/dashboard/
-   scp deploy\cheatsheet.txt deploy\VPS_DEPLOY.md cryptobot@187.127.108.237:~/cryptoBot/deploy/
- VPS：
-   sudo systemctl restart cryptobot    # 只有改 bot 主程式(main_eth/strategy/executor/binance_trade)或 .env 才需重啟
-   sudo systemctl status cryptobot --no-pager
- 註：純工具(analyze/check_signal/run_backtest/v14_export_trades/fetch_backtest_data/dashboard)只讀檔，
-     scp 完免重啟即可用；只有改到 main_eth/strategy/executor/binance_trade 或 .env 才要 restart。
-     .env 不要 scp 覆蓋（VPS 的才是正式 key），要改參數用 nano ~/cryptoBot/.env 後重啟。
-     回測成交模型改在 run_backtest.py + backtest/research/v14_export_trades.py（+ dashboard/app.py）。
+ 本機改完程式 → commit + push 到 GitHub，然後 VPS：
+   cd ~/cryptoBot
+   git pull
+   sudo systemctl restart cryptobot    # 只有改 bot 主程式(main_eth/strategy/executor/
+                                       # data_feed/telegram_notify/paths/labels)或 .env 才需重啟
+   systemctl status cryptobot --no-pager
+ 註：純工具(analyze/check_signal/run_backtest/fetch_backtest_data)只讀檔，
+     pull 完免重啟即可用；只有改到 bot 主程式或 .env 才要 restart。
+     .env / data_live/ / logs/ / 狀態檔都被 gitignore，git pull 不會動到；
+     要改參數用 nano ~/cryptoBot/.env 後重啟。
+     若 git pull 報 local changes 衝突 → 先 git status 看是哪些檔，勿直接 checkout -- 蓋掉。
+ （舊 tar/scp 逐檔上傳流程已淘汰，史料見 VPS_DEPLOY.md）
 
 ------------------------------------------------------------------
  多實例（多人使用，方案 A）— 一支程式碼，每人一個實例

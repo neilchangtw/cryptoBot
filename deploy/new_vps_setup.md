@@ -81,8 +81,8 @@ sudo systemctl daemon-reload
 
 ## C. 更新既有 VPS 到最新版（一次性轉成 git，之後 `git pull` 就好）
 
-> 目前 VPS 是 tar/scp 部署的、**沒有 `.git`**，所以現在的最新程式還沒上去。
-> 下面把它「就地」轉成 git 檢出：一次做完，以後更新只要 `git pull` + 重啟，不用再列檔案 scp。
+> ✅ **本節已於 2026-07-03 在 srv1722575 執行完成**（VPS 已是 git 檢出，之後更新只要
+> `git pull` + 重啟）。以下步驟保留給未來其他 tar/scp 時代的機器參考。
 > `.env` / `data_live/` / `logs/` / 狀態檔都被 gitignore，**轉換過程不會被動到**（只覆蓋程式碼檔）。
 
 ```bash
@@ -121,9 +121,9 @@ sudo systemctl restart cryptobot            # 或各 cryptobot@實例
 
 ---
 
-## D. 這一版有什麼新東西（現在還沒上 VPS）
+## D. 這一版有什麼新東西（✅ 已於 2026-07-03 隨 git 轉換部署到 VPS）
 
-自上次部署後新增/改動（都已在 GitHub master）：
+自上次 tar/scp 部署後新增/改動（都已在 GitHub master 並上線）：
 
 - **回測貼近實盤成交**：`run_backtest.py` 預設 TP/BE 用市價收盤成交（`--ideal` 切回理論價）
 - **交易時間對齊幣安**：`analyze` / Telegram 顯示實際成交時刻（K 棒收盤 = 開盤+1h）

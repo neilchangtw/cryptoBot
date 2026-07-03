@@ -153,6 +153,10 @@ cd ~/cryptoBot
 
 ## 更新已部署的檔案（修 bug / 加功能）
 
+> ⚠️ **本節已過時**：VPS 已於 2026-07-03 就地轉為 git 檢出（見 new_vps_setup.md Part C），
+> 現在更新一律 `cd ~/cryptoBot && git pull && sudo systemctl restart cryptobot`。
+> 以下 scp 流程僅留作 tar/scp 時代史料。
+
 VPS 是用 tar/scp 部署（**不含 `.git`，不能 `git pull`**）。改了本機檔案後，scp 覆蓋對應檔即可：
 
 ```cmd

@@ -149,6 +149,8 @@ cryptoBot/
 > VPS 已從 tar/scp **就地轉為 git checkout**（new_vps_setup.md Part C），之後更新一律
 > `cd ~/cryptoBot && git pull && sudo systemctl restart cryptobot`。
 > Telegram 已啟用**多聊天室**（私聊 + 群組）與**管理員白名單**（TELEGRAM_ADMIN_IDS）。
+> 2026-07-03 併同完成：Binance API key 輪換、`MARGIN_PER_TRADE` 200→**300**（名目 $6,000，
+> 風控線自動等比，verify_mainnet 驗證通過）。
 > 本段保留作為變更說明與操作注意事項。
 
 **1. strategy.py 動態風控（程式變更，向後相容）**
@@ -200,7 +202,9 @@ cryptoBot/
 - **V25 Regime-conditional exits（2026-04-22）**：V25-D PROMOTED 12/12 gates — `S_MH_UP 10→8` + `L_TP_DOWN 3.5→4.0%` + `L_MH_MILD_UP 6→7`，2Y PnL $6,789（+$206, +3.1%）、WR 62.3%（+0.7%）、**MDD $334（-$39, -10.5%）**、Sharpe 6.23、G4 6/6 鄰域穩定、G8 reversed 改善（-3717 vs -3981）。V25-D 是 V14+R 純出場優化，進場 100% 沿用
 - **模式**：**LIVE 正式盤（mainnet 真錢）**，資料寫在 `data_live/`（VPS systemd 服務跑；連線/維運/部署見 [deploy/cheatsheet.txt](deploy/cheatsheet.txt)）
 - **Hedge Mode**：已啟用（dualSidePosition=true），L/S 倉位互不影響
-- **帳戶**：$1,000 / $200 保證金 / 20x / $4,000 名目
+- **帳戶**：餘額 ~$2,715 / **300U 保證金 / 20x / $6,000 名目**（2026-07-03 由 200U 上調，
+  動態風控自動等比：日虧 -300 / L 月虧 -112.5 / S 月虧 -225；策略規格內的 $ 數字仍為
+  200U/$4,000 研究基準）
 - **演進**：GK v1.1 → v6 L+S → V10 → V11-E → V13 → V14 → **V14+R → V14+R+V25-D（線上）**
 - **Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗（**目前已停用，改用終端機 + Telegram**）
 - **顯示慣例**：所有終端機/Telegram 輸出的出場原因、進場趨勢、方向一律「中文 (英文)」格式，統一由 `labels.py` 產生（如 `止盈 (TP)`、`偏多 (MILD_UP)`）；交易列表時間顯示為**實際成交時刻**（K 棒收盤 = 開盤+1h，對齊幣安後台）
