@@ -28,7 +28,8 @@ import data_feed
 import recorder
 import labels  # 中文(英文)詞彙對照
 from executor import Executor
-from telegram_notify import send_telegram_message, get_pending_commands, skip_old_updates
+from telegram_notify import (send_telegram_message, get_pending_commands,
+                             skip_old_updates, get_admin_ids, set_reply_target)
 
 load_dotenv()
 
@@ -703,37 +704,55 @@ def main():
         while True:
             try:
                 commands = get_pending_commands()
-                for cmd in commands:
-                    cmd_lower = cmd.lower().split()[0]  # 取第一個字（忽略參數）
-                    cmd_logger.info(f"Received command: {cmd}")
+                for cmd, from_id, origin_chat in commands:
+                    # 取第一個字（忽略參數）並剝掉群組的 @bot名 後綴（/status@MyBot → /status）
+                    cmd_lower = cmd.lower().split()[0].split("@")[0]
+                    cmd_logger.info(f"Received command: {cmd} (from={from_id} chat={origin_chat})")
 
-                    with executor._lock:
-                        if cmd_lower in ("/cleanup", "/clean"):
-                            _handle_cleanup(executor, cmd_logger)
-                        elif cmd_lower in ("/status", "/pos"):
-                            _handle_status(executor, cmd_logger)
-                        elif cmd_lower in ("/bal", "/balance"):
-                            _handle_balance(executor, cmd_logger)
-                        elif cmd_lower == "/pnl":
-                            _handle_pnl(executor, cmd_logger)
-                        elif cmd_lower in ("/analysis", "/stats", "/report"):
-                            _handle_analysis(executor, cmd_logger, cmd)
-                        elif cmd_lower in ("/signal", "/cond", "/check"):
-                            _handle_signal(executor, cmd_logger)
-                        elif cmd_lower == "/trades":
-                            _handle_trades(executor, cmd_logger)
-                        elif cmd_lower in ("/alerts", "/warn"):
-                            _handle_alerts(cmd_logger)
-                        elif cmd_lower == "/cb":
-                            _handle_circuit_breaker(executor, cmd_logger)
-                        elif cmd_lower == "/pause":
-                            _handle_pause(executor, cmd_logger)
-                        elif cmd_lower == "/resume":
-                            _handle_resume(executor, cmd_logger)
-                        elif cmd_lower == "/help":
-                            _handle_help()
-                        else:
-                            send_telegram_message(f"❓ 未知指令：{cmd}\n輸入 /help 查看可用指令")
+                    # 控制類指令的管理員白名單（TELEGRAM_ADMIN_IDS 未設 = 不限制，維持舊行為）
+                    admin_ids = get_admin_ids()
+                    if (cmd_lower in ("/cleanup", "/clean", "/pause", "/resume")
+                            and admin_ids and from_id not in admin_ids):
+                        set_reply_target(origin_chat)
+                        try:
+                            send_telegram_message(f"⛔ {cmd_lower} 為控制類指令，僅限管理員使用")
+                        finally:
+                            set_reply_target(None)
+                        cmd_logger.info(f"Blocked non-admin control command: {cmd} from {from_id}")
+                        continue
+
+                    # 回覆導向：處理期間本執行緒發的訊息只回原聊天室（不打擾其他群組）
+                    set_reply_target(origin_chat)
+                    try:
+                        with executor._lock:
+                            if cmd_lower in ("/cleanup", "/clean"):
+                                _handle_cleanup(executor, cmd_logger)
+                            elif cmd_lower in ("/status", "/pos"):
+                                _handle_status(executor, cmd_logger)
+                            elif cmd_lower in ("/bal", "/balance"):
+                                _handle_balance(executor, cmd_logger)
+                            elif cmd_lower == "/pnl":
+                                _handle_pnl(executor, cmd_logger)
+                            elif cmd_lower in ("/analysis", "/stats", "/report"):
+                                _handle_analysis(executor, cmd_logger, cmd)
+                            elif cmd_lower in ("/signal", "/cond", "/check"):
+                                _handle_signal(executor, cmd_logger)
+                            elif cmd_lower == "/trades":
+                                _handle_trades(executor, cmd_logger)
+                            elif cmd_lower in ("/alerts", "/warn"):
+                                _handle_alerts(cmd_logger)
+                            elif cmd_lower == "/cb":
+                                _handle_circuit_breaker(executor, cmd_logger)
+                            elif cmd_lower == "/pause":
+                                _handle_pause(executor, cmd_logger)
+                            elif cmd_lower == "/resume":
+                                _handle_resume(executor, cmd_logger)
+                            elif cmd_lower == "/help":
+                                _handle_help()
+                            else:
+                                send_telegram_message(f"❓ 未知指令：{cmd}\n輸入 /help 查看可用指令")
+                    finally:
+                        set_reply_target(None)
             except Exception as e:
                 cmd_logger.debug(f"Command listener error: {e}")
             time.sleep(10)
