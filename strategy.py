@@ -36,13 +36,18 @@ BRK_LOOK = 15              # L/S 共用 breakout lookback（15 bar）
 BLOCK_H = {0, 1, 2, 12}    # UTC+8 封鎖時段（L/S 共用）
 L_BLOCK_D = {5, 6}         # L 封鎖星期（Sat=5, Sun=6）
 S_BLOCK_D = {0, 5, 6}      # S 封鎖星期（Mon=0, Sat=5, Sun=6）
-FEE = 4.0                  # 每筆交易成本（含滑價）$4
 # ── 部位大小：單一來源 = .env（MARGIN_PER_TRADE / LEVERAGE）──
 # strategy.NOTIONAL 是實盤下單金額的唯一依據（executor.py 用 NOTIONAL/entry 算 qty）。
 # verify_mainnet.py / binance_trade.py 也讀同一組 .env，三者保證一致。
 MARGIN = float(os.getenv("MARGIN_PER_TRADE", 200))  # 每筆保證金（預設 $200）
 LEVERAGE = int(os.getenv("LEVERAGE", 20))           # 槓桿倍數（預設 20x）
 NOTIONAL = MARGIN * LEVERAGE                          # 名目金額 = 保證金 × 槓桿
+
+# ── 動態風控縮放：所有 $ 風控線以「200U 保證金」為基準等比縮放 ──
+# 調 .env 的 MARGIN_PER_TRADE 時，FEE / 日虧 / 月虧熔斷自動跟上，不需改程式。
+# （比例＝V14 校準值對 200U 的比：FEE $4、日虧 -$200、L 月虧 -$75、S 月虧 -$150）
+_RISK_SCALE = MARGIN / 200.0
+FEE = round(4.0 * _RISK_SCALE, 2)  # 每筆交易成本估計（taker+滑價 ≈ 0.1% 名目；200U 基準 $4）
 
 # ── V14+R Regime Gate ──
 R_SMA_WIN = 200            # SMA 窗口
@@ -63,7 +68,7 @@ L_EXT_BARS = 2             # L MaxHold 延長 2 bar（V13 新增）
 L_EXIT_CD = 6              # L 出場後冷卻 6 bar
 L_MAX_TOTAL = 1            # L 最多同時 1 筆
 L_MONTHLY_ENTRY_CAP = 20   # L 每月最多 20 筆進場
-L_MONTHLY_LOSS_CAP = -75   # L 月虧 -$75 停
+L_MONTHLY_LOSS_CAP = round(-75 * _RISK_SCALE, 2)   # L 月虧停（200U 基準 -$75，隨保證金等比）
 
 # V14 MFE Trailing（L only）
 L_MFE_ACT = 0.010          # MFE 啟動門檻：浮盈曾達 1.0%
@@ -86,12 +91,12 @@ S_EXT_BARS = 2             # S MaxHold 延長 2 bar（V13 新增）
 S_EXIT_CD = 8              # S 出場後冷卻 8 bar
 S_MAX_TOTAL = 1            # S 最多同時 1 筆
 S_MONTHLY_ENTRY_CAP = 20   # S 每月最多 20 筆進場
-S_MONTHLY_LOSS_CAP = -150  # S 月虧 -$150 停
+S_MONTHLY_LOSS_CAP = round(-150 * _RISK_SCALE, 2)  # S 月虧停（200U 基準 -$150，隨保證金等比）
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 風控熔斷
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DAILY_LOSS_LIMIT = -200    # 日虧 $200 停（L+S 合計）
+DAILY_LOSS_LIMIT = round(-200 * _RISK_SCALE, 2)    # 日虧停 L+S 合計（200U 基準 -$200，隨保證金等比）
 CONSEC_LOSS_PAUSE = 4      # 連虧 4 筆冷卻
 CONSEC_LOSS_COOLDOWN = 24  # 連虧冷卻 24 bar
 
