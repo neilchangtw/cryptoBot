@@ -44,6 +44,8 @@ ETH 1h Garman-Klass Compression-Breakout 自動交易機器人（Binance Futures
 | [doc/v24_research.md](doc/v24_research.md) | V24 風險工程（B 槓桿線性可調 5x/10x/15x/20x；**A vol overlay REJECTED 0/23、C 多標的分散 REJECTED 0/10**；BEST = V14+R @ 可調槓桿，paper 建議 10x） |
 | [doc/v25_research.md](doc/v25_research.md) | V25 Regime-conditional exits（**V25-D PROMOTED 12/12 gates**，S_MH_UP 10→8 + L_TP_DOWN 3.5→4.0 + L_MH_MILD_UP 6→7：PnL +3.1%、WR +0.7%、MDD -10.5%、G4 6/6 鄰域穩定） |
 | [doc/v26_research.md](doc/v26_research.md) | V26 MaxHold-loss 優化（上線後觸發；**R1 give-up + R2 分批止盈 + R3 分批止損 三面 130+ 配置全 REJECTED**：bar N 時贏家輸家尚未分化——give-up 砍慢熱贏家、止盈 75% 課稅在大贏單、止損 43% 砍在會反彈贏家；WR 可升但 PnL 必降，MH 確認 negative-by-construction 非漏洞） |
+| [doc/v27_research.md](doc/v27_research.md) | V27 Meta-labeling 進場過濾（**R1 提前 REJECTED**：23 進場時特徵 × logit/GBM 預測 MH 結局，WF AUC 最佳 0.614 perm p=0.13、OOS 確認 0.44~0.58 ≈ 擲硬幣，靜態過濾移除的全是正 PnL——進場當下也分不出誰會變 MH，**MH 方向徹底關閉**：進場分不出(V27)+持倉中未分化(V26)+桶恆≤0 是選擇效應） |
+| [doc/v28_research.md](doc/v28_research.md) | V28 複利化研究（**帳戶層 PROMOTED 未部署**；R1 恆 4x 複利：bootstrap P(複利輸固定)=0%、MDD 中位 31.9%；**R2 使用者「獲利加倉」方案（200U+獲利×20x、虧損退回地板）+ 名目上限 = 建議採用形態**：cap $12K/$20K 終值 $23.6K/$38.2K vs 固定 $8.8K、MDD 24%、地板使下行=現行；無上限版 REJECTED MDD 92%+；前提=熔斷百分比化+edge 存續，建議實盤滿 50 筆貼合回測後再切換） |
 
 ---
 
@@ -140,6 +142,52 @@ cryptoBot/
 ---
 
 ## 目前狀態
+
+### ⚠️ 待部署（2026-07-02 本機 workspace 產出，尚未更新 VPS）
+
+> 本段記錄 2026-07-02 在 Windows 工作機完成、**還沒部署到 VPS** 的變更。
+> 換電腦接手時：先確認這些變更已 commit + push（否則只存在原本機的 working tree），
+> 再到 VPS `git pull` → 挑**無持倉**時 `systemctl restart cryptobot@<名字>`。
+
+**1. strategy.py 動態風控（程式變更，向後相容）**
+- FEE / 日虧 / L 月虧 / S 月虧 四條 $ 風控線改為以 200U 保證金為基準、
+  隨 `.env` 的 `MARGIN_PER_TRADE` 等比縮放（`_RISK_SCALE = MARGIN/200`）
+- `MARGIN_PER_TRADE=200`（預設）時數值與舊版**完全相同**（-200/-75/-150/FEE 4），
+  部署重啟無行為變化；多實例其他使用者不受影響
+- 已驗證：200/350/1000U 三檔縮放正確、相關檔案 py_compile 全過
+
+**2. 多實例 .env 誤載修正（嚴重 bug，多實例上線前必上）**
+- 問題：python-dotenv 的 `find_dotenv()` 從「程式檔所在目錄」找 .env 而**非 cwd**
+  → 原設計（unit 只設 WorkingDirectory）下，每個實例都會誤載程式目錄的 .env
+  （= 擁有者的 Binance key / Telegram token 被別人的實例拿去下單）。已本機實測重現
+- 修正（三層）：`paths.py` 以 `INSTANCE_DIR/.env` **override 重載**（核心）；
+  main_eth / analyze / check_signal 把 `import paths` 提到專案模組最前（覆寫先於
+  strategy/binance_trade 讀 env）；`cryptobot@.service` 加 `EnvironmentFile=` 雙保險
+- 已驗證：INSTANCE_DIR 指到實例目錄時 MARGIN/PAPER_TRADING/INSTANCE_NAME 全部取實例值、
+  動態風控跟著實例保證金縮放；未設 INSTANCE_DIR（單人）行為完全不變
+- **VPS 部署注意**：多實例 commits（b073bbd/a3f991c/40921f4）已在 GitHub 但 VPS 未 pull，
+  此修正必須與之一起上；若 VPS 已複製過舊版 template →
+  `sudo cp deploy/cryptobot@.service /etc/systemd/system/ && sudo systemctl daemon-reload`
+
+**3. V27 + V28 研究（文件 + 腳本，不影響機器人運行）**
+- V27 meta-labeling REJECTED（詳見 doc/v27_research.md）→ MH 方向徹底關閉
+- V28 複利化 PROMOTED（帳戶層，doc/v28_research.md）：
+  採用形態 = **人肉複利**（.env 調 `MARGIN_PER_TRADE`，程式已支援免改 code）
+  SOP：每月 1 號 `保證金 = 200 + 累計獲利×50%`（封頂 1000U、地板 200U），
+  挑無持倉時改 .env + 重啟；400U 錢包全明細見 doc/v28_half_ratchet_trades.txt
+- 連敗條件勝率分析（backtest/research/streak_wr_analysis.py）：
+  連敗數對下一筆 WR 無影響（perm p=0.861），不做任何連敗加碼/跳過規則
+
+**4. 同月改兩次保證金的注意事項（重要）**
+- 月度虧損熔斷是「美元累加 vs 當下 cap」比較：**月中調小保證金**可能使已累積虧損
+  立刻 ≤ 新 cap → 該邊熔斷鎖單到月底（例：1000U 虧 -$120 後調回 200U，-120 ≤ -75 即鎖）
+- 月中調大則使當月風控偏鬆。**只在每月 1 號（計數器歸零後）調整就完全沒有此問題**
+- 若未來需要月中自由調整 → 待辦：executor 月度計數器改「R 單位」正規化
+  （每筆 PnL ÷ 當筆保證金，cap 比 -0.375R / -0.75R / -1.0R）
+
+**5. 本機（Windows 工作機）環境備註**
+- `.venv` 為研究補裝了 numpy / pandas / scikit-learn / python-dotenv（非機器人依賴）
+- `data/` 已抓 ETH+BTC 1h 730 天快取（2024-07-02 ~ 2026-07-02）
 
 - **策略版本**：**V14+R + V25-D**（兩者皆已部署上線）
   - V14+R Path R 斜率 gate 部署 commit `3ff1e82` / `74cdd22`（2026-04-22 23:06）
@@ -279,12 +327,13 @@ V13 對比：$4,004→$4,549（+14%），L 改善 +$293（+17%）
 ### 風控
 
 ```
-$200 保證金 / 20x 槓桿 / $4,000 名目
+$200 保證金 / 20x 槓桿 / $4,000 名目（.env MARGIN_PER_TRADE / LEVERAGE 可調）
 Fee: $4/筆（taker 0.04%×2 + slip 0.01%×2）
 L/S 各最多 1 筆同時持倉（maxTotal=1），合計最多 2 筆
 L 月度 entry cap = 20 筆，S 月度 entry cap = 20 筆
 L 月虧上限 -$75，S 月虧上限 -$150
 日虧上限 -$200，連虧 4 筆 → 24 bar 冷卻
+※ 以上 $ 值為 200U 基準；FEE/日虧/月虧會隨 MARGIN_PER_TRADE 等比縮放（動態風控）
 ```
 
 ### 不要做的事
@@ -340,6 +389,8 @@ L 月虧上限 -$75，S 月虧上限 -$150
 - 分批 / scaled-out 止盈降 MH 虧損（V26 R2：N×F 36+ 配置全劣於 baseline，分批 75% 打在最終贏家上削大贏單，最終 MH 輸家近 6 成在 bar N 已在水下分批碰不到，WR 升但 PnL 必降，MH 桶幾乎沒縮）
 - 分批止損 / loss-side scale-out 降 MH 虧損（V26 R3：72 配置全劣於 baseline，43% 砍在會反彈的贏家且恰是後來打 TP 的大單，WR 還降，MH 桶甚至更負；與 R1/R2 同根因——bar N 時贏家輸家未分化）
 - 把「MH 桶虧損大」當可修漏洞去優化（V26：MH 出場 PnL 恆 ≤0 是 V14 設計使然——正報酬單已被送進延長/TP，MH 是 TP 的入場費非 leak）
+- Meta-labeling / ML 分類器進場過濾（V27：23 進場時特徵 × logit/GBM 預測 MH/虧損結局，WF AUC 最佳 0.614 perm p=0.13、OOS 單次確認 0.44~0.58，靜態過濾移除的全是正 PnL +$306~+$702——被標記「最像 MH」的進場多是贏家）
+- 任何「預測單筆交易結局」的進場端 ML（V27 同根因：IS 僅 33 個 MH 正樣本 / 23 特徵，訊號不存在且樣本量不支持，更複雜模型只會過擬合更兇）
 
 ---
 
@@ -446,7 +497,15 @@ BINANCE_API_KEY=<key>
 BINANCE_API_SECRET=<secret>
 TELEGRAM_BOT_TOKEN=<token>
 TELEGRAM_CHAT_ID=<id>
+MARGIN_PER_TRADE=200        # 每筆保證金（預設 200；調整此值 = 人肉複利的唯一旋鈕）
+LEVERAGE=20                 # 槓桿倍數（預設 20）
 ```
+
+> **動態風控（2026-07-02 起）**：FEE、日虧、L/S 月虧熔斷線全部以「200U 保證金」為基準
+> 隨 `MARGIN_PER_TRADE` **等比縮放**（strategy.py `_RISK_SCALE`）。調保證金不需要改任何程式，
+> 風控自動跟上；設 200 時與歷史行為完全相同。
+> 人肉複利 SOP（V28 R2 建議形態）：每月 1 號 `保證金 = 200 + 累計獲利×50%`（封頂 1000），
+> 挑無持倉時改 .env 並重啟服務；虧回去照公式下調，最低 200。詳見 [doc/v28_research.md](doc/v28_research.md)。
 
 ---
 
