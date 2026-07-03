@@ -175,7 +175,7 @@ def compute_indicators(df):
 
 
 def simulate_v14_detailed(ind, datetimes, start_bar=None,
-                          realistic=False, slip_bps=0.0):
+                          realistic=False, slip_bps=0.0, margin_schedule=None):
     """Run V14 L+S simulation with full trade detail (MAE/MFE/GK pctile).
 
     Args:
@@ -191,6 +191,11 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
                      - SafeNet：維持理論止損價 + 25% 穿透（實盤掛真實 stop 單，不變）
         slip_bps: 每次市價成交的逆向滑價（bp，1bp=0.01%）。預設 0（FEE 已含少量滑價估計）。
                   進場：買進付高/賣出收低；出場：賣出收低/買回付高，方向恆不利。
+        margin_schedule: 保證金時間表 [("YYYY-MM-DD", 保證金U), ...]（依日期遞增），
+                   對齊實盤的 .env MARGIN_PER_TRADE 調整歷史：
+                     - 每筆交易名目 = 進場 bar 當時保證金 × 20（qty 進場定死，同實盤）
+                     - FEE 與熔斷線（日虧/月虧）依「當下 bar」保證金等比（同線上動態風控）
+                   None（預設）= 全程 200U/$4,000，與歷史研究基準完全相同。
     """
     slip = slip_bps / 10000.0
     o, h, l, c = ind['o'], ind['h'], ind['l'], ind['c']
@@ -203,6 +208,14 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
     slope = ind.get('slope')  # V25-D: 進場 regime 分類
     n = len(o)
 
+    # 保證金時間表 → 每 bar 的縮放係數（200U 基準；None = 全程 1.0 走原始常數路徑）
+    scale_arr = None
+    if margin_schedule:
+        dts = np.array([str(x) for x in datetimes])
+        scale_arr = np.full(n, float(margin_schedule[0][1]) / 200.0)
+        for d, m in margin_schedule[1:]:
+            scale_arr[dts >= d] = float(m) / 200.0
+
     sim_start = max(start_bar, WARMUP) if start_bar is not None else WARMUP
 
     trades = []
@@ -210,6 +223,8 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
     # L position state
     lp_active = False
     lp_entry = 0.0
+    lp_ntl = NOTIONAL   # 進場時名目（保證金時間表生效時隨進場 bar 決定）
+    lp_fee = FEE
     lp_bar = 0
     lp_held = 0
     lp_mfe = 0.0
@@ -223,6 +238,8 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
     # S position state
     sp_active = False
     sp_entry = 0.0
+    sp_ntl = NOTIONAL
+    sp_fee = FEE
     sp_bar = 0
     sp_held = 0
     sp_mfe = 0.0
@@ -324,9 +341,10 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
 
             if ex_price > 0:
                 pnl_pct = (ex_price - ep) / ep
-                pnl = pnl_pct * NOTIONAL - FEE
+                pnl = pnl_pct * lp_ntl - lp_fee
                 trades.append({
                     'side': 'L',
+                    'margin': round(lp_ntl / 20.0, 2),
                     'entry_bar': lp_bar,
                     'exit_bar': i,
                     'entry_dt': datetimes[lp_bar],
@@ -405,9 +423,10 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
 
             if ex_price > 0:
                 pnl_pct = (ep - ex_price) / ep
-                pnl = pnl_pct * NOTIONAL - FEE
+                pnl = pnl_pct * sp_ntl - sp_fee
                 trades.append({
                     'side': 'S',
+                    'margin': round(sp_ntl / 20.0, 2),
                     'entry_bar': sp_bar,
                     'exit_bar': i,
                     'entry_dt': datetimes[sp_bar],
@@ -435,8 +454,10 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
                     consec_end = i + CB_CONSEC_CD
 
         # --- ENTRY CHECKS ---
-        l_cb = (d_pnl <= CB_DAILY or l_m_pnl <= CB_L_MONTH or i < consec_end)
-        s_cb = (d_pnl <= CB_DAILY or s_m_pnl <= CB_S_MONTH or i < consec_end)
+        # 熔斷線隨當下 bar 的保證金等比（= 線上動態風控 _RISK_SCALE 行為）
+        cbs = scale_arr[i] if scale_arr is not None else 1.0
+        l_cb = (d_pnl <= CB_DAILY * cbs or l_m_pnl <= CB_L_MONTH * cbs or i < consec_end)
+        s_cb = (d_pnl <= CB_DAILY * cbs or s_m_pnl <= CB_S_MONTH * cbs or i < consec_end)
 
         # L entry: signal bar close 立即進場（與實盤一致）
         if (not lp_active and not l_cb and
@@ -446,6 +467,8 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
             not np.isnan(pL[i]) and pL[i] < L_GK_TH and brk_up[i]):
             lp_active = True
             lp_entry = ci * (1 + slip) if realistic else ci  # 市價買進付高
+            lp_ntl = NOTIONAL * cbs   # 名目/費用在進場 bar 定死（qty 同實盤不變）
+            lp_fee = FEE * cbs
             lp_bar = i
             lp_held = 0
             lp_mfe = 0.0
@@ -465,6 +488,8 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
             not np.isnan(pS[i]) and pS[i] < S_GK_TH and brk_dn[i]):
             sp_active = True
             sp_entry = ci * (1 - slip) if realistic else ci  # 市價賣出收低
+            sp_ntl = NOTIONAL * cbs
+            sp_fee = FEE * cbs
             sp_bar = i
             sp_held = 0
             sp_mfe = 0.0

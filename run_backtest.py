@@ -32,6 +32,14 @@ if ROOT not in sys.path:
 import labels  # 中文(英文)詞彙對照 + 全形對齊
 import analysis_report  # to_exec_time：成交時刻 = bar 開盤 + 1h（對齊幣安/實盤）
 
+# ── 實盤保證金調整歷史（對齊 .env MARGIN_PER_TRADE 的實際變更；之後再調就往下加一行）──
+# 每筆交易名目 = 進場日當時保證金 × 20；FEE 與熔斷線也依當時保證金等比（= 線上動態風控）。
+# 用 --flat 可切回「全程 200U」研究基準（= V14~V28 文件裡的數字）。
+MARGIN_SCHEDULE = [
+    ("2000-01-01", 200),   # 起始：200U（$4,000 名目）
+    ("2026-07-03", 300),   # 2026-07-03 起：300U（$6,000 名目）
+]
+
 
 def _load_engine():
     path = os.path.join(ROOT, "backtest", "research", "v14_export_trades.py")
@@ -52,8 +60,11 @@ def main():
                     help="用理想化成交（TP 鎖理論價）；預設貼近實盤（TP/BE 用市價收盤成交）")
     ap.add_argument("--slip", type=float, default=0.0, metavar="BPS",
                     help="每次市價成交逆向滑價 bp（1bp=0.01%），預設 0；高波動可設 2~5 壓測")
+    ap.add_argument("--flat", action="store_true",
+                    help="忽略保證金歷史，全程 200U/$4,000（= 歷史研究基準數字）")
     args = ap.parse_args()
     realistic = not args.ideal
+    schedule = None if args.flat else MARGIN_SCHEDULE
 
     csv_path = os.path.join(ROOT, "data", f"{args.symbol}_1h_latest730d.csv")
 
@@ -82,7 +93,8 @@ def main():
                 start_bar = j
                 break
     trades = eng.simulate_v14_detailed(ind, datetimes, start_bar=start_bar,
-                                       realistic=realistic, slip_bps=args.slip)
+                                       realistic=realistic, slip_bps=args.slip,
+                                       margin_schedule=schedule)
     if args.end:
         trades = [t for t in trades if str(t["entry_dt"]) <= args.end + " 23:59:59"]
 
@@ -93,9 +105,16 @@ def main():
         mode_str = f"貼近實盤（TP/BE 市價收盤成交，滑價 {args.slip:.0f}bp）"
     else:
         mode_str = "理想化（TP 鎖理論價，= 研究/儀表板基準）"
+    if schedule:
+        sched_str = " → ".join(
+            f"{m}U" if d == "2000-01-01" else f"{m}U@{d}" for d, m in schedule)
+        sched_str += "（--flat 可切回全程 200U 基準）"
+    else:
+        sched_str = "全程 200U/$4,000（研究基準）"
     print("══════════════════════════════════════════")
     print(f" 回測 {args.symbol}  V14+R + V25-D（= 線上實盤）")
     print(f" 成交假設：{mode_str}")
+    print(f" 保證金　：{sched_str}")
     print(f" 範圍：{dr_start[:16]} ~ {dr_end[:16]}")
     print(f" 資料：{df['datetime'].iloc[0]} ~ {df['datetime'].iloc[-1]}（{len(df)} 根）")
     print("══════════════════════════════════════════")
@@ -137,7 +156,7 @@ def main():
         RSN_W, RG_W = 16, 16
         hdr = (f"{'#':>4} {'Dir':<3} {'Entry (UTC+8)':<16} {'EntryPx':>9} "
                f"{'Exit (UTC+8)':<16} {'ExitPx':>9} "
-               f"{labels.ljust_disp('出場 (Reason)', RSN_W)} {'Hold':>4} "
+               f"{labels.ljust_disp('出場 (Reason)', RSN_W)} {'Hold':>4} {'Mgn':>4} "
                f"{'PnL($)':>9} {'PnL%':>6} {labels.ljust_disp('進場趨勢 (Regime)', RG_W)}")
         print(" " + hdr)
         print(" " + "-" * labels.disp_width(hdr))
@@ -150,7 +169,8 @@ def main():
             rg = labels.ljust_disp(labels.regime_label(t.get("entry_regime", "NA")), RG_W)
             print(f" {k:>4} {t['side']:<3} {edt:<16} {t['entry_price']:>9.2f} "
                   f"{xdt:<16} {t['exit_price']:>9.2f} "
-                  f"{rsn} {t['bars_held']:>4} {t['pnl_usd']:>+9.2f} {t['pnl_pct']:>+6.2f} "
+                  f"{rsn} {t['bars_held']:>4} {t.get('margin', 200):>4.0f} "
+                  f"{t['pnl_usd']:>+9.2f} {t['pnl_pct']:>+6.2f} "
                   f"{rg}")
 
     # 出場分佈
