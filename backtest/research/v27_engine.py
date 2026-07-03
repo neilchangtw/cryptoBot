@@ -32,9 +32,10 @@ def load_engine(with_veto=True):
     if with_veto:
         pairs = [
             ("def simulate_v14_detailed(ind, datetimes, start_bar=None,\n"
-             "                          realistic=False, slip_bps=0.0):",
+             "                          realistic=False, slip_bps=0.0, margin_schedule=None):",
              "def simulate_v14_detailed(ind, datetimes, start_bar=None,\n"
-             "                          realistic=False, slip_bps=0.0, veto=None):"),
+             "                          realistic=False, slip_bps=0.0, margin_schedule=None,\n"
+             "                          veto=None):"),
             ("not np.isnan(pL[i]) and pL[i] < L_GK_TH and brk_up[i]):",
              "not np.isnan(pL[i]) and pL[i] < L_GK_TH and brk_up[i] and "
              "(veto is None or not veto(i, 'L'))):"),

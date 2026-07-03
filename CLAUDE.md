@@ -46,6 +46,7 @@ ETH 1h Garman-Klass Compression-Breakout 自動交易機器人（Binance Futures
 | [doc/v26_research.md](doc/v26_research.md) | V26 MaxHold-loss 優化（上線後觸發；**R1 give-up + R2 分批止盈 + R3 分批止損 三面 130+ 配置全 REJECTED**：bar N 時贏家輸家尚未分化——give-up 砍慢熱贏家、止盈 75% 課稅在大贏單、止損 43% 砍在會反彈贏家；WR 可升但 PnL 必降，MH 確認 negative-by-construction 非漏洞） |
 | [doc/v27_research.md](doc/v27_research.md) | V27 Meta-labeling 進場過濾（**R1 提前 REJECTED**：23 進場時特徵 × logit/GBM 預測 MH 結局，WF AUC 最佳 0.614 perm p=0.13、OOS 確認 0.44~0.58 ≈ 擲硬幣，靜態過濾移除的全是正 PnL——進場當下也分不出誰會變 MH，**MH 方向徹底關閉**：進場分不出(V27)+持倉中未分化(V26)+桶恆≤0 是選擇效應） |
 | [doc/v28_research.md](doc/v28_research.md) | V28 複利化研究（**帳戶層 PROMOTED 未部署**；R1 恆 4x 複利：bootstrap P(複利輸固定)=0%、MDD 中位 31.9%；**R2 使用者「獲利加倉」方案（200U+獲利×20x、虧損退回地板）+ 名目上限 = 建議採用形態**：cap $12K/$20K 終值 $23.6K/$38.2K vs 固定 $8.8K、MDD 24%、地板使下行=現行；無上限版 REJECTED MDD 92%+；前提=熔斷百分比化+edge 存續，建議實盤滿 50 筆貼合回測後再切換） |
+| [doc/v29_research.md](doc/v29_research.md) | V29 Edge 衰退警報（**PROMOTED 雙層 CUSUM，實作待辦**：R 單位 k=μ/2=14.3，🟡 S>600 凍結加碼 / 🔴 S>800 退回 200U 地板；歷史 2 年零觸紅燈（峰值 559 在 2026-01）、edge 反轉 1.1 月偵測 / 歸零 2.8 月 / 漏報 2%、誤報 24%/2年；TP 佔比規則 REJECTED 漏報 55~76%；配合月虧熔斷把 edge 死亡總代價封在一個月虧損量級） |
 
 ---
 
