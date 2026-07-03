@@ -143,11 +143,13 @@ cryptoBot/
 
 ## 目前狀態
 
-### ⚠️ 待部署（2026-07-02 本機 workspace 產出，尚未更新 VPS）
+### ✅ 2026-07-02~03 變更記錄（已於 2026-07-03 全部部署到 VPS）
 
-> 本段記錄 2026-07-02 在 Windows 工作機完成、**還沒部署到 VPS** 的變更。
-> 換電腦接手時：先確認這些變更已 commit + push（否則只存在原本機的 working tree），
-> 再到 VPS `git pull` → 挑**無持倉**時 `systemctl restart cryptobot@<名字>`。
+> 以下變更已 commit + push（至 `9b32226`）並於 2026-07-03 部署完成：
+> VPS 已從 tar/scp **就地轉為 git checkout**（new_vps_setup.md Part C），之後更新一律
+> `cd ~/cryptoBot && git pull && sudo systemctl restart cryptobot`。
+> Telegram 已啟用**多聊天室**（私聊 + 群組）與**管理員白名單**（TELEGRAM_ADMIN_IDS）。
+> 本段保留作為變更說明與操作注意事項。
 
 **1. strategy.py 動態風控（程式變更，向後相容）**
 - FEE / 日虧 / L 月虧 / S 月虧 四條 $ 風控線改為以 200U 保證金為基準、
