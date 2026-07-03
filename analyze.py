@@ -18,8 +18,8 @@ import argparse
 
 from dotenv import load_dotenv
 
+import paths  # 多實例路徑；必須最先 import（會優先載入 INSTANCE_DIR/.env，見 paths.py）
 import analysis_report
-import paths  # 多實例路徑（INSTANCE_DIR 分流資料）
 
 # Windows 終端預設 cp950 無法輸出 emoji（🟢/🔴）→ 強制 UTF-8，避免 UnicodeEncodeError
 try:

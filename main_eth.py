@@ -22,11 +22,11 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 import threading
+import paths  # 多實例路徑；必須最先 import（會優先載入 INSTANCE_DIR/.env，見 paths.py）
 import strategy
 import data_feed
 import recorder
 import labels  # 中文(英文)詞彙對照
-import paths  # 多實例路徑（INSTANCE_DIR 分流日誌）
 from executor import Executor
 from telegram_notify import send_telegram_message, get_pending_commands, skip_old_updates
 

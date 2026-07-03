@@ -16,10 +16,10 @@ import argparse
 
 from dotenv import load_dotenv
 
+import paths  # 多實例路徑；必須最先 import（會優先載入 INSTANCE_DIR/.env，見 paths.py）
 import data_feed
 import strategy
 import signal_status
-import paths  # 多實例路徑（INSTANCE_DIR 分流狀態檔）
 
 load_dotenv()
 

@@ -21,6 +21,19 @@ CODE_DIR = os.path.dirname(os.path.abspath(__file__))
 # 沒設 INSTANCE_DIR 就用程式目錄（單人 = 原行為）
 INSTANCE_DIR = os.getenv("INSTANCE_DIR", "").strip() or CODE_DIR
 
+# ── 多實例 .env 修正（重要）──
+# load_dotenv() 的 find_dotenv 是從「呼叫者檔案所在目錄」（= 程式目錄）往上找，
+# 「不是」從 cwd 找 → 多實例進程會誤載程式目錄的 .env（別人的 Binance key / Telegram）。
+# 這裡明確以 override 重載實例自己的 .env，保證實例值優先。
+# 前提：paths 必須是各入口（main_eth / analyze / check_signal / verify_mainnet）
+# 最先 import 的專案模組，讓覆寫發生在 strategy / binance_trade 讀 env 之前。
+# systemd 層另有 EnvironmentFile= 雙保險（deploy/cryptobot@.service）。
+# 單人（未設 INSTANCE_DIR）不進此分支，行為與原本完全相同。
+if INSTANCE_DIR != CODE_DIR:
+    _inst_env = os.path.join(INSTANCE_DIR, ".env")
+    if os.path.isfile(_inst_env):
+        load_dotenv(_inst_env, override=True)
+
 
 def data_dir(paper: bool) -> str:
     """交易資料目錄：paper→ data/，live→ data_live/（trades.csv/bar_snapshots.csv 等）。"""

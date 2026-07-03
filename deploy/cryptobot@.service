@@ -1,8 +1,10 @@
 [Unit]
 # 多實例 systemd template（給多人使用，每人一個實例）。
 # 用法：systemctl start cryptobot@alice  →  %i = alice
-#   - WorkingDirectory 指向該實例目錄 → 程式的 load_dotenv() 自然讀到該實例的 .env
-#     （各自的 Binance key / Telegram bot / 槓桿）
+#   - EnvironmentFile 由 systemd 直接注入該實例的 .env（Binance key / Telegram / 槓桿）。
+#     注意：不能只靠 WorkingDirectory —— python-dotenv 的 find_dotenv 是從「程式檔所在
+#     目錄」找 .env 而非 cwd，會誤載程式目錄那份 .env（別人的 key）。
+#     程式端 paths.py 也會以 INSTANCE_DIR/.env override 重載（雙保險）。
 #   - INSTANCE_DIR 讓 data_live/ 、logs/ 、eth_state_live.json 分流到該實例目錄
 #   - 程式碼共用一份（絕對路徑），改版只更新 /home/cryptobot/cryptoBot 一處
 # 單人跑法仍用舊的 cryptobot.service（不設 INSTANCE_DIR）。
@@ -15,6 +17,7 @@ Type=simple
 User=cryptobot
 WorkingDirectory=/home/cryptobot/instances/%i
 Environment=INSTANCE_DIR=/home/cryptobot/instances/%i
+EnvironmentFile=/home/cryptobot/instances/%i/.env
 ExecStart=/home/cryptobot/cryptoBot/.venv/bin/python -u /home/cryptobot/cryptoBot/main_eth.py
 Restart=always
 RestartSec=15
