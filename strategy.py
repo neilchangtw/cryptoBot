@@ -100,6 +100,13 @@ DAILY_LOSS_LIMIT = round(-200 * _RISK_SCALE, 2)    # 日虧停 L+S 合計（200U
 CONSEC_LOSS_PAUSE = 4      # 連虧 4 筆冷卻
 CONSEC_LOSS_COOLDOWN = 24  # 連虧冷卻 24 bar
 
+# ── V29 Edge 衰退警報（策略健康度 = CUSUM，doc/v29_research.md）──
+# 全部以 200U 基準 R 單位計（實際 pnl 依該筆名目正規化，複利/調保證金不失真）
+# 健康度% = max(0, (RED − S) / RED × 100)；歷史兩年 S 峰值 559（健康度最低 30%）
+EDGE_CUSUM_K = 14.3        # allowance = 歷史單筆均值 μ($28.6) 的一半
+EDGE_CUSUM_YELLOW = 600.0  # 🟡 健康度 25%：凍結複利加碼
+EDGE_CUSUM_RED = 800.0     # 🔴 健康度 0%：保證金退回 200U + 人工檢視
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # V25-D Regime-conditional Exits（12/12 gates PROMOTED）
 #   只覆寫有改動的 regime；其他 regime fallback 到 V14 default

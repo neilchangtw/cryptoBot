@@ -517,6 +517,17 @@ def _handle_circuit_breaker(executor, cmd_logger):
             else:
                 lines.append("  🟢 冷卻已結束")
 
+        # V29 策略健康度（Edge 衰退警報）
+        eh_pct = executor.edge_health_pct()
+        eh_emoji = {"green": "💚", "yellow": "💛", "red": "🔴"}.get(executor.edge_level, "💚")
+        eh_s = executor.edge_cusum if executor.edge_cusum is not None else 0.0
+        lines += [
+            "",
+            f"<b>策略健康度（Edge 警報）</b>",
+            f"  {eh_emoji} {eh_pct:.0f}%（虧單扣分、贏單回補；每筆出場時更新）",
+            f"  黃燈 ≤25% 凍結加碼 ｜ 紅燈 0% 退回 200U",
+        ]
+
         # 暫停狀態
         if getattr(executor, "paused", False):
             lines.append("\n⏸ <b>手動暫停中</b>（/resume 恢復）")
@@ -1206,6 +1217,11 @@ def main():
                         cd_parts.append(f"S剩{s_remain}/{strategy.S_EXIT_CD}h")
                     if cd_parts:
                         cb_info += f"\n⏱ 進場冷卻：{' ｜ '.join(cd_parts)}"
+
+                # V29 策略健康度（心跳固定顯示一行）
+                _eh_emoji = {"green": "💚", "yellow": "💛", "red": "🔴"}.get(
+                    executor.edge_level, "💚")
+                cb_info += f"\n{_eh_emoji} 策略健康度 {executor.edge_health_pct():.0f}%"
 
                 # ── V14 自檢 ──
                 checks = []

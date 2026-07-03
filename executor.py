@@ -66,12 +66,18 @@ class Executor:
         self.paused = False                            # Telegram /pause 暫停開倉
         self.last_daily_date = None                    # 最後一次 daily_summary flush 的 UTC+8 日期 (YYYY-MM-DD)
 
+        # V29 策略健康度（Edge 衰退警報，CUSUM；200U 基準 R 單位，doc/v29_research.md）
+        self.edge_cusum = None                         # None = 尚未初始化（state 或 trades.csv 回放）
+        self.edge_level = "green"                      # green / yellow / red
+
         # Thread safety: main loop 與 Telegram listener daemon thread 並發存取
         # positions/daily_stats/paused 等狀態。RLock 允許同一 thread 重入
         # （例如 open_position 內呼叫 save_state）。
         self._lock = threading.RLock()
 
         self._load_state()
+        if self.edge_cusum is None:
+            self._init_edge_from_history()  # 首次啟用：從 trades.csv 回放重建
         self._init_balance()
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -146,6 +152,12 @@ class Executor:
             # 載入 last_daily_date（V14+R fix: 防止跨午夜重啟漏 flush / 重複 flush）
             self.last_daily_date = state.get("last_daily_date", None)
 
+            # V29 策略健康度
+            eh = state.get("edge_health")
+            if eh is not None:
+                self.edge_cusum = float(eh.get("cusum", 0.0))
+                self.edge_level = eh.get("level", "green")
+
             logger.info(f"State loaded: {len(self.positions)} positions, "
                         f"bar_counter={self.bar_counter}"
                         + (" PAUSED" if self.paused else ""))
@@ -206,11 +218,97 @@ class Executor:
                 },
                 "paused": self.paused,
                 "last_daily_date": self.last_daily_date,
+                "edge_health": {
+                    "cusum": round(self.edge_cusum if self.edge_cusum is not None else 0.0, 2),
+                    "level": self.edge_level,
+                },
             }
         tmp_path = self.state_path + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2, ensure_ascii=False, default=str)
         os.replace(tmp_path, self.state_path)
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # V29 策略健康度（Edge 衰退警報，doc/v29_research.md）
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def edge_health_pct(self) -> float:
+        """健康度%：滿分 100，虧單扣分、贏單回補，歸零 = 紅燈。"""
+        s = self.edge_cusum if self.edge_cusum is not None else 0.0
+        return max(0.0, (strategy.EDGE_CUSUM_RED - s) / strategy.EDGE_CUSUM_RED * 100)
+
+    @staticmethod
+    def _edge_level_of(s: float) -> str:
+        if s > strategy.EDGE_CUSUM_RED:
+            return "red"
+        if s > strategy.EDGE_CUSUM_YELLOW:
+            return "yellow"
+        return "green"
+
+    def _init_edge_from_history(self):
+        """首次啟用：從 trades.csv 回放已平倉交易重建 CUSUM。
+        正規化：net_pnl_pct 是「pnl / 平倉當時保證金」×100 → ×2 即 200U 基準 R。"""
+        self.edge_cusum = 0.0
+        try:
+            import csv as _csv
+            path = os.path.join(paths.data_dir(PAPER_TRADING), "trades.csv")
+            rows = []
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    for r in _csv.DictReader(f):
+                        pct = (r.get("net_pnl_pct") or "").strip()
+                        if pct and (r.get("exit_type") or "").strip():
+                            rows.append((r.get("exit_time_utc8") or "", float(pct)))
+            rows.sort(key=lambda x: x[0])
+            s = 0.0
+            for _, pct in rows:
+                s = max(0.0, s + (strategy.EDGE_CUSUM_K - pct * 2.0))
+            self.edge_cusum = s
+            self.edge_level = self._edge_level_of(s)
+            logger.info(f"Edge health initialized from {len(rows)} closed trades: "
+                        f"S={s:.1f} → {self.edge_health_pct():.0f}% ({self.edge_level})")
+        except Exception as e:
+            logger.warning(f"Edge health init from trades.csv failed, start S=0: {e}")
+            self.edge_level = "green"
+
+    def _update_edge_health(self, pnl_usd, entry_price, qty):
+        """交易出場時更新健康度。R 正規化用該筆實際名目（qty×entry_price），
+        之後複利/調保證金都不會讓刻度失真。回傳 (舊燈號, 新燈號)。"""
+        notional = qty * entry_price
+        pnl_r = pnl_usd * (4000.0 / notional) if notional > 0 else pnl_usd
+        if self.edge_cusum is None:
+            self.edge_cusum = 0.0
+        self.edge_cusum = max(0.0, self.edge_cusum + (strategy.EDGE_CUSUM_K - pnl_r))
+        old = self.edge_level
+        self.edge_level = self._edge_level_of(self.edge_cusum)
+        logger.info(f"Edge health: S={self.edge_cusum:.1f} → {self.edge_health_pct():.0f}% "
+                    f"({self.edge_level})")
+        return old, self.edge_level
+
+    def _notify_edge_transition(self, old_level, new_level):
+        """燈號變化時發 Telegram 告警（只在轉換那一刻發，不重複轟炸）。"""
+        pct = self.edge_health_pct()
+        if new_level == "yellow" and old_level == "green":
+            send_telegram_message(
+                "<b>💛 策略健康度警戒（黃燈）</b>\n"
+                "━━━━━━━━━━━━━━━\n"
+                f"健康度降至 {pct:.0f}%：近期交易表現持續低於正常水準\n"
+                "（歷史兩年最低到過 30%，黃燈不必然 = 失效）\n"
+                "📌 建議：凍結複利加碼——保證金維持現值，不再上調\n"
+                "回升至 25% 以上會另行通知")
+        elif new_level == "red":
+            send_telegram_message(
+                "<b>🔴 策略健康度歸零（紅燈）</b>\n"
+                "━━━━━━━━━━━━━━━\n"
+                "⚠️ Edge 可能已失效！歷史兩年從未觸發過此警報\n"
+                "📌 建議步驟：\n"
+                "  1. .env 的 MARGIN_PER_TRADE 退回 200 並重啟\n"
+                "  2. 檢視 doc/v29_research.md 紅燈程序\n"
+                "  3. 200U 觀察：滾動 40 筆累計轉正後才恢復加碼")
+        elif new_level == "yellow" and old_level == "red":
+            send_telegram_message(f"💛 策略健康度回升至 {pct:.0f}%（仍黃燈，暫勿加碼）")
+        elif new_level == "green":
+            send_telegram_message(f"💚 策略健康度回升至 {pct:.0f}%，解除警戒")
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # 風控熔斷
@@ -630,6 +728,9 @@ class Executor:
         self.daily_pnl += pnl_usd
         self.monthly_pnl[sub_strategy] = self.monthly_pnl.get(sub_strategy, 0.0) + pnl_usd
 
+        # V29 策略健康度更新（出場時才動；R 正規化依該筆實際名目）
+        edge_old, edge_new = self._update_edge_health(pnl_usd, entry_price, actual_qty)
+
         if pnl_usd < 0:
             self.consec_losses += 1
             if self.consec_losses >= strategy.CONSEC_LOSS_PAUSE:
@@ -699,6 +800,7 @@ class Executor:
         if self.daily_pnl <= strategy.DAILY_LOSS_LIMIT:
             cb_info += f"\n🚫 日虧${self.daily_pnl:.0f}，今日停工"
 
+        edge_emoji = {"green": "💚", "yellow": "💛", "red": "🔴"}.get(self.edge_level, "💚")
         msg = (
             f"<b>{result_header}（{env}）</b>\n"
             f"━━━━━━━━━━━━━━━\n"
@@ -706,9 +808,14 @@ class Executor:
             f"📋 {exit_text}\n"
             f"💰 {result_text}（{pnl_pct:+.1f}%）\n"
             f"⏱ 抱了 {bars_held}h ｜ 最慘 -{abs(pos.get('mae_pct', 0)):.1f}%\n"
-            f"🏦 金庫：${self.account_balance:.2f}{cb_info}"
+            f"🏦 金庫：${self.account_balance:.2f}\n"
+            f"{edge_emoji} 策略健康度 {self.edge_health_pct():.0f}%{cb_info}"
         )
         send_telegram_message(msg)
+
+        # 健康度燈號轉換告警（只在轉換那一刻發一次）
+        if edge_new != edge_old:
+            self._notify_edge_transition(edge_old, edge_new)
 
         del self.positions[trade_id]
         logger.info(f"Closed {trade_id} | {exit_reason} | PnL ${pnl_usd:.2f} | "

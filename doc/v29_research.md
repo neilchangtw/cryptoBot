@@ -77,11 +77,16 @@
   平均每月 ~11 筆 ≈ 每 2~3 天動一次），機器人每小時循環中有出場才重算 + 檢查燈號
 - Telegram 呈現：每日摘要一行 `💚 策略健康度 87%`；黃/紅燈觸發時才告警
 
-## 待辦（實作層，另行進行）
+## 實作（✅ 2026-07-03 完成並測試）
 
-- 掛進實盤：每筆出場後更新 S（persist 到 state），黃/紅燈發 Telegram 告警；
-  可整合進 check_health.py 或每日摘要
-- S 的初始化：從 trades.csv 歷史回放累計（正規化保證金）
+- `strategy.py`：`EDGE_CUSUM_K / _YELLOW / _RED` 常數
+- `executor.py`：出場時 `_update_edge_health()`（R 正規化 = pnl × 4000/該筆名目）、
+  state 持久化（`edge_health`）、首次啟用從 trades.csv 回放初始化（net_pnl_pct×2）、
+  燈號轉換 Telegram 告警（綠↔黃↔紅只在轉換那刻發一次）、出場訊息尾行帶健康度
+- `main_eth.py`：每小時心跳固定顯示 `💚 策略健康度 xx%`；`/cb` 顯示健康度區塊
+- 測試：歷史回放 / 綠→黃→紅→回血轉換告警 / 300U 名目正規化 /
+  state roundtrip / fresh 環境，7 項全過
+- 注意：**黃/紅燈動作（凍結加碼、退 200U）是人工執行**，警報只通知不自動改倉位
 
 ## 研究腳本
 
