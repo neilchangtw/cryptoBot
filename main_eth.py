@@ -48,28 +48,32 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def setup_logging():
+    from logging.handlers import RotatingFileHandler
     fmt = "%(asctime)s [%(name)s] %(levelname)s  %(message)s"
     datefmt = "%Y-%m-%d %H:%M:%S"
 
+    # 日誌輪替：單檔 5MB、保留 3 份備份（防 system.log 無限成長）
+    def _rotating(fname):
+        return RotatingFileHandler(
+            os.path.join(LOGS_DIR, fname), encoding="utf-8",
+            maxBytes=5 * 1024 * 1024, backupCount=3,
+        )
+
     # system.log — 全部
-    system_handler = logging.FileHandler(
-        os.path.join(LOGS_DIR, "system.log"), encoding="utf-8"
-    )
+    system_handler = _rotating("system.log")
     system_handler.setLevel(logging.DEBUG)
     system_handler.setFormatter(logging.Formatter(fmt, datefmt))
 
     # signal.log — 只記信號和交易
-    signal_handler = logging.FileHandler(
-        os.path.join(LOGS_DIR, "signal.log"), encoding="utf-8"
-    )
+    signal_handler = _rotating("signal.log")
     signal_handler.setLevel(logging.INFO)
     signal_handler.setFormatter(logging.Formatter(fmt, datefmt))
     signal_handler.addFilter(logging.Filter("signal"))
 
     # alerts.log — WARNING 以上
-    alerts_handler = logging.FileHandler(
-        os.path.join(LOGS_DIR, "alerts.log"), encoding="utf-8"
-    )
+    # 注意：心跳自檢「今日告警數」讀 alerts.log 當前檔；輪替發生時當日計數會重算，
+    # 但 alerts 量極小（5MB ≈ 數年），實務上不會在單日內輪替。
+    alerts_handler = _rotating("alerts.log")
     alerts_handler.setLevel(logging.WARNING)
     alerts_handler.setFormatter(logging.Formatter(fmt, datefmt))
 
@@ -1273,7 +1277,10 @@ def main():
                 if not PAPER_TRADING:
                     try:
                         import binance_trade as _bt
-                        live_pos = _bt.get_positions(SYMBOL)
+                        # on_error="none"：查詢失敗回 None，與「確定沒倉」區分（防 API 抖動誤報 🚨）
+                        live_pos = _bt.get_positions(SYMBOL, on_error="none")
+                        if live_pos is None:
+                            raise RuntimeError("get_positions failed")
                         live_sides = {p["position_side"] for p in live_pos}
                         int_sides = set()
                         if l_pos:
@@ -1301,7 +1308,8 @@ def main():
                                 else:
                                     ok_parts.append("停損掛單在")
                     except Exception:
-                        pass
+                        # API 暫時故障：不誤報 🚨，給一行溫和提示（連續出現才需要查）
+                        issues.append("⚠️ 幣安查詢失敗，本次跳過同步/掛單檢查（偶發可忽略）")
 
                 if issues:
                     check_text = "\n" + "\n".join(issues)

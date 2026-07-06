@@ -132,8 +132,12 @@ def get_available_balance():
         return 0.0
 
 
-def get_positions(symbol=None):
-    """查詢當前持倉（Hedge Mode: LONG/SHORT 分開回傳）"""
+def get_positions(symbol=None, on_error="empty"):
+    """查詢當前持倉（Hedge Mode: LONG/SHORT 分開回傳）
+
+    on_error: "empty"（預設，失敗回 []，向後相容）或 "none"（失敗回 None，
+    讓呼叫端能區分「查詢失敗」與「確定沒倉」——心跳倉位同步檢查用，避免 API 抖動誤報）。
+    """
     symbol = symbol or SYMBOL
     global client
     _ensure_session()
@@ -157,7 +161,7 @@ def get_positions(symbol=None):
     except Exception as e:
         print(f"get_positions error: {e}")
         client = new_session()
-        return []
+        return None if on_error == "none" else []
 
 
 def get_wallet_balance():

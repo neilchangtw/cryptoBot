@@ -136,6 +136,8 @@ def send_telegram_message(
                 if response.status_code == 429:
                     import time; time.sleep(2)
                     continue
+                # 群組升級 supergroup：chat id 已變更，自動偵測新 id 並通知其他聊天室
+                _check_chat_migrated(cid, response, url)
                 print(f"[TG] failed ({cid}): {response.status_code} {response.text}")
                 break
             except Exception as e:
@@ -143,6 +145,35 @@ def send_telegram_message(
                     import time; time.sleep(1)
                 else:
                     print(f"[TG] error after 3 attempts ({cid}): {e}")
+
+
+_migration_notified = set()  # 每個舊 id 只提醒一次，避免每則訊息都轟炸
+
+
+def _check_chat_migrated(cid, response, url):
+    """偵測「group 升級 supergroup」錯誤：Telegram 會在錯誤回應附上新 chat id。
+    自動把新 id 通知到其他還活著的聊天室，提示更新 .env（通知送不進舊群組本身）。"""
+    try:
+        if response.status_code != 400 or "migrate" not in response.text:
+            return
+        new_id = response.json().get("parameters", {}).get("migrate_to_chat_id")
+        if not new_id or cid in _migration_notified:
+            return
+        _migration_notified.add(cid)
+        logger.warning(f"Telegram chat {cid} migrated to supergroup, new id = {new_id}")
+        notice = (f"⚠️ <b>群組已升級為超級群組，chat id 變更！</b>\n"
+                  f"舊 id：{cid}\n新 id：{new_id}\n"
+                  f"該群組將收不到通知，請更新 .env 的 TELEGRAM_CHAT_ID 後重啟。")
+        for other in get_chat_ids():
+            if other == cid:
+                continue
+            try:
+                requests.post(url, data={"chat_id": other, "text": notice,
+                                         "parse_mode": "HTML"}, timeout=10)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 # ══════════════════════════════════════════════════════════════
