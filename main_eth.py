@@ -702,7 +702,7 @@ def main():
         f"🔧 配方：L 做多 + S 做空（各最多1筆）\n"
         + wrap_private(f"💼 口袋：${executor.account_balance:.2f}\n")
         + f"📊 持倉：{pos_text}\n"
-        f"⏱ 已印：{executor.bar_counter} 張（K棒）"
+        f"⏱ 已運轉：{executor.bar_counter // 24} 天 {executor.bar_counter % 24} 小時"
     )
     send_telegram_message(startup_msg)
 
@@ -1304,14 +1304,15 @@ def main():
                         pass
 
                 if issues:
-                    check_text = "\n".join(issues)
+                    check_text = "\n" + "\n".join(issues)
                     if ok_parts:
                         check_text += f"\n✅ 其餘正常（{'・'.join(ok_parts)}）"
                 else:
                     check_text = f"✅ 正常（{'・'.join(ok_parts)}）"
 
+                up_d, up_h = divmod(executor.bar_counter, 24)
                 hb_msg = (
-                    f"<b>🖨 V14 運轉中…（第 {executor.bar_counter} 根）</b>\n"
+                    f"<b>🖨 V14 運轉中…（已運轉 {up_d} 天 {up_h}h）</b>\n"
                     f"━━━━━━━━━━━━━━━\n"
                     f"💵 ETH：${bar_data['close']:.2f}\n"
                     f"🔋 壓縮能量：{gk_status}\n"
@@ -1320,7 +1321,7 @@ def main():
                     + wrap_private(f"💰 金庫：${executor.account_balance:.2f}\n")
                     + f"{cb_info.lstrip(chr(10))}\n"
                     f"━━━━━━━━━━━━━━━\n"
-                    f"🩺 自檢：\n{check_text}"
+                    f"🩺 自檢：{check_text}"
                 )
                 send_telegram_message(hb_msg)
 
