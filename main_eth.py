@@ -29,7 +29,8 @@ import recorder
 import labels  # 中文(英文)詞彙對照
 from executor import Executor
 from telegram_notify import (send_telegram_message, get_pending_commands,
-                             skip_old_updates, get_admin_ids, set_reply_target)
+                             skip_old_updates, get_admin_ids, set_reply_target,
+                             wrap_private)
 
 load_dotenv()
 
@@ -284,7 +285,7 @@ def _handle_status(executor, cmd_logger):
         if not orphans and not ghosts:
             lines.append("\n✅ 內部與 Binance 同步正常")
 
-        lines.append(f"\n💰 餘額：${executor.account_balance:.2f}")
+        lines.append(wrap_private(f"\n💰 餘額：${executor.account_balance:.2f}"))
         send_telegram_message("\n".join(lines))
     except Exception as e:
         cmd_logger.error(f"Status error: {e}")
@@ -696,8 +697,8 @@ def main():
         f"<b>🖨 印鈔機開機！V14（{env}）</b>\n"
         f"━━━━━━━━━━━━━━━\n"
         f"🔧 配方：L 做多 + S 做空（各最多1筆）\n"
-        f"💼 口袋：${executor.account_balance:.2f}\n"
-        f"📊 持倉：{pos_text}\n"
+        + wrap_private(f"💼 口袋：${executor.account_balance:.2f}\n")
+        + f"📊 持倉：{pos_text}\n"
         f"⏱ 已印：{executor.bar_counter} 張（K棒）"
     )
     send_telegram_message(startup_msg)
@@ -741,7 +742,11 @@ def main():
                             elif cmd_lower in ("/status", "/pos"):
                                 _handle_status(executor, cmd_logger)
                             elif cmd_lower in ("/bal", "/balance"):
-                                _handle_balance(executor, cmd_logger)
+                                # 餘額屬敏感資訊：群組裡不顯示，導向私聊
+                                if str(origin_chat).startswith("-"):
+                                    send_telegram_message("🔒 餘額資訊僅私聊顯示，請私訊 bot 使用 /bal")
+                                else:
+                                    _handle_balance(executor, cmd_logger)
                             elif cmd_lower == "/pnl":
                                 _handle_pnl(executor, cmd_logger)
                             elif cmd_lower in ("/analysis", "/stats", "/report"):
@@ -1294,7 +1299,8 @@ def main():
                     f"🔋 壓縮能量：{gk_status}\n"
                     f"🎯 突破門檻：{brk_status}\n"
                     f"🎰 持倉：\n{pos_text}\n"
-                    f"💰 金庫：${executor.account_balance:.2f}{cb_info}\n"
+                    + wrap_private(f"💰 金庫：${executor.account_balance:.2f}\n")
+                    + f"{cb_info.lstrip(chr(10))}\n"
                     f"━━━━━━━━━━━━━━━\n"
                     f"🩺 自檢：\n{check_text}"
                 )
@@ -1307,7 +1313,9 @@ def main():
             logger.info("Shutdown requested")
             executor.save_state()
             env = "模擬" if PAPER_TRADING else "實戰"
-            send_telegram_message(f"<b>🖨 V14 下班了（{env}）</b>\n💰 金庫：${executor.account_balance:.2f}\n🛏 明天繼續印！")
+            send_telegram_message(f"<b>🖨 V14 下班了（{env}）</b>\n"
+                                  + wrap_private(f"💰 金庫：${executor.account_balance:.2f}\n")
+                                  + "🛏 明天繼續印！")
             break
 
         except Exception as e:

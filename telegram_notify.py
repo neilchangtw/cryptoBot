@@ -46,6 +46,28 @@ def set_reply_target(chat_id):
     """設定本執行緒後續 send 的目標聊天室（None = 恢復廣播）。"""
     _reply_local.chat_id = chat_id
 
+
+# ── 隱私遮罩：訊息中以 [[HIDE]]...[[/HIDE]] 包住的段落，
+#    發到「群組」（chat id 為負數）時整段移除；私聊照常顯示（只拆標記）。
+#    用途：錢包金額等只想讓自己看到的內容（executor/main_eth 以 wrap_private 包住）。
+HIDE_OPEN = "[[HIDE]]"
+HIDE_CLOSE = "[[/HIDE]]"
+
+
+def wrap_private(text):
+    """包住敏感內容：私聊顯示、群組隱藏。內容自帶換行以保持移除後版面乾淨。"""
+    return f"{HIDE_OPEN}{text}{HIDE_CLOSE}"
+
+
+def _apply_privacy(message, chat_id):
+    if HIDE_OPEN not in message:
+        return message
+    if str(chat_id).strip().startswith("-"):   # 群組/超級群組 id 為負數
+        import re
+        return re.sub(re.escape(HIDE_OPEN) + r".*?" + re.escape(HIDE_CLOSE),
+                      "", message, flags=re.S)
+    return message.replace(HIDE_OPEN, "").replace(HIDE_CLOSE, "")
+
 # === 發送 Telegram 訊息主函式 ===
 def send_telegram_message(
         message=None,
@@ -102,7 +124,7 @@ def send_telegram_message(
     for cid in targets:
         data = {
             "chat_id": cid,
-            "text": message,
+            "text": _apply_privacy(message, cid),  # 群組隱藏 [[HIDE]] 段（錢包金額等）
             "parse_mode": "HTML"  # 使用 HTML 解析模式，更穩定
         }
         for attempt in range(3):

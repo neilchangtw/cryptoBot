@@ -27,7 +27,7 @@ import strategy
 import recorder
 import labels  # 中文(英文)詞彙對照
 import paths  # 多實例路徑（INSTANCE_DIR 分流狀態檔）
-from telegram_notify import send_telegram_message
+from telegram_notify import send_telegram_message, wrap_private
 
 load_dotenv()
 
@@ -598,7 +598,7 @@ class Executor:
             f"🛡 安全網 (SafeNet)：${sn_price:.2f}（{safenet_pct*100:.1f}%）\n"
             f"📊 進場趨勢：{labels.regime_label(entry_regime)}\n"
             f"🔋 壓縮能量：{gk_pctile:.1f}\n"
-            f"📝 第 {self.trade_number} 筆 ｜ 💰 金庫 ${self.account_balance:.2f}"
+            f"📝 第 {self.trade_number} 筆" + wrap_private(f" ｜ 💰 金庫 ${self.account_balance:.2f}")
         )
         send_telegram_message(msg)
 
@@ -808,8 +808,8 @@ class Executor:
             f"📋 {exit_text}\n"
             f"💰 {result_text}（{pnl_pct:+.1f}%）\n"
             f"⏱ 抱了 {bars_held}h ｜ 最慘 -{abs(pos.get('mae_pct', 0)):.1f}%\n"
-            f"🏦 金庫：${self.account_balance:.2f}\n"
-            f"{edge_emoji} 策略健康度 {self.edge_health_pct():.0f}%{cb_info}"
+            + wrap_private(f"🏦 金庫：${self.account_balance:.2f}\n")
+            + f"{edge_emoji} 策略健康度 {self.edge_health_pct():.0f}%{cb_info}"
         )
         send_telegram_message(msg)
 
