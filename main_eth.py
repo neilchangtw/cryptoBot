@@ -1231,10 +1231,11 @@ def main():
                     executor.edge_level, "💚")
                 cb_info += f"\n{_eh_emoji} 策略健康度 {executor.edge_health_pct():.0f}%"
 
-                # ── V14 自檢 ──
-                checks = []
+                # ── 自檢（正常收斂成一行；只有異常才逐項展開）──
+                issues = []
+                ok_parts = []
 
-                # 1. 日誌健康：今日（00:00 起）無 ERROR/WARNING
+                # 1. 今日告警數（讀 alerts.log，今天日期開頭的行）
                 alerts_path = os.path.join(LOGS_DIR, "alerts.log")
                 alert_count = 0
                 try:
@@ -1248,52 +1249,66 @@ def main():
                 except Exception:
                     pass
                 if alert_count == 0:
-                    checks.append("✅ 今日無 ERROR/WARNING")
+                    ok_parts.append("無告警")
                 else:
-                    checks.append(f"⚠️ 今日 {alert_count} 筆告警（/alerts 查詳情）")
+                    issues.append(f"⚠️ 今日 {alert_count} 筆告警（/alerts 查詳情）")
 
-                # 2. 持倉數正確（L ≤ 1，S ≤ 1）
-                if len(l_pos) <= 1 and len(s_pos) <= 1:
-                    checks.append(f"✅ 持倉正常 L:{len(l_pos)} S:{len(s_pos)}")
-                else:
-                    checks.append(f"🚨 持倉異常 L:{len(l_pos)} S:{len(s_pos)}")
+                # 2. 持倉數不變式（L/S 各最多 1 筆）— 異常才顯示
+                if len(l_pos) > 1 or len(s_pos) > 1:
+                    issues.append(f"🚨 持倉數異常 L:{len(l_pos)} S:{len(s_pos)}（應各 ≤1）")
 
-                # 3. GK L/S 值不同（確認兩套窗口生效）
-                if gk_val_l is not None and gk_val_s is not None:
-                    if abs(gk_val_l - gk_val_s) > 0.01:
-                        checks.append(f"✅ GK 雙窗口 L={gk_val_l:.1f} S={gk_val_s:.1f}")
-                    else:
-                        checks.append(f"⚠️ GK L=S={gk_val_l:.1f}（窗口可能異常）")
-                else:
-                    checks.append("⏳ GK 暖機中")
-
-                # 4. V14 出場機制：歷史是否出現過 MFE-trail/MH-ext/BE
-                #    讀持久化的 trades.csv，而非 executor.daily_stats —— 後者每日
-                #    rollover 會 pop 掉已結算日期（executor.flush_daily_summary），
-                #    記憶體中通常只剩「今天」，會讓此檢查每天午夜後誤判為「待驗證」。
-                v14_targets = {"MFE-trail", "MH-ext", "BE"}
-                v14_reasons = set()
+                # 3. K 線資料新鮮度（最新已收盤 bar 距現在 >2h = 餵到舊資料）
                 try:
-                    import csv as _csv4
-                    data_dir = paths.data_dir(PAPER_TRADING)  # 多實例：INSTANCE_DIR 下
-                    tpath = os.path.join(data_dir, "trades.csv")
-                    if os.path.exists(tpath):
-                        with open(tpath, "r", encoding="utf-8") as f4:
-                            for row in _csv4.DictReader(f4):
-                                et = (row.get("exit_type") or "").strip()
-                                if et in v14_targets:
-                                    v14_reasons.add(et)
-                                    if len(v14_reasons) == len(v14_targets):
-                                        break
+                    bar_dt = bar_data["datetime"]
+                    if isinstance(bar_dt, datetime):
+                        age_h = (t_utc8 - bar_dt).total_seconds() / 3600
+                        if age_h > 2:
+                            issues.append(f"⚠️ K 線資料過舊（{age_h:.0f}h 前），檢查資料源")
+                        else:
+                            ok_parts.append("資料新鮮")
                 except Exception:
                     pass
-                if v14_reasons:
-                    shown = "、".join(labels.exit_label(r) for r in sorted(v14_reasons))
-                    checks.append(f"✅ V14 出場已驗證：{shown}")
-                else:
-                    checks.append("⏳ V14 出場待驗證（尚無 浮盈回吐/延長超時/平保）")
 
-                check_text = "\n".join(checks)
+                # 4. 倉位同步 + SafeNet 掛單保護（LIVE 才查 Binance，各一次 API）
+                if not PAPER_TRADING:
+                    try:
+                        import binance_trade as _bt
+                        live_pos = _bt.get_positions(SYMBOL)
+                        live_sides = {p["position_side"] for p in live_pos}
+                        int_sides = set()
+                        if l_pos:
+                            int_sides.add("LONG")
+                        if s_pos:
+                            int_sides.add("SHORT")
+                        if live_sides == int_sides:
+                            ok_parts.append("倉位同步")
+                        else:
+                            issues.append(
+                                f"🚨 倉位不同步 內部:{'/'.join(sorted(int_sides)) or '無'} "
+                                f"幣安:{'/'.join(sorted(live_sides)) or '無'}（/status 檢查、必要時 /cleanup）")
+
+                        # 每個實際持倉方向都必須有 STOP_MARKET 停損掛單（無保護 = 最危險的靜默故障）
+                        if live_sides:
+                            sl_sides = _bt.get_active_sl_sides(SYMBOL)
+                            if sl_sides is None:
+                                issues.append("⚠️ 停損掛單查詢失敗（偶發可忽略，連續出現請檢查）")
+                            else:
+                                missing = live_sides - sl_sides
+                                if missing:
+                                    issues.append(
+                                        f"🚨 {'/'.join(sorted(missing))} 倉「沒有停損掛單」！"
+                                        f"倉位處於無保護狀態，請立即檢查")
+                                else:
+                                    ok_parts.append("停損掛單在")
+                    except Exception:
+                        pass
+
+                if issues:
+                    check_text = "\n".join(issues)
+                    if ok_parts:
+                        check_text += f"\n✅ 其餘正常（{'・'.join(ok_parts)}）"
+                else:
+                    check_text = f"✅ 正常（{'・'.join(ok_parts)}）"
 
                 hb_msg = (
                     f"<b>🖨 V14 運轉中…（第 {executor.bar_counter} 根）</b>\n"

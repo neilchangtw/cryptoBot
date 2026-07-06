@@ -555,6 +555,32 @@ def cancel_all_orders(symbol=None, position_side=None):
         print(f"cancel algo orders error: {e}")
 
 
+def get_active_sl_sides(symbol=None):
+    """回傳目前掛著有效 STOP_MARKET 停損的 positionSide 集合（如 {"LONG","SHORT"}）。
+
+    唯讀，心跳自檢用：驗證每個持倉方向都有停損掛單保護。
+    回傳 None = 查詢失敗（與「空集合 = 確定沒掛單」區分，避免誤報）。
+    """
+    symbol = symbol or SYMBOL
+    global client
+    _ensure_session()
+    try:
+        algo_orders = client.sign_request("GET", "/fapi/v1/openAlgoOrders", {
+            "symbol": symbol,
+            "algoType": "CONDITIONAL",
+        })
+        sides = set()
+        for order in algo_orders:
+            if (order.get("orderType") == "STOP_MARKET"
+                    and order.get("algoStatus") == "NEW"):
+                sides.add(order.get("positionSide"))
+        return sides
+    except Exception as e:
+        print(f"get_active_sl_sides error: {e}")
+        client = new_session()
+        return None
+
+
 def update_stop_loss(symbol, new_sl, side):
     """更新止損：取消舊的 algo STOP_MARKET，掛新的（Hedge Mode）"""
     global client
