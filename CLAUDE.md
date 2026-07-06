@@ -55,6 +55,7 @@ journalctl -u cryptobot -f                                       # 看日誌
 | [doc/v27_research.md](doc/v27_research.md) | V27 Meta-labeling 進場過濾（**R1 提前 REJECTED**：23 進場時特徵 × logit/GBM 預測 MH 結局，WF AUC 最佳 0.614 perm p=0.13、OOS 確認 0.44~0.58 ≈ 擲硬幣，靜態過濾移除的全是正 PnL——進場當下也分不出誰會變 MH，**MH 方向徹底關閉**：進場分不出(V27)+持倉中未分化(V26)+桶恆≤0 是選擇效應） |
 | [doc/v28_research.md](doc/v28_research.md) | V28 複利化研究（**帳戶層 PROMOTED 未部署**；R1 恆 4x 複利：bootstrap P(複利輸固定)=0%、MDD 中位 31.9%；**R2 使用者「獲利加倉」方案（200U+獲利×20x、虧損退回地板）+ 名目上限 = 建議採用形態**：cap $12K/$20K 終值 $23.6K/$38.2K vs 固定 $8.8K、MDD 24%、地板使下行=現行；無上限版 REJECTED MDD 92%+；前提=熔斷百分比化+edge 存續，建議實盤滿 50 筆貼合回測後再切換） |
 | [doc/v29_research.md](doc/v29_research.md) | V29 Edge 衰退警報（**PROMOTED 雙層 CUSUM，已實作上線**：顯示為「策略健康度」100%~0%，出場時更新；🟡 ≤25% 凍結加碼 / 🔴 0% 退回 200U（人工執行，警報只通知）；歷史 2 年零觸紅燈（健康度最低 30% 在 2026-01）、edge 反轉 1.1 月偵測 / 歸零 2.8 月 / 漏報 2%、誤報 24%/2年；心跳/出場訊息//cb 皆顯示，燈號轉換發告警；TP 佔比規則 REJECTED） |
+| [doc/v30_research.md](doc/v30_research.md) | V30 Funding rate overlay（**R1 診斷即 REJECTED**：30 分桶 PnL 全正無可 block、最壞桶 p=0.30~0.94、最佳桶多重比較 p=0.159、IS/OOS 不一致——最後一個免費長歷史外部數據源清空，**V14+R+V25-D 確認為可取得數據下全域最佳**） |
 
 ---
 
@@ -412,6 +413,8 @@ L 月虧上限 -$75，S 月虧上限 -$150
 - 把「MH 桶虧損大」當可修漏洞去優化（V26：MH 出場 PnL 恆 ≤0 是 V14 設計使然——正報酬單已被送進延長/TP，MH 是 TP 的入場費非 leak）
 - Meta-labeling / ML 分類器進場過濾（V27：23 進場時特徵 × logit/GBM 預測 MH/虧損結局，WF AUC 最佳 0.614 perm p=0.13、OOS 單次確認 0.44~0.58，靜態過濾移除的全是正 PnL +$306~+$702——被標記「最像 MH」的進場多是贏家）
 - 任何「預測單筆交易結局」的進場端 ML（V27 同根因：IS 僅 33 個 MH 正樣本 / 23 特徵，訊號不存在且樣本量不支持，更複雜模型只會過擬合更兇）
+- Funding rate 進場過濾/overlay（V30 R1：進場時 fr_last/fr_ma21/fr_pct 五分位 30 桶 PnL 全正，block 任何桶都在移除正收益交易；最壞桶 perm p=0.30~0.94）
+- 負 funding 時 L 加碼或選擇性槓桿（V30 R2：最佳桶多重比較 p=0.159/WR p=0.476，IS n=7 WR 57% vs OOS 90% 純後半段小樣本；sizing 已被 V23 Path V 否決）
 
 ---
 
