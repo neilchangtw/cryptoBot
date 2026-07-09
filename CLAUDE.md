@@ -82,6 +82,9 @@ cryptoBot/
 ├── analysis_report.py     # 收益分析共用計算（Telegram /analysis + analyze.py 共用，只讀 CSV；中文(英文) 出場/趨勢）
 ├── analyze.py             # 終端機收益分析 CLI（彙總 + -t 交易列表，VPS 上免開 dashboard 看績效）
 ├── signal_status.py       # 即時開單條件共用計算（Telegram /signal + check_signal.py 共用）
+├── edge_falsify.py        # 策略證偽檢查（4 項理論檢核：edge 衰減/實盤貼合/突破延續/尾部風險）
+│                          # 自動附加在 analyze.py（實盤）與 run_backtest.py（回測）輸出尾端
+│                          # 血條 HP%「大=好」；基準常數=2年 --flat 貼近實盤回測，重算方式見檔頭
 ├── check_signal.py        # 終端機開單條件 CLI（L/S 每 gate ✅/❌ + 可開單時段；勿命名 signal.py 會撞內建模組）
 ├── menu.py                # 終端機指令清單（等同 Telegram /help，列出所有 CLI + Telegram 指令）
 ├── run_backtest.py        # 終端機回測 CLI（可選日期範圍，= 儀表板回測 tab 同引擎 V14+R+V25-D）
@@ -555,6 +558,10 @@ python analyze.py 30            # 收益分析（最近 30 天）
 python analyze.py -t            # 對齊好讀的交易列表（=/trades，最近 20 筆）
 python analyze.py -t 50 --live  # 交易列表近 50 筆，強制讀 data_live/
 python check_signal.py          # 即時開單條件（=/signal）L/S 每個 gate ✅/❌ + 可開單時段
+# analyze.py / run_backtest.py 輸出尾端自動附「策略證偽檢查」四項血條（edge_falsify.py）：
+# ① Edge 強度（AMH 衰減）② 實盤貼合（vs 回測引擎逐筆比對，需 K 線快取覆蓋窗口，
+#   過舊會提示 --refresh）③ 突破延續（TP:(TP+MH) vs 基準，regime 改變偵測）④ 尾部風險
+#   （SafeNet 頻率 + 最差單筆 vs 模型上限）；🟢≥60 / 🟡25~60 / 🔴<25，總評取最差項
 python menu.py                  # 終端機指令清單（=/help）忘記指令時看這個
 
 # 終端機回測（= 儀表板回測 tab，V14+R+V25-D，可選日期範圍；VPS 上免儀表板）

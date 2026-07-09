@@ -56,6 +56,10 @@ def main():
     else:
         print(analysis_report.build_report(data_dir, days=args.days, html=False))
 
+    # 策略證偽檢查（四項理論檢核，fail-open：失敗只印一行不擋主報告）
+    import edge_falsify
+    print(edge_falsify.build_check_live(data_dir))
+
 
 if __name__ == "__main__":
     main()

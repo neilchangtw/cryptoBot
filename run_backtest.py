@@ -189,6 +189,10 @@ def main():
         print(f"   {mth}  {bar} ${float(row['sum']):+8.2f}（{int(row['count'])} 筆）")
     print(f"\n 正報酬月份：{pos_months}/{len(monthly)}")
 
+    # 策略證偽檢查（四項理論檢核；貼合項僅實盤 analyze.py 適用）
+    import edge_falsify
+    print(edge_falsify.build_check_backtest(trades))
+
 
 if __name__ == "__main__":
     main()
