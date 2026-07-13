@@ -10,7 +10,10 @@
   4. 尾部風險 (fat tail)      — SafeNet 穿透模型用常態市場校準，肥尾會先在這現形
                                 → SafeNet 頻率 + 最差單筆 vs 模型上限
 
-顯示一律「大=好」血條 HP%（🟢 ≥60 / 🟡 25~60 / 🔴 <25），與 V29 策略健康度同慣例。
+顯示一律「大=好」HP%（🟢 ≥60 / 🟡 25~60 / 🔴 <25），與 V29 策略健康度同慣例。
+Edge 強度項「獲利中不觸紅」：窗口平均 >0 時最低 🟡（弱≠死），轉虧才可能 🔴——
+歷史 2 年滾動回放校準：🔴 率 0.4~2%（僅真虧損窗口）、🟡 率 15~21%，
+與 V29（2 年零紅燈、誤報 24%）同哲學；🟡 的行動本來就只是「觀察/連續兩月才凍結加碼」。
 掛載點：analyze.py（實盤/模擬 trades.csv）與 run_backtest.py（回測明細）輸出尾端。
 所有入口 fail-open：檢查失敗只印一行原因，不影響主報告。
 
@@ -43,10 +46,9 @@ def _norm_exit(code) -> str:
     return m.get(c, c)
 
 
-def _hp_bar(hp: float) -> str:
+def _hp_pct(hp: float) -> str:
     hp = max(0.0, min(100.0, hp))
-    full = int(round(hp / 10))
-    return "[" + "█" * full + "░" * (10 - full) + f"] {hp:3.0f}%"
+    return f"{hp:3.0f}%"
 
 
 def _light(hp: float) -> str:
@@ -68,10 +70,21 @@ def _margin_at(date_str: str) -> float:
 
 
 def _check_edge(pnls_R):
+    """賺得比基準少=弱（最低 🟡 觀察）；窗口平均轉虧才觸 🔴。
+    校準（2026-07-09，2 年滾動窗口回放）：線性刻度在 23 筆窗口誤報率 6.8%（全為假警報，
+    含 2024Q3 +$117 獲利季），改「獲利中不觸紅」後 🔴 率 0.4~2%（僅真虧損窗口），
+    🟡 率 15~21% ≈ V29 誤報率 24%/2年，與其「連續兩月才行動」的 SOP 相容。"""
     n = len(pnls_R)
     avg = sum(pnls_R) / n
-    hp = max(0.0, min(100.0, avg / BASE_AVG_R * 100))
-    note = f"平均 ${avg:+.1f}/筆 vs 基準 ${BASE_AVG_R:.1f}（200U 正規化，n={n}）"
+    if avg > 0:
+        hp = max(25.0, min(100.0, avg / BASE_AVG_R * 100))
+        extra = "（仍獲利，弱於基準最低顯示 🟡）" if avg / BASE_AVG_R < 0.25 else ""
+    else:
+        hp = max(0.0, 25.0 * (1 + avg / BASE_AVG_R))
+        if avg > -BASE_AVG_R * 0.1:  # 貼近損益兩平（>-$3/筆）屬統計噪音帶 → 視同 🟡
+            hp = max(hp, 25.0)
+        extra = "（窗口合計轉虧）"
+    note = f"平均 ${avg:+.1f}/筆 vs 基準 ${BASE_AVG_R:.1f}（200U 正規化，n={n}）{extra}"
     return hp, note
 
 
@@ -91,11 +104,13 @@ def _check_tail(pnls_R, exit_codes):
     sn = sum(1 for c in exit_codes if c == "SN")
     worst = -min(pnls_R) if min(pnls_R) < 0 else 0.0
     hp = 100.0
+    # 壓測校準（2026-07-09）：超模 1.5x（跳空級）→ 🟡、2x+（閃崩級）→ 🔴；
+    # SN 群聚 10%（3/30，純運氣機率 0.16%）→ 🟡；歷史正常窗口（最壞 2SN/30=6.7%）仍 🟢
     if worst > MODEL_MAX_LOSS_R:
-        hp -= min(60.0, (worst / MODEL_MAX_LOSS_R - 1) * 200)
+        hp -= min(80.0, (worst / MODEL_MAX_LOSS_R - 1) * 120)
     sn_rate = sn / n
     if sn_rate > 0.02:
-        hp -= min(40.0, (sn_rate - 0.02) * 500)
+        hp -= min(70.0, (sn_rate - 0.02) * 800)
     hp = max(0.0, hp)
     note = (f"SafeNet {sn} 筆（{sn_rate * 100:.1f}% vs 基準 {BASE_SN_RATE * 100:.1f}%）；"
             f"最差單筆 -${worst:.0f} vs 模型上限 -${MODEL_MAX_LOSS_R:.0f}（200U 正規化）")
@@ -167,7 +182,7 @@ def _render(items, n, scope_note) -> str:
         if hp is None:
             out.append(f"   {tag} —— 跳過：{note}")
             continue
-        out.append(f"   {tag} {_hp_bar(hp)} {_light(hp)}  {note}")
+        out.append(f"   {tag} {_hp_pct(hp)} {_light(hp)}  {note}")
         worst = hp if worst is None else min(worst, hp)
     if worst is None:
         out.append("   （無可評估項目）")
