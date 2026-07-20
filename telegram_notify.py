@@ -78,8 +78,14 @@ def send_telegram_message(
         interval=None,
         stop_loss=None,
         take_profit=None,
-        timestamp=None
+        timestamp=None,
+        include_groups=False
 ):
+    """發送 Telegram 通知。
+
+    主動通知預設只發私聊；``include_groups=True`` 才會送到設定中的群組。
+    指令回覆仍優先只回覆下指令的聊天室，不受此選項影響。
+    """
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_ids = get_chat_ids()
 
@@ -119,7 +125,12 @@ def send_telegram_message(
 
     # 指令回覆導向：本執行緒有設定目標 → 只發回原聊天室；否則廣播到全部 chat_id
     reply_to = getattr(_reply_local, "chat_id", None)
-    targets = [reply_to] if reply_to else chat_ids
+    if reply_to:
+        targets = [reply_to]
+    elif include_groups:
+        targets = chat_ids
+    else:
+        targets = [cid for cid in chat_ids if not str(cid).strip().startswith("-")]
 
     for cid in targets:
         data = {

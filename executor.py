@@ -601,7 +601,8 @@ class Executor:
             f"🔋 壓縮能量：{gk_pctile:.1f}\n"
             f"📝 第 {self.trade_number} 筆" + wrap_private(f" ｜ 💰 金庫 ${self.account_balance:.2f}")
         )
-        send_telegram_message(msg)
+        # 開單是群組需要知道的事件；後續心跳由主循環在仍有持倉時送到群組。
+        send_telegram_message(msg, include_groups=True)
 
         logger.info(f"Opened {sub_strategy} {side} @ ${entry_price:.2f} | {trade_id}")
         self.save_state()

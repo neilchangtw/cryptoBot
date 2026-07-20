@@ -1331,7 +1331,8 @@ def main():
                     f"━━━━━━━━━━━━━━━\n"
                     f"🩺 自檢：{check_text}"
                 )
-                send_telegram_message(hb_msg)
+                # 私聊維持每小時心跳；群組只在仍有持倉時收到心跳，平倉後立即停止。
+                send_telegram_message(hb_msg, include_groups=bool(positions))
 
             elapsed = time.time() - cycle_start
             logger.info(f"Cycle done in {elapsed:.1f}s | Balance: ${executor.account_balance:.2f}")
