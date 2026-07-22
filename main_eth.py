@@ -951,6 +951,20 @@ def main():
                     executor.positions[trade_id]["extension_active"] = True
                     executor.positions[trade_id]["extension_start_bar"] = executor.bar_counter
                     logger.info(f"Extension started for {trade_id} ({sub})")
+                    ext_price = pos["entry_price"]
+                    if sub == "L":
+                        be_text = f"跌回 ${ext_price:.2f} 以下 → BE（保本出場）"
+                    else:
+                        be_text = f"上穿 ${ext_price:.2f} 以上 → BE（保本出場）"
+                    active_exits = ("TP / SafeNet / MFE（浮盈鎖利）"
+                                    if sub == "L" else "TP / SafeNet")
+                    send_telegram_message(
+                        f"<b>⏳ 進入延長期（{sub}）</b>\n"
+                        f"📍 目前收盤：${bar_data['close']:.2f}\n"
+                        f"⌛ 延長：第 1/{strategy.L_EXT_BARS} 根，最晚約 {strategy.L_EXT_BARS}h 後收盤出場\n"
+                        f"🛡 {be_text}\n"
+                        f"📐 其他出場條件仍有效（{active_exits}）"
+                    )
 
                 # 記錄 lifecycle
                 recorder.record_position_bar(
@@ -1143,13 +1157,31 @@ def main():
                         sn_price = ep * (1 - strategy.L_SAFENET_PCT)
                         eff_mh = (strategy.L_COND_REDUCED_MH if p.get("mh_reduced")
                                   else strategy.get_l_mh(rg))
-                        mh_left = max(0, eff_mh - p["bars_held"])
-                        mfe_on = ("已啟動" if p.get("running_mfe", 0.0) >= strategy.L_MFE_ACT
-                                  else "未啟動")
+                        bars_held = p["bars_held"]
+                        if p.get("extension_active"):
+                            ext_elapsed = max(0, executor.bar_counter - p.get("extension_start_bar", executor.bar_counter))
+                            ext_left = max(0, strategy.L_EXT_BARS - ext_elapsed)
+                            ext_deadline = bar_data["datetime"] + timedelta(hours=ext_left)
+                            deadline_text = ext_deadline.strftime("%m-%d %H:%M")
+                            hold_status = f"延長第 {min(ext_elapsed + 1, strategy.L_EXT_BARS)}/{strategy.L_EXT_BARS} 根，剩約 {ext_left}h（最晚 {deadline_text}）"
+                            hold_detail = f"BE（保本出場）價 ${ep:.2f}；若未觸發，{deadline_text} 以當時收盤價出場"
+                        else:
+                            mh_left = max(0, eff_mh - bars_held)
+                            hold_status = f"距 MaxHold（最多持倉時間）剩 {mh_left}h"
+                            hold_detail = f"屆時若為正收益，將延長 {strategy.L_EXT_BARS}h"
+                        running_mfe = p.get("running_mfe", 0.0)
+                        if running_mfe >= strategy.L_MFE_ACT:
+                            mfe_price = ep * (1 + running_mfe - strategy.L_MFE_TRAIL_DD)
+                            mfe_status = f"已啟動，鎖利價約 ${mfe_price:.2f}（收盤≤此價出場）"
+                        else:
+                            mfe_needed = ep * (1 + strategy.L_MFE_ACT)
+                            mfe_status = f"未啟動（需先達 ${mfe_needed:.2f}）"
                         lines.append(
-                            f"📈 L 多單（{unr:+.1f}%，抱{p['bars_held']}h，{labels.regime_label(rg)}）\n"
+                            f"📈 L 多單（{unr:+.1f}%，抱{bars_held}h，{labels.regime_label(rg)}）\n"
                             f"   🎯 止盈 (TP) ${tp_price:.2f}｜🛡 安全網 (SafeNet) ${sn_price:.2f}\n"
-                            f"   ⏰ 最長持倉 (MaxHold) 剩{mh_left}h｜📐 浮盈回吐 (MFE-trail) {mfe_on}"
+                            f"   ⏰ MaxHold（最多持倉時間）：{hold_status}\n"
+                            f"   🧭 {hold_detail}\n"
+                            f"   📐 MFE（浮盈鎖利）移動鎖利：{mfe_status}"
                         )
                     for p in s_pos:
                         ep = p["entry_price"]
@@ -1159,11 +1191,23 @@ def main():
                         rg = p.get("entry_regime", "NA")
                         tp_price = ep * (1 - strategy.S_TP_PCT)
                         sn_price = ep * (1 + strategy.S_SAFENET_PCT)
-                        mh_left = max(0, strategy.get_s_mh(rg) - p["bars_held"])
+                        bars_held = p["bars_held"]
+                        if p.get("extension_active"):
+                            ext_elapsed = max(0, executor.bar_counter - p.get("extension_start_bar", executor.bar_counter))
+                            ext_left = max(0, strategy.L_EXT_BARS - ext_elapsed)
+                            ext_deadline = bar_data["datetime"] + timedelta(hours=ext_left)
+                            deadline_text = ext_deadline.strftime("%m-%d %H:%M")
+                            hold_status = f"延長第 {min(ext_elapsed + 1, strategy.L_EXT_BARS)}/{strategy.L_EXT_BARS} 根，剩約 {ext_left}h（最晚 {deadline_text}）"
+                            hold_detail = f"BE（保本出場）價 ${ep:.2f}；若未觸發，{deadline_text} 以當時收盤價出場"
+                        else:
+                            mh_left = max(0, strategy.get_s_mh(rg) - bars_held)
+                            hold_status = f"距 MaxHold（最多持倉時間）剩 {mh_left}h"
+                            hold_detail = f"屆時若為正收益，將延長 {strategy.L_EXT_BARS}h"
                         lines.append(
-                            f"📉 S 空單（{unr:+.1f}%，抱{p['bars_held']}h，{labels.regime_label(rg)}）\n"
+                            f"📉 S 空單（{unr:+.1f}%，抱{bars_held}h，{labels.regime_label(rg)}）\n"
                             f"   🎯 止盈 (TP) ${tp_price:.2f}｜🛡 安全網 (SafeNet) ${sn_price:.2f}\n"
-                            f"   ⏰ 最長持倉 (MaxHold) 剩{mh_left}h"
+                            f"   ⏰ MaxHold（最多持倉時間）：{hold_status}\n"
+                            f"   🧭 {hold_detail}"
                         )
                     pos_text = "\n".join(lines)
                 else:

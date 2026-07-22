@@ -595,7 +595,7 @@ class Executor:
             f"🏷 策略：{sub_label}\n"
             f"💲 進場價：${entry_price:.2f}\n"
             f"🎯 止盈 (TP)：${entry_price * (1 + tp_pct) if sub_strategy == 'L' else entry_price * (1 - tp_pct):.2f}"
-            f"（{tp_pct*100:.1f}%）｜ ⏰ 最長持倉 (MaxHold) {max_hold}h\n"
+            f"（{tp_pct*100:.1f}%）｜ ⏰ MaxHold（最多持倉時間） {max_hold}h\n"
             f"🛡 安全網 (SafeNet)：${sn_price:.2f}（{safenet_pct*100:.1f}%）\n"
             f"📊 進場趨勢：{labels.regime_label(entry_regime)}\n"
             f"🔋 壓縮能量：{gk_pctile:.1f}\n"
@@ -813,7 +813,8 @@ class Executor:
             + wrap_private(f"🏦 金庫：${self.account_balance:.2f}\n")
             + f"{edge_emoji} 策略健康度 {self.edge_health_pct():.0f}%{cb_info}"
         )
-        send_telegram_message(msg)
+        # 平倉是群組需要知道的交易事件；與進場通知一致發送到群組。
+        send_telegram_message(msg, include_groups=True)
 
         # 健康度燈號轉換告警（只在轉換那一刻發一次）
         if edge_new != edge_old:
