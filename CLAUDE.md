@@ -56,6 +56,7 @@ journalctl -u cryptobot -f                                       # 看日誌
 | [doc/v28_research.md](doc/v28_research.md) | V28 複利化研究（**帳戶層 PROMOTED 未部署**；R1 恆 4x 複利：bootstrap P(複利輸固定)=0%、MDD 中位 31.9%；**R2 使用者「獲利加倉」方案（200U+獲利×20x、虧損退回地板）+ 名目上限 = 建議採用形態**：cap $12K/$20K 終值 $23.6K/$38.2K vs 固定 $8.8K、MDD 24%、地板使下行=現行；無上限版 REJECTED MDD 92%+；前提=熔斷百分比化+edge 存續，建議實盤滿 50 筆貼合回測後再切換） |
 | [doc/v29_research.md](doc/v29_research.md) | V29 Edge 衰退警報（**PROMOTED 雙層 CUSUM，已實作上線**：顯示為「策略健康度」100%~0%，出場時更新；🟡 ≤25% 凍結加碼 / 🔴 0% 退回 200U（人工執行，警報只通知）；歷史 2 年零觸紅燈（健康度最低 30% 在 2026-01）、edge 反轉 1.1 月偵測 / 歸零 2.8 月 / 漏報 2%、誤報 24%/2年；心跳/出場訊息//cb 皆顯示，燈號轉換發告警；TP 佔比規則 REJECTED） |
 | [doc/v30_research.md](doc/v30_research.md) | V30 Funding rate overlay（**R1 診斷即 REJECTED**：30 分桶 PnL 全正無可 block、最壞桶 p=0.30~0.94、最佳桶多重比較 p=0.159、IS/OOS 不一致——最後一個免費長歷史外部數據源清空，**V14+R+V25-D 確認為可取得數據下全域最佳**） |
+| [doc/v31_research.md](doc/v31_research.md) | V31 回測可信度稽核 + MaxHold 最新重測（**NO PROMOTION**：資料/常數/指標與 278 筆出場 parity 全過；596 組掃描唯一候選 `S shallow-loss grace 1.5%/+4 bars` 因參數鄰域失敗維持 SHADOW ONLY；23 筆正式盤時間/原因/Hold/regime 23/23 一致，維持 V14+R+V25-D） |
 
 ---
 
@@ -157,6 +158,13 @@ cryptoBot/
 ---
 
 ## 目前狀態
+
+### ⏳ 2026-07-23~28 更新（已 push，VPS 未部署）
+
+- `df082d6`：Telegram 群組平倉通知隱藏美元 PnL、只顯示百分比；私聊保留美元；開倉與虧損標題各 5 句隨機文案。
+- `7c88dee`：V31 MaxHold 稽核、596 組完整結果與研究文件；結論為 **NO PROMOTION**，線上策略不變。
+- 回測工程修正：下載快取排除未收盤 K 線；研究引擎 GK percentile 改為完整窗口後才輸出。兩項修正均未改變既有 278 筆結果。
+- 部署方式：`cd ~/cryptoBot && git pull && sudo systemctl restart cryptobot`；只有 Telegram 通知需重啟後生效，V31 研究檔不影響實盤邏輯。
 
 ### ✅ 2026-07-02~03 變更記錄（已於 2026-07-03 全部部署到 VPS）
 
