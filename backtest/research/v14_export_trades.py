@@ -108,6 +108,8 @@ def rolling_pctile(vals, window):
     for i in range(window - 1, len(vals)):
         w = vals[i - window + 1: i + 1]
         valid = w[~np.isnan(w)]
+        if len(valid) < window:
+            continue  # strategy.py rolling(window) 同樣要求完整有效窗口
         if len(valid) <= 1:
             out[i] = 50.0  # fallback，與 strategy.py 一致
             continue

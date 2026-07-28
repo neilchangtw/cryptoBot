@@ -14,9 +14,10 @@ data/ 整個目錄被 gitignore，所以 fresh clone / VPS 上沒有 ETHUSDT_1h_
     .venv/bin/python fetch_backtest_data.py --interval 4h   # 改時框（輸出 *_4h_*.csv）
 """
 import os
+import sys
 import time
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
 import pandas as pd
@@ -25,11 +26,17 @@ FUTURES_KLINES_URL = "https://fapi.binance.com/fapi/v1/klines"
 PAGE_LIMIT = 1500  # Binance Futures 單次上限
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
+
 
 def fetch_history(symbol: str, interval: str, days: int) -> pd.DataFrame:
     """分頁抓取 [now-days, now] 的 K 線，回傳與快取 CSV 同格式的 DataFrame。"""
-    end_ms = int(datetime.utcnow().timestamp() * 1000)
-    start_ms = int((datetime.utcnow() - timedelta(days=days)).timestamp() * 1000)
+    now_utc = datetime.now(timezone.utc)
+    end_ms = int(now_utc.timestamp() * 1000)
+    start_ms = int((now_utc - timedelta(days=days)).timestamp() * 1000)
 
     rows = []
     cursor = start_ms
@@ -58,7 +65,7 @@ def fetch_history(symbol: str, interval: str, days: int) -> pd.DataFrame:
             break
         cursor = nxt
         print(f"  {symbol} {interval}: page {page}, {len(rows)} bars, "
-              f"至 {datetime.utcfromtimestamp(last_open/1000) + timedelta(hours=8):%Y-%m-%d %H:%M}")
+              f"至 {datetime.fromtimestamp(last_open/1000, timezone.utc) + timedelta(hours=8):%Y-%m-%d %H:%M}")
         time.sleep(0.25)  # 輕量限速，避免觸發 Binance rate limit
         if len(data) < PAGE_LIMIT:
             break  # 已抓到最新
@@ -68,6 +75,9 @@ def fetch_history(symbol: str, interval: str, days: int) -> pd.DataFrame:
             "taker_buy_base", "taker_buy_quote", "ignore"]
     df = pd.DataFrame(rows, columns=cols)
     df = df.drop_duplicates(subset=["open_time"]).reset_index(drop=True)
+    # Binance 會把「目前仍在形成中」的 K 線一併回傳；回測只能使用已收盤資料。
+    df["close_time"] = pd.to_numeric(df["close_time"], errors="coerce")
+    df = df[df["close_time"] <= end_ms].reset_index(drop=True)
 
     for c in ["open", "high", "low", "close", "volume", "taker_buy_base"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
@@ -75,7 +85,7 @@ def fetch_history(symbol: str, interval: str, days: int) -> pd.DataFrame:
     df["datetime"] = pd.to_datetime(df["open_time"], unit="ms") + timedelta(hours=8)
     out = df[["open", "high", "low", "close", "volume", "taker_buy_base", "datetime"]].copy()
     out.rename(columns={"taker_buy_base": "taker_buy_volume"}, inplace=True)
-    # 丟掉尚未收盤的最後一根（與 data_feed 行為一致由策略決定，回測用收盤資料更安全）
+    # 僅回傳已收盤 K 線，避免最新未完成 bar 產生幽靈信號。
     return out
 
 
