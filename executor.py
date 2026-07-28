@@ -19,6 +19,7 @@ import os
 import json
 import copy
 import logging
+import random
 import threading
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -36,6 +37,21 @@ SYMBOL = os.getenv("SYMBOL", "ETHUSDT")
 INITIAL_BALANCE = float(os.getenv("INITIAL_BALANCE", "1000.0"))
 logger = logging.getLogger("executor")
 
+ENTRY_NOTIFICATION_HEADERS = (
+    "🕹️ 新副本開打！",
+    "🚀 訊號點火，這單出發！",
+    "🎣 魚餌下水，等行情上鉤！",
+    "🥊 選手進場，市場請接招！",
+    "🧭 座標鎖定，準備探險！",
+)
+
+LOSS_NOTIFICATION_HEADERS = (
+    "🫠 這局被市場反殺了…",
+    "🎓 市場收了一筆學費…",
+    "🥲 這回合市場技高一籌…",
+    "🧹 被行情掃地出門了…",
+    "🎮 殘念，這關沒有通過…",
+)
 
 class Executor:
     def __init__(self, state_path: str = None):
@@ -588,8 +604,9 @@ class Executor:
         else:
             tp_pct = strategy.S_TP_PCT
             max_hold = strategy.get_s_mh(entry_regime)
+        entry_header = random.choice(ENTRY_NOTIFICATION_HEADERS)
         msg = (
-            f"<b>🎰 下注！（{env}）</b>\n"
+            f"<b>{entry_header}（{env}）</b>\n"
             f"━━━━━━━━━━━━━━━\n"
             f"{action}\n"
             f"🏷 策略：{sub_label}\n"
@@ -783,13 +800,24 @@ class Executor:
         exit_text = exit_map.get(exit_reason, exit_reason)
         if pnl_usd > 0:
             result_header = "💵 印到鈔票了！"
-            result_text = f"賺 ${abs(pnl_usd):.2f}"
+            # 私聊保留美元金額；群組移除 [[HIDE]] 段，只顯示「賺 +x.x%」。
+            result_text = (
+                "賺 "
+                + wrap_private(f"${abs(pnl_usd):.2f}（")
+                + f"{pnl_pct:+.1f}%"
+                + wrap_private("）")
+            )
         elif pnl_usd < 0:
-            result_header = "🔥 紙燒掉了…"
-            result_text = f"虧 ${abs(pnl_usd):.2f}"
+            result_header = random.choice(LOSS_NOTIFICATION_HEADERS)
+            result_text = (
+                "虧 "
+                + wrap_private(f"${abs(pnl_usd):.2f}（")
+                + f"{pnl_pct:+.1f}%"
+                + wrap_private("）")
+            )
         else:
             result_header = "😐 白忙一場"
-            result_text = "打平"
+            result_text = f"打平（{pnl_pct:+.1f}%）"
 
         cb_info = ""
         # 進場冷卻（連虧 24h 優先；否則顯示同側 L=6h / S=8h）
@@ -800,7 +828,11 @@ class Executor:
             exit_cd = strategy.L_EXIT_CD if sub_strategy == "L" else strategy.S_EXIT_CD
             cb_info = f"\n⏱ {sub_strategy} 進場冷卻 {exit_cd}h（避免反覆進出）"
         if self.daily_pnl <= strategy.DAILY_LOSS_LIMIT:
-            cb_info += f"\n🚫 日虧${self.daily_pnl:.0f}，今日停工"
+            cb_info += (
+                "\n🚫 日虧"
+                + wrap_private(f"${self.daily_pnl:.0f}，")
+                + "已達上限，今日停工"
+            )
 
         edge_emoji = {"green": "💚", "yellow": "💛", "red": "🔴"}.get(self.edge_level, "💚")
         msg = (
@@ -808,7 +840,7 @@ class Executor:
             f"━━━━━━━━━━━━━━━\n"
             f"🏷 {sub_label}：${pos['entry_price']:.2f} → ${exit_price:.2f}\n"
             f"📋 {exit_text}\n"
-            f"💰 {result_text}（{pnl_pct:+.1f}%）\n"
+            f"💰 {result_text}\n"
             f"⏱ 抱了 {bars_held}h ｜ 最慘 -{abs(pos.get('mae_pct', 0)):.1f}%\n"
             + wrap_private(f"🏦 金庫：${self.account_balance:.2f}\n")
             + f"{edge_emoji} 策略健康度 {self.edge_health_pct():.0f}%{cb_info}"
