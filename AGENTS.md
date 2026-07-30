@@ -25,6 +25,10 @@ journalctl -u cryptobot -f                                       # 看日誌
 
 - Python 環境在 `.venv/`，**不在系統 PATH**，所有指令必須透過 `.bat` 或先 `call .venv\Scripts\activate`
 
+### Git 說明語言
+
+- Git commit 訊息、push 摘要、部署說明及 PR 標題／內容，一律使用**繁體中文**。
+
 ---
 
 ## 文件索引
