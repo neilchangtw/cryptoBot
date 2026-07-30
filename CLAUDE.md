@@ -159,10 +159,15 @@ cryptoBot/
 
 ## 目前狀態
 
-### ⏳ 2026-07-23~28 更新（已 push，VPS 未部署）
+### ⏳ 2026-07-23~30 更新（待部署）
 
 - `df082d6`：Telegram 群組平倉通知隱藏美元 PnL、只顯示百分比；私聊保留美元；開倉與虧損標題各 5 句隨機文案。
 - `7c88dee`：V31 MaxHold 稽核、596 組完整結果與研究文件；結論為 **NO PROMOTION**，線上策略不變。
+- 2026-07-30：新增 `TELEGRAM_GROUP_NOTIFICATIONS=Y/N`；設 `N` 時主動通知只發私聊，
+  群組手動指令仍正常回覆。回測保證金排程加入 **500U@2026-08-01**。
+- 實盤預定於 2026-08-01、確認 L/S 皆無持倉後，將 VPS `.env` 的
+  `MARGIN_PER_TRADE=300` 改為 `500` 並重啟；名目變為 $10,000，動態風控同步為
+  日虧 -500 / L 月虧 -187.5 / S 月虧 -375。
 - 回測工程修正：下載快取排除未收盤 K 線；研究引擎 GK percentile 改為完整窗口後才輸出。兩項修正均未改變既有 278 筆結果。
 - 部署方式：`cd ~/cryptoBot && git pull && sudo systemctl restart cryptobot`；只有 Telegram 通知需重啟後生效，V31 研究檔不影響實盤邏輯。
 
@@ -236,7 +241,7 @@ cryptoBot/
 - **顯示慣例**：所有終端機/Telegram 輸出的出場原因、進場趨勢、方向一律「中文 (英文)」格式，統一由 `labels.py` 產生（如 `止盈 (TP)`、`偏多 (MILD_UP)`）；交易列表時間顯示為**實際成交時刻**（K 棒收盤 = 開盤+1h，對齊幣安後台）
 - **每小時心跳**：標題顯示累計運轉天數；有持倉時額外顯示該倉的出場條件（止盈/安全網價位、最長持倉剩餘、浮盈回吐狀態）；固定顯示「💚 策略健康度 xx%」（V29 Edge 衰退警報，出場時更新，黃/紅燈轉換另發告警）；自檢正常時收斂一行「✅ 正常（無告警・資料新鮮・倉位同步・停損掛單在）」，異常才逐項展開（LIVE 每小時各一次唯讀 API 驗證倉位同步與 SafeNet 掛單存在）
 - **回測成交假設**：`run_backtest.py` 預設「貼近實盤」（TP/BE 用市價收盤成交，非理論價；SafeNet 維持真實 stop），`--ideal` 可切回理論價對照、`--slip` 加滑價壓測；引擎 `simulate_v14_detailed(realistic=,slip_bps=)`，研究腳本預設仍理想化
-- **回測保證金歷史（2026-07-03 起）**：`run_backtest.py` 預設帶 `MARGIN_SCHEDULE`（檔內常數：200U → 300U@2026-07-03，之後調保證金就往表上加一行），每筆名目/FEE/熔斷線依進場日等比（= 線上動態風控）；`--flat` 切回全程 200U 研究基準（= V14~V28 文件數字）；明細表新增 Mgn 欄；引擎 `simulate_v14_detailed(margin_schedule=)`，未傳 = 原行為，研究腳本不受影響
+- **回測保證金歷史（2026-07-03 起）**：`run_backtest.py` 預設帶 `MARGIN_SCHEDULE`（檔內常數：200U → 300U@2026-07-03 → 500U@2026-08-01，之後調保證金就往表上加一行），每筆名目/FEE/熔斷線依進場日等比（= 線上動態風控）；`--flat` 切回全程 200U 研究基準（= V14~V28 文件數字）；明細表新增 Mgn 欄；引擎 `simulate_v14_detailed(margin_schedule=)`，未傳 = 原行為，研究腳本不受影響
 - **多實例（多人使用，方案 A）**：一份程式碼 + 每人一個實例（各自 Binance key / Telegram bot / 資料 / 狀態）。靠環境變數 `INSTANCE_DIR` 分流 `data/`·`logs/`·`eth_state*.json`（`paths.py`，未設則沿用程式目錄=單人原行為）。部署用 systemd template `cryptobot@<名字>` + `instances/<名字>/.env`，步驟見 [deploy/cheatsheet.txt](deploy/cheatsheet.txt)「多實例」段。每則 Telegram 訊息開頭標「👤 實例名」（`INSTANCE_NAME`，未設則用目錄名；單人為空不加），讓多人各自確認查到自己的。注意每人需各自一支 Telegram bot（同 token 兩進程會搶更新）。**共用 K 線**：多實例時每小時只有一個實例真的抓 Binance、其他讀共用檔（`data_feed.py`，flock 去重，快取在 `cache/`，所有實例共用；fail-open 退回各自抓；單人維持原樣）
 
 ### 模擬盤運行狀態（2026-05-20 21:00 UTC+8 快照；此為轉正式盤前的 Testnet 模擬期紀錄）
@@ -532,6 +537,7 @@ BINANCE_API_KEY=<key>
 BINANCE_API_SECRET=<secret>
 TELEGRAM_BOT_TOKEN=<token>
 TELEGRAM_CHAT_ID=<id>       # 支援逗號分隔多值：私聊+群組都收通知（群組 id 為負數）
+TELEGRAM_GROUP_NOTIFICATIONS=Y  # Y=群組主動通知開；N=關（群組手動指令仍會回覆）
 TELEGRAM_ADMIN_IDS=         # 選填：控制類指令（/pause /resume /cleanup）白名單 user id；
                             # 不設=授權聊天室內任何人可用全部指令；群組使用強烈建議設定
 MARGIN_PER_TRADE=200        # 每筆保證金（預設 200；調整此值 = 人肉複利的唯一旋鈕）
@@ -618,6 +624,8 @@ python fetch_backtest_data.py   # Binance 公開端點分頁抓 ETH+BTC 1h 730 �
 
 > **多聊天室（2026-07-03 起）**：`TELEGRAM_CHAT_ID` 逗號分隔多值 → 通知廣播到所有聊天室
 > （私聊/群組混用皆可）；指令只接受清單內的聊天室，**回覆只回下指令的那間**（不打擾其他群）。
+> `TELEGRAM_GROUP_NOTIFICATIONS=N` 可關閉所有群組主動通知；私聊通知照常，群組內手動指令
+> 仍會回覆該群。未設定時預設為 `Y`，維持向後相容。
 > 群組指令的 `@bot名` 後綴會自動剝除（`/status@MyBot` 有效）。
 > `TELEGRAM_ADMIN_IDS` 設定後，控制類指令（/pause /resume /cleanup）僅白名單 user id 可用，
 > 查詢類不限；未設定 = 舊行為。注意：群組升級 supergroup 時 chat id 會變（-xxx → -100xxx），

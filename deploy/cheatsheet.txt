@@ -157,5 +157,9 @@ for u in $(systemctl list-units 'cryptobot@*' --no-legend | awk '{print $1}'); d
 - 部位大小單一來源 = .env：strategy.py 讀 .env 的 LEVERAGE/MARGIN_PER_TRADE 算 NOTIONAL，
   executor 用 NOTIONAL/entry 算下單 qty。verify_mainnet.py / binance_trade.py 也讀同一組 .env。
   → 改 .env 的 LEVERAGE = 改實際下單大小！改完務必 systemctl restart。
+- 群組主動通知開關 = .env 的 TELEGRAM_GROUP_NOTIFICATIONS：Y=開、N=關；
+  設 N 後進出場/心跳/告警只發私聊，但群組內手動下指令仍會回覆該群。
+- 調整 MARGIN_PER_TRADE 必須在「新月份且 L/S 都無持倉」時進行，再重啟服務；
+  不可讓舊保證金持倉跨過設定切換，否則顯示百分比與當月風控尺度會混用。
 - 懷疑連線/權限問題 → 先跑 verify_mainnet.py
 ==================================================================

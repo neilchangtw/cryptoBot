@@ -35,6 +35,12 @@ def get_chat_ids():
     return [c.strip() for c in raw.split(",") if c.strip()]
 
 
+def group_notifications_enabled():
+    """主動通知是否廣播到群組；僅 Y 啟用，其餘值一律關閉（隱私優先）。"""
+    raw = os.getenv("TELEGRAM_GROUP_NOTIFICATIONS", "Y") or "Y"
+    return raw.strip().upper() == "Y"
+
+
 def get_admin_ids():
     """TELEGRAM_ADMIN_IDS：管理員 user id 集合（逗號分隔）。
     空集合 = 未設定 → 主程式維持舊行為（授權聊天室內任何人可用全部指令）。"""
@@ -83,7 +89,8 @@ def send_telegram_message(
 ):
     """發送 Telegram 通知。
 
-    主動通知預設只發私聊；``include_groups=True`` 才會送到設定中的群組。
+    主動通知預設只發私聊；``include_groups=True`` 且
+    ``TELEGRAM_GROUP_NOTIFICATIONS=Y`` 才會送到設定中的群組。
     指令回覆仍優先只回覆下指令的聊天室，不受此選項影響。
     """
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -127,7 +134,7 @@ def send_telegram_message(
     reply_to = getattr(_reply_local, "chat_id", None)
     if reply_to:
         targets = [reply_to]
-    elif include_groups:
+    elif include_groups and group_notifications_enabled():
         targets = chat_ids
     else:
         targets = [cid for cid in chat_ids if not str(cid).strip().startswith("-")]
