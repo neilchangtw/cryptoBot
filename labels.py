@@ -9,20 +9,20 @@
 
 import unicodedata
 
-# 出場原因：同時涵蓋「回測引擎短碼」與「實盤 trades.csv 的 exit_type 全名」→ 對到同一中文
+# 出場原因：回測短碼與實盤全名一律顯示成相同的「中文 (實盤全名)」。
 _EXIT = {
     # 回測引擎短碼（v14_export_trades）
-    "TP": "止盈",
-    "SN": "安全網",
-    "MFE": "浮盈回吐",
-    "MH": "最長持倉",
-    "MHx": "延長超時",
-    "BE": "平保",
+    "TP": ("止盈", "TP"),
+    "SN": ("安全網", "SafeNet"),
+    "MFE": ("浮盈回吐", "MFE-trail"),
+    "MH": ("最長持倉", "MaxHold"),
+    "MHx": ("延長超時", "MH-ext"),
+    "BE": ("平保", "BE"),
     # 實盤 exit_type / strategy.py reason 全名
-    "SafeNet": "安全網",
-    "MFE-trail": "浮盈回吐",
-    "MaxHold": "最長持倉",
-    "MH-ext": "延長超時",
+    "SafeNet": ("安全網", "SafeNet"),
+    "MFE-trail": ("浮盈回吐", "MFE-trail"),
+    "MaxHold": ("最長持倉", "MaxHold"),
+    "MH-ext": ("延長超時", "MH-ext"),
 }
 
 # 進場趨勢 regime（V14+R SMA200 斜率分類）
@@ -53,7 +53,8 @@ def exit_label(code):
     code = str(code or "").strip()
     if not code:
         return ""
-    return _fmt(_EXIT.get(code, ""), code)
+    zh, canonical = _EXIT.get(code, ("", code))
+    return _fmt(zh, canonical)
 
 
 def regime_label(code):

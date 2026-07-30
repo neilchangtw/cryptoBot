@@ -81,8 +81,52 @@ def main():
         print(f"❌ 找不到 {csv_path}\n   先跑：.venv/bin/python fetch_backtest_data.py")
         return
 
-    eng = _load_engine()
     df = pd.read_csv(csv_path)
+    if df.empty or "datetime" not in df.columns:
+        print(f"❌ K 線資料為空或缺少 datetime 欄位：{csv_path}")
+        return
+    dt_index = pd.to_datetime(df["datetime"], errors="coerce")
+    if dt_index.isna().all():
+        print(f"❌ K 線 datetime 格式無效：{csv_path}")
+        return
+
+    data_start = dt_index.min()
+    data_end = dt_index.max()
+    try:
+        req_start = pd.Timestamp(args.start) if args.start else data_start
+        req_end = pd.Timestamp(args.end) if args.end else data_end
+    except (ValueError, TypeError):
+        print("❌ 日期格式錯誤，請使用 YYYY-MM-DD")
+        return
+    if args.start and args.end and req_start > req_end:
+        print(f"❌ 日期範圍錯誤：start {args.start} 晚於 end {args.end}")
+        return
+    if args.start and req_start.normalize() > data_end.normalize():
+        print(f"❌ 指定起始日 {req_start:%Y-%m-%d} 晚於 K 線資料終點")
+        print(f"   資料：{data_start:%Y-%m-%d %H:%M} ~ {data_end:%Y-%m-%d %H:%M}")
+        print("   若要回測最新日期，請加 --refresh 更新 K 線後再執行")
+        return
+    if args.end and req_end.normalize() < data_start.normalize():
+        print(f"❌ 指定結束日 {req_end:%Y-%m-%d} 早於 K 線資料起點")
+        print(f"   資料：{data_start:%Y-%m-%d %H:%M} ~ {data_end:%Y-%m-%d %H:%M}")
+        print("   請調整日期範圍後再執行")
+        return
+
+    effective_start = max(req_start, data_start)
+    requested_end_of_day = req_end.normalize() + pd.Timedelta(hours=23, minutes=59)
+    effective_end = min(requested_end_of_day, data_end) if args.end else data_end
+    coverage_warnings = []
+    if args.start and req_start.normalize() < data_start.normalize():
+        coverage_warnings.append(
+            f"⚠️ 指定起始日早於資料範圍，結果從 {data_start:%Y-%m-%d %H:%M} 開始"
+        )
+    if args.end and req_end.normalize() > data_end.normalize():
+        coverage_warnings.append(
+            f"⚠️ 指定結束日超出資料範圍，結果只計至 {data_end:%Y-%m-%d %H:%M}；"
+            "可加 --refresh 更新"
+        )
+
+    eng = _load_engine()
     ind = eng.compute_indicators(df)
     datetimes = df["datetime"].values
 
@@ -93,14 +137,18 @@ def main():
             if str(dt) >= args.start:
                 start_bar = j
                 break
+    if args.start and start_bar is None:
+        print(f"❌ 找不到 {args.start} 之後的 K 線；資料只到 {data_end:%Y-%m-%d %H:%M}")
+        print("   請加 --refresh 更新 K 線後再執行")
+        return
     trades = eng.simulate_v14_detailed(ind, datetimes, start_bar=start_bar,
                                        realistic=realistic, slip_bps=args.slip,
                                        margin_schedule=schedule)
     if args.end:
         trades = [t for t in trades if str(t["entry_dt"]) <= args.end + " 23:59:59"]
 
-    dr_start = args.start or str(df["datetime"].iloc[0])
-    dr_end = args.end or str(df["datetime"].iloc[-1])
+    dr_start = args.start or f"{data_start:%Y-%m-%d %H:%M}"
+    dr_end = args.end or f"{data_end:%Y-%m-%d %H:%M}"
 
     if realistic:
         mode_str = f"貼近實盤（TP/BE 市價收盤成交，滑價 {args.slip:.0f}bp）"
@@ -112,13 +160,20 @@ def main():
         sched_str += "（--flat 可切回全程 200U 基準）"
     else:
         sched_str = "全程 200U/$4,000（研究基準）"
-    print("══════════════════════════════════════════")
-    print(f" 回測 {args.symbol}  V14+R + V25-D（= 線上實盤）")
-    print(f" 成交假設：{mode_str}")
-    print(f" 保證金　：{sched_str}")
-    print(f" 範圍：{dr_start[:16]} ~ {dr_end[:16]}")
-    print(f" 資料：{df['datetime'].iloc[0]} ~ {df['datetime'].iloc[-1]}（{len(df)} 根）")
-    print("══════════════════════════════════════════")
+    heading = [
+        f" 回測 {args.symbol}  V14+R + V25-D（策略邏輯 = 線上實盤）",
+        f" 成交假設：{mode_str}",
+        f" 保證金　：{sched_str}",
+        f" 指定範圍：{dr_start[:16]} ~ {dr_end[:16]}",
+        f" 實際資料：{effective_start:%Y-%m-%d %H:%M} ~ {effective_end:%Y-%m-%d %H:%M}"
+        f"（完整快取 {len(df)} 根）",
+    ]
+    border = "═" * max(labels.disp_width(line) for line in heading)
+    print(border)
+    print("\n".join(heading))
+    for warning in coverage_warnings:
+        print(f" {warning}")
+    print(border)
 
     if not trades:
         print(" 此範圍無交易")
@@ -154,11 +209,12 @@ def main():
     # 每筆進出場明細（-t）
     if args.trades:
         print("\n 進出場明細（時間=實際成交時刻 K 棒收盤，對齊實戰）")
-        RSN_W, RG_W = 16, 16
+        RSN_W, RG_W = 22, 16
         hdr = (f"{'#':>4} {'Dir':<3} {'Entry (UTC+8)':<16} {'EntryPx':>9} "
                f"{'Exit (UTC+8)':<16} {'ExitPx':>9} "
-               f"{labels.ljust_disp('出場 (Reason)', RSN_W)} {'Hold':>4} {'Mgn':>4} "
-               f"{'PnL($)':>9} {'PnL%':>6} {labels.ljust_disp('進場趨勢 (Regime)', RG_W)}")
+               f"{labels.ljust_disp('出場 (Reason)', RSN_W)} {'Hold(h)':>7} {'Mgn(U)':>6} "
+               f"{'PnL($)':>9} {'Move%':>7} {'PnL%':>7} "
+               f"{labels.ljust_disp('進場趨勢 (Regime)', RG_W)}")
         print(" " + hdr)
         print(" " + "-" * labels.disp_width(hdr))
         for k, t in enumerate(trades, 1):
@@ -168,17 +224,20 @@ def main():
             xdt = analysis_report.to_exec_time(str(t["exit_dt"]).replace("T", " "))
             rsn = labels.ljust_disp(labels.exit_label(t["exit_reason"]), RSN_W)
             rg = labels.ljust_disp(labels.regime_label(t.get("entry_regime", "NA")), RG_W)
+            margin = float(t.get("margin", 200))
+            margin_pnl_pct = float(t["pnl_usd"]) / margin * 100 if margin else 0.0
             print(f" {k:>4} {t['side']:<3} {edt:<16} {t['entry_price']:>9.2f} "
                   f"{xdt:<16} {t['exit_price']:>9.2f} "
-                  f"{rsn} {t['bars_held']:>4} {t.get('margin', 200):>4.0f} "
-                  f"{t['pnl_usd']:>+9.2f} {t['pnl_pct']:>+6.2f} "
+                  f"{rsn} {t['bars_held']:>7} {margin:>6.0f} "
+                  f"{t['pnl_usd']:>+9.2f} {t['pnl_pct']:>+7.2f} {margin_pnl_pct:>+7.2f} "
                   f"{rg}")
+        print(" Move% = 方向性價格變動（L 上漲／S 下跌為正）；PnL% = 淨損益 ÷ 保證金（與實盤通知一致）")
 
     # 出場分佈
     print("\n 出場分佈：")
     for reason, cnt in tdf["exit_reason"].value_counts().items():
         sub = tdf[tdf["exit_reason"] == reason]["pnl_usd"].sum()
-        print(f"   {labels.ljust_disp(labels.exit_label(reason), 18)}: {cnt:3d} 筆（${float(sub):+.2f}）")
+        print(f"   {labels.ljust_disp(labels.exit_label(reason), 22)}: {cnt:3d} 筆（${float(sub):+.2f}）")
 
     # 月度
     tdf["_month"] = tdf["entry_dt"].astype(str).str[:7]

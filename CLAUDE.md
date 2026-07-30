@@ -168,6 +168,9 @@ cryptoBot/
 - 實盤預定於 2026-08-01、確認 L/S 皆無持倉後，將 VPS `.env` 的
   `MARGIN_PER_TRADE=300` 改為 `500` 並重啟；名目變為 $10,000，動態風控同步為
   日虧 -500 / L 月虧 -187.5 / S 月虧 -375。
+- 2026-07-30：回測顯示規則與實盤統一——出場名稱固定使用 `MaxHold`、`MFE-trail`、
+  `MH-ext`、`SafeNet`；`PnL%` 固定為「淨損益 ÷ 保證金」，價格方向報酬另列 `Move%`；
+  日期超出 K 線範圍時拒絕回傳結果，部分超界則顯示資料截止警告。
 - 回測工程修正：下載快取排除未收盤 K 線；研究引擎 GK percentile 改為完整窗口後才輸出。兩項修正均未改變既有 278 筆結果。
 - 部署方式：`cd ~/cryptoBot && git pull && sudo systemctl restart cryptobot`；只有 Telegram 通知需重啟後生效，V31 研究檔不影響實盤邏輯。
 
