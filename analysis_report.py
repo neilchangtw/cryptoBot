@@ -89,10 +89,10 @@ def build_trades_table(data_dir: str, days: int = None, limit: int = 20) -> str:
     header = (f"{'#':>5} {'Dir':<4} {'Entry (UTC+8)':<16} {'EntryPx':>9} "
               f"{'Exit (UTC+8)':<16} {'ExitPx':>9} "
               f"{labels.ljust_disp('出場類型 (Type)', TYPE_W)} {'Hold':>4} "
-              f"{'PnL($)':>9} {labels.ljust_disp('進場趨勢 (Regime)', RG_W)}")
+              f"{'PnL(實際$)':>11} {labels.ljust_disp('進場趨勢 (Regime)', RG_W)}")
     sep = "─" * labels.disp_width(header)
     out = ["交易列表（# 編號 / Dir 方向 / Entry 進場 / Exit 出場 / 出場類型 / "
-           "Hold 持倉小時 / PnL 損益 / 進場趨勢）",
+           "Hold 持倉小時 / PnL 實際美元 / 進場趨勢）",
            "（時間=實際成交時刻 K 棒收盤，對齊幣安後台 / 回測明細）",
            header, sep]
     total = 0.0
@@ -118,11 +118,11 @@ def build_trades_table(data_dir: str, days: int = None, limit: int = 20) -> str:
             xp_s = str(xp)
         out.append(f"{str(num):>5} {d:<4} {et:<16} {ep_s:>9} "
                    f"{xt:<16} {xp_s:>9} {typ} {hold:>4} "
-                   f"{pnl:>+9.2f} {rg}")
+                   f"{pnl:>+11.2f} {rg}")
     out.append(sep)
     n = len(shown)
     wins = sum(1 for r in shown if r["_pnl"] > 0)
-    out.append(f"共 {n} 筆（{wins}W {n-wins}L），合計 ${total:+.2f}")
+    out.append(f"共 {n} 筆（{wins}W {n-wins}L），合計（實際美元） ${total:+.2f}")
 
     # ── 出場分佈（依顯示的交易，與「共 N 筆」一致；對齊回測明細格式）──
     exit_dist = {}
@@ -130,7 +130,7 @@ def build_trades_table(data_dir: str, days: int = None, limit: int = 20) -> str:
         et = str(r.get("exit_type", "") or "?").strip() or "?"
         c, s = exit_dist.get(et, (0, 0.0))
         exit_dist[et] = (c + 1, s + r["_pnl"])
-    out += ["", " 出場分佈："]
+    out += ["", " 出場分佈（實際美元）："]
     for et, (c, s) in sorted(exit_dist.items(), key=lambda x: -x[1][0]):
         out.append(f"   {labels.ljust_disp(labels.exit_label(et), 20)}: {c:3d} 筆（${s:+.2f}）")
 
@@ -140,7 +140,7 @@ def build_trades_table(data_dir: str, days: int = None, limit: int = 20) -> str:
         mth = to_exec_time(r.get("entry_time_utc8", ""))[:7]  # YYYY-MM
         s, c = monthly.get(mth, (0.0, 0))
         monthly[mth] = (s + r["_pnl"], c + 1)
-    out += ["", " 月度 PnL："]
+    out += ["", " 月度 PnL（實際美元）："]
     for mth in sorted(monthly):
         s, c = monthly[mth]
         bar = "🟢" if s > 0 else "🔴"
@@ -282,22 +282,22 @@ def build_report(data_dir: str, days: int = None, html: bool = False) -> str:
         b("📊 收益分析"),
         i(scope),
         sep,
-        f"💵 總損益：${total_pnl:+.2f}",
+        f"💵 總損益（實際美元）：${total_pnl:+.2f}",
         f"📝 交易：{n} 筆（做多 L {strat.get('L', (0,))[0]} / "
         f"做空 S {strat.get('S', (0,))[0]}；{len(wins)}W {len(losses)}L）",
         f"🎯 勝率：{wr:.1f}%",
         f"⚖️ 獲利因子 PF：{pf:.2f}",
-        f"📉 最大回撤：${max_dd:.2f}",
+        f"📉 最大回撤（實際美元）：${max_dd:.2f}",
         f"⏱ 平均持倉：{avg_hold:.1f}h",
-        f"📈 平均獲利：${avg_win:+.2f} / 平均虧損：${avg_loss:+.2f}",
-        f"🏆 最佳：${best:+.2f} / 最差：${worst:+.2f}",
+        f"📈 平均獲利（實際美元）：${avg_win:+.2f} / 平均虧損：${avg_loss:+.2f}",
+        f"🏆 最佳／最差（實際美元）：${best:+.2f} / ${worst:+.2f}",
         "",
         b("出場分佈"),
     ]
     for et, (c, s) in sorted(exit_dist.items(), key=lambda x: -x[1][0]):
         lines.append(f"  {labels.exit_label(et)}：{c} 筆（${s:+.2f}）")
 
-    lines += ["", b("L vs S")]
+    lines += ["", b("L vs S（實際美元）")]
     for sub in ("L", "S"):
         if sub in strat:
             cnt, sp, swr, savg = strat[sub]
@@ -305,7 +305,7 @@ def build_report(data_dir: str, days: int = None, html: bool = False) -> str:
             lines.append(f"  {tag}：{cnt} 筆 ${sp:+.2f}（WR {swr:.0f}%，均 ${savg:+.2f}）")
 
     if regime:
-        lines += ["", b("進場趨勢（Regime，SMA 斜率）")]
+        lines += ["", b("進場趨勢（Regime，實際美元）")]
         for rg in ("UP", "MILD_UP", "SIDE", "DOWN"):
             if rg in regime:
                 c, s, w = regime[rg]

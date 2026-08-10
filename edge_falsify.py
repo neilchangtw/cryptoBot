@@ -84,7 +84,8 @@ def _check_edge(pnls_R):
         if avg > -BASE_AVG_R * 0.1:  # 貼近損益兩平（>-$3/筆）屬統計噪音帶 → 視同 🟡
             hp = max(hp, 25.0)
         extra = "（窗口合計轉虧）"
-    note = f"平均 ${avg:+.1f}/筆 vs 基準 ${BASE_AVG_R:.1f}（200U 正規化，n={n}）{extra}"
+    note = (f"平均 ${avg:+.1f}/筆（換算為 200U 保證金基準）"
+            f" vs 基準 ${BASE_AVG_R:.1f}/筆（n={n}）{extra}")
     return hp, note
 
 
@@ -113,8 +114,33 @@ def _check_tail(pnls_R, exit_codes):
         hp -= min(70.0, (sn_rate - 0.02) * 800)
     hp = max(0.0, hp)
     note = (f"SafeNet {sn} 筆（{sn_rate * 100:.1f}% vs 基準 {BASE_SN_RATE * 100:.1f}%）；"
-            f"最差單筆 -${worst:.0f} vs 模型上限 -${MODEL_MAX_LOSS_R:.0f}（200U 正規化）")
+            f"最差單筆 -${worst:.0f}（換算為 200U 保證金基準）"
+            f" vs 模型上限 -${MODEL_MAX_LOSS_R:.0f}")
     return hp, note
+
+
+def _format_margin_schedule(display_start: str = None) -> str:
+    """將歷史保證金排程格式化為含月份的日期區間。"""
+    from run_backtest import MARGIN_SCHEDULE
+
+    parts = []
+    for i, (start_str, margin) in enumerate(MARGIN_SCHEDULE):
+        start = datetime.strptime(start_str, "%Y-%m-%d")
+        if i + 1 < len(MARGIN_SCHEDULE):
+            next_start = datetime.strptime(MARGIN_SCHEDULE[i + 1][0], "%Y-%m-%d")
+            end = next_start - timedelta(days=1)
+            if start.year <= 2000:  # 歷史基準哨兵日期，不直接顯示
+                if display_start:
+                    shown_start = datetime.strptime(display_start, "%Y-%m-%d")
+                    period = f"{shown_start:%Y/%m/%d}～{end:%Y/%m/%d}"
+                else:
+                    period = f"{end:%Y/%m/%d} 前"
+            else:
+                period = f"{start:%Y/%m/%d}～{end:%Y/%m/%d}"
+        else:
+            period = f"{start:%Y/%m/%d} 起"
+        parts.append(f"{period}：{margin:g}U")
+    return " → ".join(parts)
 
 
 def _check_fidelity(live_rows):
@@ -166,15 +192,18 @@ def _check_fidelity(live_rows):
     if bt_pnl > 0 and live_pnl / bt_pnl < 0.7:  # 實盤系統性少賺 → 降級
         hp = min(hp, 55.0)
     note = (f"{FIDELITY_SINCE} 起 {matched}/{len(rows)} 筆吻合（回測同窗口 {len(bt_keys)} 筆）；"
-            f"PnL 實盤 ${live_pnl:+.0f} vs 回測 ${bt_pnl:+.0f}")
+            f"PnL 實盤 ${live_pnl:+.0f} vs 回測 ${bt_pnl:+.0f}（實際美元）")
     return hp, note
 
 
-def _render(items, n, scope_note) -> str:
+def _render(items, n, scope_note, schedule_start: str = None) -> str:
     """items: list of (名稱, hp or None, note)。"""
     out = ["", "──────────────────────────────────────────",
            f" 🧪 策略證偽檢查 (Falsification Check) — {scope_note}",
-           "   （四項對應可推翻策略的理論：edge 衰減 / 執行劣化 / regime 改變 / 肥尾）"]
+           "   （四項對應可推翻策略的理論：edge 衰減 / 執行劣化 / regime 改變 / 肥尾）",
+           "   （交易列表與月度 PnL＝實際美元）",
+           "   （Edge／Tail＝換算為 200U 保證金基準）",
+           f"   （本次檢查採用保證金排程：{_format_margin_schedule(schedule_start)}）"]
     W = 26
     worst = None
     for name, hp, note in items:
@@ -232,7 +261,8 @@ def build_check_live(data_dir: str, recent: int = 30) -> str:
         items.append(("2. 實盤貼合 (fidelity)", hp_f, note_f))
         items.append(("3. 突破延續 (regime shift)", *_check_continuation(codes)))
         items.append(("4. 尾部風險 (fat tail)", *_check_tail(pnls_R, codes)))
-        return _render(items, len(recent_rows), f"最近 {len(recent_rows)} 筆 vs 2 年基準")
+        return _render(items, len(recent_rows), f"最近 {len(recent_rows)} 筆 vs 2 年基準",
+                       schedule_start=FIDELITY_SINCE)
     except Exception as e:
         return f"\n（策略證偽檢查失敗：{type(e).__name__}: {e}）"
 
