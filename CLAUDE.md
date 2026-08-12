@@ -35,6 +35,7 @@ journalctl -u cryptobot -f                                       # 看日誌
 
 | 文件 | 內容 |
 |------|------|
+| [doc/live_data_spec.md](doc/live_data_spec.md) | 現行實盤資料／策略規格、資料欄位與維運語意（V14+R+V25-D） |
 | **CLAUDE.md**（本文件） | 專案總覽、架構、策略規格、目錄結構 |
 | [doc/backtest_history.md](doc/backtest_history.md) | 所有回測結果完整記錄（含 R10 Fix 16 輪 + GK 研究 + 稽核） |
 | [doc/dual_strategy_research.md](doc/dual_strategy_research.md) | 雙策略 L+S 研究過程 |
@@ -65,6 +66,7 @@ journalctl -u cryptobot -f                                       # 看日誌
 | [doc/v32_l13_s16_10gate_audit.md](doc/v32_l13_s16_10gate_audit.md) | L13/S16 完整 10-Gate 稽核（7 PASS、1 CONDITIONAL、2 FAIL；G3 IS/OOS 穩健性與 G8 時序翻轉失敗，維持 L15/S15） |
 | [doc/v32_l15_s15_10gate_audit.md](doc/v32_l15_s15_10gate_audit.md) | L15/S15 基準 10-Gate 稽核（8 PASS、1 N/A、1 FAIL；G8 時序翻轉 FAIL，但為現行鎖定基準，不需升級） |
 | [doc/v33_s_mild_up_research.md](doc/v33_s_mild_up_research.md) | V33 真實盤回饋研究（S/MILD_UP 進場 slope 過濾全 REJECTED；MH9 REJECTED；MH8 僅 SHADOW ONLY，線上維持 V14+R+V25-D） |
+| [doc/v34_dialogue_research.md](doc/v34_dialogue_research.md) | V34 2026-08 對話研究彙整（零交易 gate 診斷、週末/GK/突破敏感度、SIDE 1.3% shadow、2,000 天結果、V29 重稽核、GK shift A/B；**未部署**） |
 
 ---
 
@@ -181,6 +183,15 @@ cryptoBot/
   日期超出 K 線範圍時拒絕回傳結果，部分超界則顯示資料截止警告。
 - 回測工程修正：下載快取排除未收盤 K 線；研究引擎 GK percentile 改為完整窗口後才輸出。兩項修正均未改變既有 278 筆結果。
 - 部署方式：`cd ~/cryptoBot && git pull && sudo systemctl restart cryptobot`；只有 Telegram 通知需重啟後生效，V31 研究檔不影響實盤邏輯。
+
+### ✅ 2026-08-12 V34 對話研究同步（未部署）
+
+- 8/1～8/12 零開單經 gate 漏斗確認為策略正常運作：272/272 根為 `SIDE`，S 被 Path R 正確關閉；L 的兩次 GK＋突破均在週末。反事實測試顯示移除 S SIDE gate 會虧 -$146.93（500U 排程），L GK 放寬至 26 會虧 -$130.86。
+- 近兩年週末開倉、GK L25/S35 ±1、breakout L15/S15 ±1 與 81 組聯合網格均支持現行參數；不調整週末、GK 或 breakout。
+- 5.5 年 2,000 天長歷史中，S SIDE `<1.3%` 比現行 `<1.0%` 多 +$748、MDD 少 $57；但因來自掃描，定位為 **SHADOW ONLY**，線上仍為 `R_TH_SIDE=0.010`。
+- 現行策略 2,000 天固定 200U 回測：673 筆、+$10,092、PF 1.68、MDD $1,072。長歷史顯示收益集中且 regime-dependent，優先研究 V29 的紅燈恢復機制，非直接微調進出場。
+- GK percentile 的 `shift(1)` 不等於延後 1 小時進場；它將上一根的壓縮狀態與當根突破分離。移除後 5.5 年 PnL +$10,092 → +$5,104，L 由 +$3,995 轉 -$390，**必須保留**。
+- 完整數據、限制與未來研究清單見 [doc/v34_dialogue_research.md](doc/v34_dialogue_research.md)；本輪未改 `strategy.py`、`.env` 或 VPS 設定。
 
 ### ✅ 2026-08-07 V32/V33 研究同步
 
