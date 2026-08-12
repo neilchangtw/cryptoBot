@@ -14,6 +14,7 @@ ETH 1h V14 雙策略 L+S 主循環
 策略規格 V14，見 strategy.py。
 """
 import os
+import html as html_lib
 import sys
 import time
 import logging
@@ -1298,11 +1299,11 @@ def main():
                         entry_status_lines.append(
                             f"{_side} ❌ {len(_failed)} 個條件未通過")
                         for _label, _detail in _failed:
-                            entry_status_lines.append(f"  • {_label}：{_detail}")
+                            entry_status_lines.append(f"  • {_label}：{html_lib.escape(str(_detail), quote=False)}")
                     else:
                         entry_status_lines.append(f"{_side} ✅ 條件全部通過")
                         for _ok, _label, _detail in _gates[:4]:
-                            entry_status_lines.append(f"  • {_label}：{_detail}")
+                            entry_status_lines.append(f"  • {_label}：{html_lib.escape(str(_detail), quote=False)}")
                 entry_status = "\n".join(entry_status_lines)
 
                 # 風控狀態
