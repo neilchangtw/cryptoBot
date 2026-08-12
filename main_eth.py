@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 import threading
 import paths  # 多實例路徑；必須最先 import（會優先載入 INSTANCE_DIR/.env，見 paths.py）
 import strategy
+import signal_status
 import data_feed
 import recorder
 import labels  # 中文(英文)詞彙對照
@@ -1249,6 +1250,61 @@ def main():
                 except Exception:
                     pass
 
+                # 開單條件摘要：沿用 /signal 的 gate 判斷，確保心跳與實際進場邏輯一致
+                slope_val = ind.get("sma_slope")
+                if slope_val is None:
+                    slope_status = "N/A（暖機中）"
+                else:
+                    slope_pct = float(slope_val) * 100
+                    slope_status = f"{slope_pct:+.2f}%"
+
+                current_hour = t_utc8.hour
+                current_weekday = t_utc8.weekday()
+                l_time_ok = (current_hour not in strategy.BLOCK_H
+                              and current_weekday not in strategy.L_BLOCK_D)
+                s_time_ok = (current_hour not in strategy.BLOCK_H
+                              and current_weekday not in strategy.S_BLOCK_D)
+                time_now_status = (f"目前 {t_utc8.strftime('%a %H:%M')} UTC+8，"
+                                   f"L {'✅' if l_time_ok else '❌'}｜S {'✅' if s_time_ok else '❌'}")
+
+                gate_state = {
+                    "bar_counter": executor.bar_counter,
+                    "positions": executor.positions,
+                    "last_exits": executor.last_exits,
+                    "monthly_pnl": executor.monthly_pnl,
+                    "monthly_entries": executor.monthly_entries,
+                    "paused": executor.paused,
+                    "consec_losses": executor.consec_losses,
+                    "consec_loss_cooldown_until": executor.consec_loss_cooldown_until,
+                }
+                global_blocks = []
+                if executor.paused:
+                    global_blocks.append("/pause 暫停開新倉")
+                if executor.consec_loss_cooldown_until > executor.bar_counter:
+                    global_blocks.append(
+                        f"連虧冷卻剩 {executor.consec_loss_cooldown_until - executor.bar_counter}h")
+
+                entry_status_lines = []
+                for _side in ("L", "S"):
+                    _gates, _ = signal_status._side_gates(_side, df.iloc[idx], gate_state)
+                    _failed = [(label, detail) for ok, label, detail in _gates if not ok]
+                    _cb_ok, _cb_reason = executor.check_circuit_breaker(_side)
+                    if (not _cb_ok and "月虧" not in _cb_reason
+                            and "月進場" not in _cb_reason):
+                        _failed.append(("風控熔斷", _cb_reason))
+                    _failed.extend(("全域限制", reason) for reason in global_blocks)
+
+                    if _failed:
+                        entry_status_lines.append(
+                            f"{_side} ❌ {len(_failed)} 個條件未通過")
+                        for _label, _detail in _failed:
+                            entry_status_lines.append(f"  • {_label}：{_detail}")
+                    else:
+                        entry_status_lines.append(f"{_side} ✅ 條件全部通過")
+                        for _ok, _label, _detail in _gates[:4]:
+                            entry_status_lines.append(f"  • {_label}：{_detail}")
+                entry_status = "\n".join(entry_status_lines)
+
                 # 風控狀態
                 cb_info = ""
                 if executor.consec_losses >= 2:
@@ -1369,6 +1425,9 @@ def main():
                     f"💵 ETH：${bar_data['close']:.2f}\n"
                     f"🔋 壓縮能量：{gk_status}\n"
                     f"🎯 突破門檻：{brk_status}\n"
+                    f"🎯 開單狀態（SMA200 100-bar slope：{slope_status}；L≤+{strategy.R_TH_UP * 100:.1f}%｜S |slope|≥{strategy.R_TH_SIDE * 100:.1f}%）\n"
+                    f"{entry_status}\n"
+                    f"⏰ 時段：{time_now_status}\n"
                     f"🎰 持倉：\n{pos_text}\n"
                     + wrap_private(f"💰 金庫：${executor.account_balance:.2f}\n")
                     + f"{cb_info.lstrip(chr(10))}\n"
