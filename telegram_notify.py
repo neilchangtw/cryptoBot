@@ -10,6 +10,8 @@ Telegram 通知模組（v7）
 """
 import os
 import logging
+import html
+import re
 import threading
 import requests
 from dotenv import load_dotenv
@@ -64,6 +66,11 @@ def wrap_private(text):
     """包住敏感內容：私聊顯示、群組隱藏。內容自帶換行以保持移除後版面乾淨。"""
     return f"{HIDE_OPEN}{text}{HIDE_CLOSE}"
 
+
+def _plain_text_fallback(message):
+    """移除 HTML 標籤，供 Telegram HTML 解析失敗時保底重送。"""
+    plain = re.sub(r"<[^>]+>", "", message)
+    return html.unescape(plain)
 
 def _apply_privacy(message, chat_id):
     if HIDE_OPEN not in message:
@@ -150,6 +157,17 @@ def send_telegram_message(
                 response = requests.post(url, data=data, timeout=10)
                 if response.status_code == 200:
                     break
+                # HTML 解析失敗時以純文字保底重送，避免整點通知整則遺失。
+                if (response.status_code == 400
+                        and "can't parse entities" in response.text):
+                    fallback_data = {
+                        "chat_id": cid,
+                        "text": _plain_text_fallback(data["text"]),
+                    }
+                    fallback = requests.post(url, data=fallback_data, timeout=10)
+                    if fallback.status_code == 200:
+                        logger.warning("Telegram HTML parse failed for %s; sent plain-text fallback", cid)
+                        break
                 # 429 = rate limit，等一下再試
                 if response.status_code == 429:
                     import time; time.sleep(2)

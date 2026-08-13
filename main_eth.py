@@ -1265,8 +1265,7 @@ def main():
                               and current_weekday not in strategy.L_BLOCK_D)
                 s_time_ok = (current_hour not in strategy.BLOCK_H
                               and current_weekday not in strategy.S_BLOCK_D)
-                time_now_status = (f"目前 {t_utc8.strftime('%a %H:%M')} UTC+8，"
-                                   f"L {'✅' if l_time_ok else '❌'}｜S {'✅' if s_time_ok else '❌'}")
+                time_now_status = f"L {'✅' if l_time_ok else '❌'}｜S {'✅' if s_time_ok else '❌'}"
 
                 gate_state = {
                     "bar_counter": executor.bar_counter,
@@ -1299,11 +1298,11 @@ def main():
                         entry_status_lines.append(
                             f"{_side} ❌ {len(_failed)} 個條件未通過")
                         for _label, _detail in _failed:
-                            entry_status_lines.append(f"  • {_label}：{html_lib.escape(str(_detail), quote=False)}")
+                            entry_status_lines.append(f"  • {_label}")
                     else:
                         entry_status_lines.append(f"{_side} ✅ 條件全部通過")
                         for _ok, _label, _detail in _gates[:4]:
-                            entry_status_lines.append(f"  • {_label}：{html_lib.escape(str(_detail), quote=False)}")
+                            entry_status_lines.append(f"  • {_label}")
                 entry_status = "\n".join(entry_status_lines)
 
                 # 風控狀態
@@ -1421,19 +1420,23 @@ def main():
 
                 up_d, up_h = divmod(executor.bar_counter, 24)
                 hb_msg = (
-                    f"<b>🖨 V14 運轉中…（已運轉 {up_d} 天 {up_h}h）</b>\n"
+                    f"<b>🖨 V14</b>｜{up_d}天 {up_h}h\n"
                     f"━━━━━━━━━━━━━━━\n"
-                    f"💵 ETH：${bar_data['close']:.2f}\n"
-                    f"🔋 壓縮能量：{gk_status}\n"
-                    f"🎯 突破門檻：{brk_status}\n"
-                    f"🎯 開單狀態（SMA200 100-bar slope：{slope_status}；L≤+{strategy.R_TH_UP * 100:.1f}%｜S |slope|≥{strategy.R_TH_SIDE * 100:.1f}%）\n"
-                    f"{entry_status}\n"
-                    f"⏰ 時段：{time_now_status}\n"
-                    f"🎰 持倉：\n{pos_text}\n"
-                    + wrap_private(f"💰 金庫：${executor.account_balance:.2f}\n")
-                    + f"{cb_info.lstrip(chr(10))}\n"
-                    f"━━━━━━━━━━━━━━━\n"
-                    f"🩺 自檢：{check_text}"
+                    f"<b>📊 市場</b>\n"
+                    f"ETH ${bar_data['close']:.2f}\n"
+                    f"GK：{gk_status}\n"
+                    f"突破：{brk_status}\n"
+                    f"斜率：{slope_status}\n"
+                    f"時段：{time_now_status}\n\n"
+                    f"<b>🎯 開單</b>\n"
+                    f"{entry_status}\n\n"
+                    f"<b>🎰 持倉</b>\n"
+                    f"{pos_text}\n"
+                    + wrap_private(f"💰 金庫 ${executor.account_balance:.2f}\n")
+                    + f"\n<b>🛡 風控</b>\n"
+                    + f"{cb_info.lstrip(chr(10))}\n\n"
+                    f"<b>🩺 自檢</b>\n"
+                    f"{check_text}"
                 )
                 # 私聊維持每小時心跳；群組只在仍有持倉時收到心跳，平倉後立即停止。
                 send_telegram_message(hb_msg, include_groups=bool(positions))
