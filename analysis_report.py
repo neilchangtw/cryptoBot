@@ -6,7 +6,7 @@
   - VPS 終端機 CLI（analyze.py，html=False）
 
 只讀 trades.csv（+ bar_snapshots.csv 做 regime join），無副作用、不碰 API/executor。
-指標對齊 dashboard 收益分析：總損益 / WR / PF / 最大回撤 / 出場分佈 / L vs S / regime。
+共用收益分析：總損益 / WR / PF / 最大回撤 / 出場分佈 / L vs S / regime。
 """
 import os
 import csv

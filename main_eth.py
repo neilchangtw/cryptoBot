@@ -394,7 +394,7 @@ def _handle_pnl(executor, cmd_logger):
 
 
 def _handle_analysis(executor, cmd_logger, cmd=""):
-    """收益分析（Telegram 文字版的 dashboard 收益分析）。
+    """收益分析（Telegram 文字版的共用收益報告）。
 
     用法：
       /analysis      → 全期間統計

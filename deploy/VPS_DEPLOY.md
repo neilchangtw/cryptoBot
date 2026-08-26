@@ -111,7 +111,7 @@ tail -5  ~/cryptoBot/data_live/bar_snapshots.csv   # 最近 bar 快照
 .venv/bin/python verify_mainnet.py            # 唯讀體檢
 ```
 
-### 看績效 / 交易記錄（終端機，免開 dashboard）
+### 看績效 / 交易記錄（終端機）
 
 `trades.csv` 有 50+ 欄，`cat`/`tail` 直接看是亂碼。用 `analyze.py`（只挑關鍵欄位、對齊輸出；
 依 `.env` 的 `PAPER_TRADING` 自動選 `data_live/`）：
@@ -184,7 +184,7 @@ sudo systemctl status cryptobot --no-pager
    先切帳號再操作：`su - cryptobot` → `cd ~/cryptoBot`（root su 不需密碼）。或一律用絕對路徑 `/home/cryptobot/cryptoBot/...`。
 2. **Live 模式資料在 `data_live/`，不是 `data/`**（paper 才用 `data/`）。
 3. **網頁終端貼多行 / 長指令會被自動縮排或截斷** → 用本機 CMD 的 scp 傳檔，或用 `nano` 編輯，避免 inline 多行貼上。
-4. **只能有一個機器人跑**：家裡 Windows 的 `start.bat` 別再開（同帳戶重複下單）。
+4. **只能有一個機器人跑**：現行以 VPS systemd 為唯一實盤入口；不得啟動已封存的 Windows dashboard 腳本（同帳戶會重複下單）。
 5. **部位大小單一來源 = `.env`**（2026-06-06 統一；先前有過誤解，已釐清）：
    - 實盤下單金額 = `strategy.NOTIONAL`（`executor.py` 用 `NOTIONAL/entry` 算 qty 並明確傳給 `place_order`）。
    - `strategy.py` 已改成讀 `.env` 的 `LEVERAGE` / `MARGIN_PER_TRADE` 算 `NOTIONAL`（預設 20x / $200）。

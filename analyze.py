@@ -1,5 +1,5 @@
 """
-收益分析 CLI — 在 VPS 終端機直接看 dashboard 那套收益分析。
+收益分析 CLI — 在 VPS 終端機直接產生現行共用收益報告。
 
 與 Telegram /analysis 共用 analysis_report.build_report（同一套計算）。
 依 .env 的 PAPER_TRADING 自動選 data/（模擬）或 data_live/（正式）。

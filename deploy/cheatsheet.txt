@@ -50,7 +50,7 @@ column -s, -t ~/cryptoBot/data_live/trades.csv | less -S   # 表格對齊（q �
 cat ~/cryptoBot/eth_state_live.json | python3 -m json.tool   # 目前持倉/計數器/餘額
 
 ------------------------------------------------------------------
- 績效 / 開單條件查詢（終端機版，等同 Telegram 指令；免開 dashboard）
+ 績效 / 開單條件查詢（終端機版，等同 Telegram 指令）
 ------------------------------------------------------------------
 .venv/bin/python analyze.py            # 收益分析彙總（=/analysis）總損益/WR/PF/回撤/出場分佈/L vs S/regime
 .venv/bin/python analyze.py 30         # 收益分析最近 30 天
@@ -66,7 +66,7 @@ cat ~/cryptoBot/eth_state_live.json | python3 -m json.tool   # 目前持倉/計�
  跑回測（research 腳本需 730 天快取；data/ 沒打包上來要先抓）
  預設「貼近實盤」成交：TP/BE 用市價收盤成交（非理論價），SafeNet 維持真實 stop 模型
 ------------------------------------------------------------------
-.venv/bin/python run_backtest.py                       # 終端機回測（=儀表板回測 tab，V14+R+V25-D，貼近實盤）
+.venv/bin/python run_backtest.py                       # 終端機回測（V14+R+V25-D，貼近實盤）
 .venv/bin/python run_backtest.py -t                    # 加印每筆進出場明細
 .venv/bin/python run_backtest.py --start 2025-01-01 --end 2025-06-30   # 選日期範圍
 .venv/bin/python run_backtest.py --ideal               # 理想化成交（TP 鎖理論價，= 舊版/研究基準）對照用
@@ -152,7 +152,7 @@ for u in $(systemctl list-units 'cryptobot@*' --no-legend | awk '{print $1}'); d
 ==================================================================
  重要提醒
 ==================================================================
-- 只能有一個機器人跑：家裡 Windows 的 start.bat 別再開（同帳戶會重複下單）
+- 只能有一個機器人跑：現行以 VPS systemd 為唯一實盤入口；不要啟動已封存的 Windows dashboard 腳本（同帳戶會重複下單）
 - 真錢交易：改 binance_trade.py / executor.py / 下單流程務必格外小心
 - 部位大小單一來源 = .env：strategy.py 讀 .env 的 LEVERAGE/MARGIN_PER_TRADE 算 NOTIONAL，
   executor 用 NOTIONAL/entry 算下單 qty。verify_mainnet.py / binance_trade.py 也讀同一組 .env。

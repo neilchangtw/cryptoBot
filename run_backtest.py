@@ -1,8 +1,8 @@
 """
-終端機回測 CLI — 在 VPS 上直接跑回測，可選日期範圍（等同儀表板「回測」tab）。
+終端機回測 CLI — 在 VPS 或本機直接跑回測，可選日期範圍。
 
-用的是儀表板同一個引擎 backtest/research/v14_export_trades.py（V14+R + V25-D），
-參數預設與線上實盤一致，日期過濾邏輯與儀表板 _run_backtest 完全相同，數字會吻合。
+使用現行共用引擎 backtest/research/v14_export_trades.py（V14+R + V25-D），
+參數預設與線上實盤一致，日期過濾邏輯是唯一現行回測定義。
 
 用法：
     .venv/bin/python run_backtest.py                          # 全期間
@@ -130,7 +130,7 @@ def main():
     ind = eng.compute_indicators(df)
     datetimes = df["datetime"].values
 
-    # ── 日期過濾（與儀表板 _run_backtest 完全相同）──
+    # ── 日期過濾（現行唯一回測定義）──
     start_bar = None
     if args.start:
         for j, dt in enumerate(datetimes):
@@ -153,7 +153,7 @@ def main():
     if realistic:
         mode_str = f"貼近實盤（TP/BE 市價收盤成交，滑價 {args.slip:.0f}bp）"
     else:
-        mode_str = "理想化（TP 鎖理論價，= 研究/儀表板基準）"
+        mode_str = "理想化（TP 鎖理論價，= 研究基準）"
     if schedule:
         sched_str = " → ".join(
             f"{m}U" if d == "2000-01-01" else f"{m}U@{d}" for d, m in schedule)

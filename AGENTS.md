@@ -16,12 +16,8 @@ journalctl -u cryptobot -f                                       # 看日誌
 # 日常查看用 Telegram（/help）或終端機 analyze.py / check_signal.py
 ```
 
-**本機（Windows，開發/回測用；儀表板已停用）**：
-
-```
-雙擊 start.bat 或 dashboard.bat → 啟動儀表板 + 自動啟動機器人（歷史用法）
-雙擊 stop.bat                  → 強制停止（備用）
-```
+**本機（Windows，開發／回測用）**：舊儀表板和 Windows 啟動腳本已封存於
+`archive/legacy_dashboard/`，不再是可用入口；日常請使用 `.venv` 的終端機診斷與回測指令。
 
 - Python 環境在 `.venv/`，**不在系統 PATH**，所有指令必須透過 `.bat` 或先 `call .venv\Scripts\activate`
 
@@ -36,6 +32,7 @@ journalctl -u cryptobot -f                                       # 看日誌
 | 文件 | 內容 |
 |------|------|
 | [doc/live_data_spec.md](doc/live_data_spec.md) | 現行實盤資料／策略規格、資料欄位與維運語意（V14+R+V25-D） |
+| [archive/README.md](archive/README.md) | 已封存的本機回測輸出與舊 Windows 儀表板說明 |
 | **AGENTS.md**（本文件） | 專案總覽、架構、策略規格、目錄結構 |
 | [doc/backtest_history.md](doc/backtest_history.md) | 所有回測結果完整記錄（含 R10 Fix 16 輪 + GK 研究 + 稽核） |
 | [doc/dual_strategy_research.md](doc/dual_strategy_research.md) | 雙策略 L+S 研究過程 |
@@ -91,30 +88,24 @@ cryptoBot/
 │  ── 診斷工具 ──
 ├── check_health.py        # 策略健康報告（8 項指標，中文(英文)輸出：月交易量/安全網率/勝率/PF/回撤...）
 ├── analysis_report.py     # 收益分析共用計算（Telegram /analysis + analyze.py 共用，只讀 CSV；中文(英文) 出場/趨勢）
-├── analyze.py             # 終端機收益分析 CLI（彙總 + -t 交易列表，VPS 上免開 dashboard 看績效）
+├── analyze.py             # 終端機收益分析 CLI（彙總 + -t 交易列表）
 ├── signal_status.py       # 即時開單條件共用計算（Telegram /signal + check_signal.py 共用）
 ├── edge_falsify.py        # 策略證偽檢查（4 項理論檢核：edge 衰減/實盤貼合/突破延續/尾部風險）
 │                          # 自動附加在 analyze.py（實盤）與 run_backtest.py（回測）輸出尾端
 │                          # HP%「大=好」；基準常數=2年 --flat 貼近實盤回測，重算方式見檔頭
 ├── check_signal.py        # 終端機開單條件 CLI（L/S 每 gate ✅/❌ + 可開單時段；勿命名 signal.py 會撞內建模組）
 ├── menu.py                # 終端機指令清單（等同 Telegram /help，列出所有 CLI + Telegram 指令）
-├── run_backtest.py        # 終端機回測 CLI（可選日期範圍，= 儀表板回測 tab 同引擎 V14+R+V25-D）
+├── run_backtest.py        # 終端機回測 CLI（可選日期範圍，現行引擎 V14+R+V25-D）
 │                          # 預設「貼近實盤」成交（TP/BE 市價收盤成交）；--ideal 切理論價、--slip 加滑價
 ├── fetch_backtest_data.py # 補回測 K 線快取（Binance 公開端點分頁抓 730 天，VPS 跑回測用）
 ├── verify_mainnet.py      # 正式盤上線前唯讀體檢（API/餘額/Hedge Mode/精度/K線）
 │
-│  ── 儀表板（Dashboard） ──
-├── dashboard/
-│   ├── app.py             # FastAPI 後端（7 個 API 端點）+ 機器人子進程管理 + PyWebView
-│   └── static/
-│       ├── index.html     # SPA 主頁（5 個 tab：狀態/K線/交易/分析/日誌）
-│       ├── app.js         # 前端邏輯（圖表、表格、日誌查看、自動刷新）
-│       └── style.css      # 深色主題樣式
-│
-│  ── 啟動腳本 ──
-├── start.bat              # 一鍵啟動儀表板（自動啟動機器人）
-├── stop.bat               # 一鍵停止（備用，關儀表板視窗即可）
-├── dashboard.bat          # 同 start.bat（啟動儀表板 + 機器人）
+│  ── 已封存：舊 Windows 儀表板與啟動流程 ──
+├── archive/legacy_dashboard/
+│   ├── dashboard/         # 舊 FastAPI + PyWebView 儀表板（不參與現行執行）
+│   ├── start.bat / dashboard.bat / stop.bat
+│   ├── go_live.bat / _go_live_check.py
+│   └── README.md          # 封存內容、替代流程與還原條件
 │
 │  ── 狀態與設定 ──
 ├── .env                   # 環境變數（API key, Telegram token, PAPER_TRADING 開關）
@@ -266,7 +257,7 @@ cryptoBot/
   動態風控自動等比：日虧 -300 / L 月虧 -112.5 / S 月虧 -225；策略規格內的 $ 數字仍為
   200U/$4,000 研究基準）
 - **演進**：GK v1.1 → v6 L+S → V10 → V11-E → V13 → V14 → **V14+R → V14+R+V25-D（線上）**
-- **Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗（**目前已停用，改用終端機 + Telegram**）
+- **舊 Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗（**已封存，改用終端機 + Telegram**）
 - **顯示慣例**：所有終端機/Telegram 輸出的出場原因、進場趨勢、方向一律「中文 (英文)」格式，統一由 `labels.py` 產生（如 `止盈 (TP)`、`偏多 (MILD_UP)`）；交易列表時間顯示為**實際成交時刻**（K 棒收盤 = 開盤+1h，對齊幣安後台）
 - **每小時心跳**：標題顯示累計運轉天數；有持倉時額外顯示該倉的出場條件（止盈/安全網價位、最長持倉剩餘、浮盈回吐狀態）；固定顯示「💚 策略健康度 xx%」（V29 Edge 衰退警報，出場時更新，黃/紅燈轉換另發告警）；自檢正常時收斂一行「✅ 正常（無告警・資料新鮮・倉位同步・停損掛單在）」，異常才逐項展開（LIVE 每小時各一次唯讀 API 驗證倉位同步與 SafeNet 掛單存在）
 - **回測成交假設**：`run_backtest.py` 預設「貼近實盤」（TP/BE 用市價收盤成交，非理論價；SafeNet 維持真實 stop），`--ideal` 可切回理論價對照、`--slip` 加滑價壓測；引擎 `simulate_v14_detailed(realistic=,slip_bps=)`，研究腳本預設仍理想化
@@ -517,10 +508,12 @@ Testnet 特殊處理：
   - STOP_MARKET 不支持 new_order 端點 → 改用 Algo Order API
 ```
 
-### 儀表板 (dashboard/)
+### 已封存的儀表板（`archive/legacy_dashboard/dashboard/`）
+
+> 2026-08-12 已封存，不再提供本機啟動方式。下方為歷史結構說明，不得用作現行實盤入口；替代流程見 `archive/legacy_dashboard/README.md`。
 
 ```
-dashboard/app.py:
+archive/legacy_dashboard/dashboard/app.py:
   FastAPI 後端 (port 8050) + PyWebView 原生 Windows 視窗
   啟動時自動 kill_port(8050) 防止 port 衝突
   等 server 就緒後才開視窗
@@ -539,7 +532,7 @@ dashboard/app.py:
     Paper: eth_state.json + data/
     Live:  eth_state_live.json + data_live/
 
-dashboard/static/:
+archive/legacy_dashboard/dashboard/static/:
   index.html — SPA 5 個 tab
   app.js     — 前端邏輯：TradingView LW Charts v4.2 + 表格 + 日誌 + 自動刷新
   style.css  — 深色主題（bg #0f0f1a, card #1a1a2e, green #26a69a, red #ef5350, gold #f0b90b）
@@ -584,18 +577,12 @@ LEVERAGE=20                 # 槓桿倍數（預設 20）
 ## 常用指令
 
 ```bash
-# 透過 .bat 啟動（推薦，不需手動 activate）
-雙擊 start.bat 或 dashboard.bat  # 啟動儀表板 + 機器人
-關閉儀表板視窗                    # 自動停止機器人
-雙擊 stop.bat                    # 強制停止（備用）
-
-# 或手動（需先 activate）
+# 本機／VPS 終端機（需先 activate）
 call .venv\Scripts\activate
-python dashboard/app.py         # 啟動儀表板（自動啟動機器人）
-python main_eth.py              # 單獨啟動機器人（不開儀表板）
+python main_eth.py              # 本機手動啟動機器人（確認未有其他同帳戶程序）
 python check_health.py --days 30  # 健康報告
 
-# 終端機看績效 / 開單條件（VPS 無 dashboard 時用；等同 Telegram 指令；依 .env 自動選 data/ 或 data_live/）
+# 終端機看績效 / 開單條件（等同 Telegram 指令；依 .env 自動選 data/ 或 data_live/）
 python analyze.py               # 收益分析彙總（=/analysis）總損益/WR/PF/最大回撤/出場分佈/L vs S/regime
 python analyze.py 30            # 收益分析（最近 30 天）
 python analyze.py -t            # 對齊好讀的交易列表（=/trades，最近 20 筆）
@@ -609,7 +596,7 @@ python check_signal.py          # 即時開單條件（=/signal）L/S 每個 gat
 #   🔴率 0.4~2% 僅真虧損窗口；🟡率 15~21% 對應「連續兩月才凍結加碼」的低成本動作）
 python menu.py                  # 終端機指令清單（=/help）忘記指令時看這個
 
-# 終端機回測（= 儀表板回測 tab，V14+R+V25-D，可選日期範圍；VPS 上免儀表板）
+# 終端機回測（V14+R+V25-D，可選日期範圍）
 # 預設「貼近實盤」成交：TP/BE 用市價收盤成交（實盤無 TP 限價單，每小時市價平）；
 # SafeNet 維持真實 stop 模型。差異主要在 TP 筆，MH/MFE 兩模式相同。
 python run_backtest.py                              # 全期間（貼近實盤）
@@ -713,5 +700,5 @@ python fetch_backtest_data.py   # Binance 公開端點分頁抓 ETH+BTC 1h 730 �
 - **Testnet 行為差異**：MARKET 訂單返回 NEW 非 FILLED、不支持 STOP_MARKET via new_order、closePosition SL 每方向限 1 個
 - **Python 不在 PATH**：必須用 `.bat` 或手動 activate `.venv`
 - **eth_state.json 勿手動修改**：除非機器人已停止且需要清理錯誤狀態
-- **Dashboard port 8050**：啟動時自動清理舊進程，但如果機器人佔用 port 會衝突
+- **封存 Dashboard port 8050**：僅供還原舊儀表板時參考；現行不應啟動該服務
 - **K 線快取 CSV (~2.5MB)**：data_feed.py 每次從 Binance API 即時抓取，CSV 是離線回測用
