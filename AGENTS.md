@@ -64,6 +64,10 @@ journalctl -u cryptobot -f                                       # 看日誌
 | [doc/v32_l15_s15_10gate_audit.md](doc/v32_l15_s15_10gate_audit.md) | L15/S15 基準 10-Gate 稽核（8 PASS、1 N/A、1 FAIL；G8 時序翻轉 FAIL，但為現行鎖定基準，不需升級） |
 | [doc/v33_s_mild_up_research.md](doc/v33_s_mild_up_research.md) | V33 真實盤回饋研究（S/MILD_UP 進場 slope 過濾全 REJECTED；MH9 REJECTED；MH8 僅 SHADOW ONLY，線上維持 V14+R+V25-D） |
 | [doc/v34_dialogue_research.md](doc/v34_dialogue_research.md) | V34 2026-08 對話研究彙整（零交易 gate 診斷、週末/GK/突破敏感度、SIDE 1.3% shadow、2,000 天結果、V29 重稽核、GK shift A/B；**未部署**） |
+| [doc/maxhold_review_20260908.md](doc/maxhold_review_20260908.md) | 9/8 附件復盤：269筆回測重現、35筆實戰對齊，MH／TP敏感度初查 |
+| [doc/strategy_optimization_plan_20260908.md](doc/strategy_optimization_plan_20260908.md) | 9/8 優化研究計畫與預登記門檻；歷史驗證已完成 |
+| [doc/optimization_execution_20260908.md](doc/optimization_execution_20260908.md) | 完整funding／mark淨值稽核：15組規則、90組成本測試、18組WF；**NO PROMOTION**，S/DOWN TP3%證據不足 |
+| [doc/research_results/20260908/README.md](doc/research_results/20260908/README.md) | 可追溯研究彙總、結果JSON、重現方式與本機輸入限制 |
 
 ---
 

@@ -1,0 +1,67 @@
+{
+  "checks": {
+    "funding_rows": 2190,
+    "mark_1h_rows": 17519,
+    "hourly_continuity": "PASS",
+    "funding_8h_continuity": "PASS",
+    "funding_mark_price": "PASS",
+    "ohlc": "PASS"
+  },
+  "old_funding_overlap_rows": 1987,
+  "old_funding_rates_match": true,
+  "years": [
+    {
+      "year": "year1",
+      "start_taipei": "2024-09-08 11:00:00+08:00",
+      "end_exclusive_taipei": "2025-09-08 11:00:00+08:00",
+      "checks": {
+        "funding_rows": 1095,
+        "mark_1h_rows": 8760,
+        "hourly_continuity": "PASS",
+        "funding_8h_continuity": "PASS",
+        "funding_mark_price": "PASS",
+        "ohlc": "PASS"
+      },
+      "request_count": 11,
+      "request_seconds": 0.6990477996878326,
+      "download_validate_save_seconds": 2.3019709000363946,
+      "response_body_bytes": 1173056,
+      "csv_bytes": 829789,
+      "sha256": {
+        "funding.csv": "291a6f201f6ef1038ca9f3205d02efe8dbb673459505c23f724b0dd73e109a1a",
+        "mark_1h.csv": "60a93888fa8c64cc5c15fe9e76eab21bde4bf8c2c1beca8244e08b8feea6389a"
+      },
+      "notes": "HTTP body only, excludes headers/TLS; pauses included in total; no automatic retries"
+    },
+    {
+      "year": "year2",
+      "start_taipei": "2025-09-08 11:00:00+08:00",
+      "end_exclusive_taipei": "2026-09-08 10:00:00+08:00",
+      "checks": {
+        "funding_rows": 1095,
+        "mark_1h_rows": 8759,
+        "hourly_continuity": "PASS",
+        "funding_8h_continuity": "PASS",
+        "funding_mark_price": "PASS",
+        "ohlc": "PASS"
+      },
+      "request_count": 11,
+      "request_seconds": 1.2938585999654606,
+      "download_validate_save_seconds": 2.887925999937579,
+      "response_body_bytes": 1185585,
+      "csv_bytes": 837334,
+      "sha256": {
+        "funding.csv": "9691f606462bb462340385f6709c0f7d7038ebe1e95265d02febc2be91a9cb85",
+        "mark_1h.csv": "d4a592deb340213bfba8ee8cce8e08cbae200cdd24546891ae640f4a66aab4e6"
+      },
+      "notes": "HTTP body only, excludes headers/TLS; pauses included in total; no automatic retries"
+    }
+  ],
+  "total_response_body_bytes": 2358641,
+  "sum_download_validate_save_seconds": 5.189896899973974,
+  "frozen_candles_sha256": "855beafe423d3779ded175b0745d4e8bcd48ec5fa943ca3eb3782e683c548918",
+  "sha256": {
+    "funding_full.csv": "148be5e74fe66f6dff6e54fac228022707b9073b68db1b6277df216b3e6ceb77",
+    "mark_1h_full.csv": "3f9586a44ad530cb63df07a63c749de479953ae2e9ab4f25d81c19e47f0929cb"
+  }
+}

@@ -4041,3 +4041,13 @@ BCHUSDT       -295     -445   45.4%   2/6    F     IS<0, OOS<0, WF<3
 |------|------|
 | `v20_r0_download_multi.py` | 下載 10 個標的 730 天 1h K 線 |
 | `v20_r0_screening.py` | V14 locked-parameter 篩選（9 標的 + ETH baseline） |
+
+## 2026-09-08：MaxHold優化與完整成本驗證（NO PROMOTION）
+
+- 資料：固定17,519根ETHUSDT 1h，補齊2,190筆funding與同窗口mark-price。附件269筆重現、35筆實戰時間／原因對齊。
+- 執行15組單項／對照、90組保證金／成本測試、18組連續狀態WF及4組10bp壓測；所有進場條件只讀當下已完成資料。
+- 固定200U／20x、額外0bp、含funding：現行PnL +7,926.70、mark淨值MDD368.53、MH75。
+- S/DOWN TP3%：PnL +8,443.64（+516.94）、MDD368.53、MH76。只有29筆變動，區塊bootstrap增量區間跨零，WF有效樣本不足，判 **INCONCLUSIVE**。
+- S MH+3/+4h因早期退化未過；成交量、ADX、回測確認與延遲對照未通過收益或風險門檻。參數家族未同時合格，依預登記計畫跳過TP＋MH組合。
+- 結論：**NO PROMOTION**。保留TP3%為未來固定觀察假說，正式策略、VPS及設定不變。
+- [完整報告](optimization_execution_20260908.md)；[預登記計畫](strategy_optimization_plan_20260908.md)；[結果快照及重現限制](research_results/20260908/README.md)。
