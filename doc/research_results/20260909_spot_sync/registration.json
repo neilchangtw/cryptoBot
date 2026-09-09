@@ -1,0 +1,23 @@
+{
+  "rules": [
+    "base",
+    "both",
+    "long",
+    "short"
+  ],
+  "hashes": {
+    "backtest\\research\\spot_futures_sync_20260909.py": "f157f56f3a912358ff72e3806a20dc66f7aecc9aa0fbeb61cb77b952f7dd34a7",
+    "backtest\\research\\fetch_spot_sync_20260909.py": "26eeb1755e70de45c14b3058651a3aad4abc7fea5f51d2ca5cba004d3903ab2a",
+    "backtest\\research\\intrahour_entry_20260908.py": "cfcafa7dde2c841567323a839982986529be7055c123857f0d9e39775b59460b",
+    "backtest\\research\\execute_optimization_plan_20260908.py": "95b9ae1859857f157b38be335cc906d2728b55b7344250dbecc530d30ff74b61",
+    "doc\\spot_futures_sync_plan_20260909.md": "7658fbd17105490e3fa23973de9fa35086085bddcd497c0349d3ea6398aed038",
+    "strategy.py": "4b379a8034eb9169af12b3a547f340602cf0c6efa84d6bc5ef9829e8dc5631a8",
+    "executor.py": "304914263b77b1db08d76f4df4edeeca1f3d5cda20c0e0f651732c4a9034c737",
+    "backtest\\research\\v14_export_trades.py": "222450d9d330352bd210473192fc21527036819ce542e4de5354d006a20f9669",
+    "data\\maxhold_review_20260908\\candles.csv": "855beafe423d3779ded175b0745d4e8bcd48ec5fa943ca3eb3782e683c548918",
+    "data\\spot_futures_sync_20260909\\spot_1h.csv": "96464a57c52d70a62ae8a91f02c2464778e65c63b2c4d6ca91c75d63fb97a27b",
+    "data\\spot_futures_sync_20260909\\manifest.json": "f4d8171c4b24f3ae87ae92caa3e44772770d98fe6e4d44d099ab82c612961866",
+    "data\\public_cost_history_20260908\\mark_1h_full.csv": "3f9586a44ad530cb63df07a63c749de479953ae2e9ab4f25d81c19e47f0929cb",
+    "data\\public_cost_history_20260908\\funding_full.csv": "148be5e74fe66f6dff6e54fac228022707b9073b68db1b6277df216b3e6ceb77"
+  }
+}

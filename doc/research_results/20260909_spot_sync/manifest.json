@@ -1,0 +1,265 @@
+{
+  "url": "https://api.binance.com/api/v3/klines",
+  "source_sha256": "855beafe423d3779ded175b0745d4e8bcd48ec5fa943ca3eb3782e683c548918",
+  "csv_sha256": "96464a57c52d70a62ae8a91f02c2464778e65c63b2c4d6ca91c75d63fb97a27b",
+  "rows": 17519,
+  "first_open_taipei": "2024-09-08 11:00:00",
+  "last_open_taipei": "2026-09-08 09:00:00",
+  "downloaded_utc": "2026-09-09 08:27:53.321141+00:00",
+  "requests": [
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1725764400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 176100,
+      "seconds": 0.12103080004453659,
+      "sha256": "f53eddd1e0f6fd5d798b641cdd8f374f2824f165c8b445616a8be284d7d811ed",
+      "file": "raw\\1725764400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1729364400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 177997,
+      "seconds": 0.06842299993149936,
+      "sha256": "769349cb1004ded8ed0404f0077ac953b7e79267fa0755ff803f95b20eef646a",
+      "file": "raw\\1729364400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1732964400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 177859,
+      "seconds": 0.07166320004034787,
+      "sha256": "52f645bbc19e49841d1e90acd6e115d9342def83987d76c4ed3a34a96543d944",
+      "file": "raw\\1732964400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1736564400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 177842,
+      "seconds": 0.06673249998129904,
+      "sha256": "aaa480b9bd250bb4aefb56f94b7cda5eadcaadd1de4ad2b24f75197043f89fd2",
+      "file": "raw\\1736564400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1740164400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 177560,
+      "seconds": 0.06608869996853173,
+      "sha256": "ab4f89c498a7b565804d1cb074b9d13d1262b177a237a4f0d957a828e81b1aaa",
+      "file": "raw\\1740164400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1743764400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 177643,
+      "seconds": 0.06455389992333949,
+      "sha256": "478945a110d7e90c09c1b448573180de04298d32c0bb821f4dbbbf95518321ac",
+      "file": "raw\\1743764400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1747364400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 178017,
+      "seconds": 0.06618850002996624,
+      "sha256": "8844c9f27e9adf5022254cfa2d113fe8626091f435dc6cf447346eeb8bcde8e1",
+      "file": "raw\\1747364400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1750964400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 177983,
+      "seconds": 0.06855329999234527,
+      "sha256": "6538b1e886fab1f1783441968564c36c3440ff4693f7c6959a4b3d1c6a0b1103",
+      "file": "raw\\1750964400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1754564400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 178470,
+      "seconds": 0.06394309992901981,
+      "sha256": "c935cc444a850af1f0a2c968e95a208582ad9e95d461e289bee2d54a0cefe128",
+      "file": "raw\\1754564400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1758164400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 178095,
+      "seconds": 0.06600840005557984,
+      "sha256": "30e3ffa32bcb35a9738473f4a3044d931693a08fa9e72aa3b676022eb4741db7",
+      "file": "raw\\1758164400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1761764400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 178162,
+      "seconds": 0.06594290002249181,
+      "sha256": "91d351d07af72f630bea6c398c21f8c2320290c6dfc9cbe66ad78c4ce53d98ef",
+      "file": "raw\\1761764400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1765364400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 176723,
+      "seconds": 0.06506119994446635,
+      "sha256": "75419a05e5d09c98cd01922ddd412a986dc3729f99eb0d0122e5c7c156439b3a",
+      "file": "raw\\1765364400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1768964400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 177892,
+      "seconds": 0.09279369993600994,
+      "sha256": "134994fff9a0ef2eda70fee6d3b45fc7b907ce476afd08779f5f5c31c2a39832",
+      "file": "raw\\1768964400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1772564400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 176810,
+      "seconds": 0.12520519993267953,
+      "sha256": "f20bb9b597b43879e610a4a14b4dec43b19cc90f6dd593f8b452448edff779e9",
+      "file": "raw\\1772564400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1776164400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 176139,
+      "seconds": 0.06659569998737425,
+      "sha256": "111acf4a05f4d3ef27ede1d3b2ce0555e6845fd5394f05742b6aee9b091fc3d9",
+      "file": "raw\\1776164400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1779764400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 176386,
+      "seconds": 0.06381840002723038,
+      "sha256": "bb83fdbb36199f48645d9888bd6000cc1c95ab4a285283d4378ad8bf0086fa25",
+      "file": "raw\\1779764400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1783364400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 175258,
+      "seconds": 0.065293800085783,
+      "sha256": "e3e05394f8d700bf8d7a092e53a2942e2735825cabca4a0364e156d6c0d69fe0",
+      "file": "raw\\1783364400000.json"
+    },
+    {
+      "params": {
+        "symbol": "ETHUSDT",
+        "interval": "1h",
+        "startTime": 1786964400000,
+        "endTime": 1788832799999,
+        "limit": 1000
+      },
+      "cached": false,
+      "bytes": 91727,
+      "seconds": 0.05703590007033199,
+      "sha256": "9c73bdf3491bcccdd394aaf660e06042bbb12add9a46d0c1f3ebaf991c565c90",
+      "file": "raw\\1786964400000.json"
+    }
+  ],
+  "wall_seconds": 1.4375622000079602,
+  "download_bytes": 3106663
+}
