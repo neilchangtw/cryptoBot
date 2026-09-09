@@ -1,0 +1,80 @@
+"""輸出突破失效研究報告與精簡證據。"""
+from pathlib import Path
+import json
+import shutil
+
+ROOT=Path(__file__).resolve().parents[2]
+OUT=ROOT/'data/breakout_failure_20260908'
+
+
+def main():
+    r=json.loads((OUT/'results.json').read_text())
+    def row(name,slip=0,hist=False):return next(x for x in r['rows'] if x['name']==name and x['slip']==slip and x['historical']==hist)
+    lines=['# 突破失效與MaxHold研究結果','',
+           '日期：2026-09-08。**NO PROMOTION：1根／連續2根1h收回突破區間即出場，兩組均REJECTED。**',
+           '', '研究前先保存[規則登記](breakout_failure_plan_20260908.md)。下列結果來自凍結兩年行情與完整狀態回測，非實盤績效。','',
+           '## 定義與限制','',
+           '在進場訊號棒鎖定前15根已完成1h收盤最大／最小值B；L收盤<=B、S收盤>=B叫「收回區間」。此名稱只描述當下可見現象，不把最後MH或未達TP當成假突破定義。',
+           '', '持倉期從進場後下一根開始。1h統計包括原收盤出場那根，另列嚴格早於原出場棒的事件；SafeNet盤中出場最後一小時不觀察，以免用出場後資料。5m僅用已完成收盤，不推測高低價先後。',
+           '', '凍結1h不修訂。兩個來源異常小時、進場時B所用前15h窗口皆檢查品質；無效時新失效判斷停用、連續計數清零，原保護出場照常。本次269筆的可觀察路徑品質皆合格，兩筆SafeNet最後一小時仍依規則排除；不能因此宣稱更長指標不受行情版本影響。','',
+           '## 多數MH是否曾收回區間？','',
+           '|原出場結果|筆數|曾有1h收回|曾有5m收回|至少早1h已收回|至少早1h連續2根收回|',
+           '|---|---:|---:|---:|---:|---:|']
+    labels={'MH':'MaxHold','WIN':'淨獲利','OTHER_LOSS':'其他非正交易'}
+    for x in r['groups']:
+        if x['side']!='ALL':continue
+        lines.append(f"|{labels[x['group']]}|{x['n']}|{x['ever_1h']}（{x['ever_1h']/x['n']*100:.1f}%）|{x['ever_5m']}（{x['ever_5m']/x['n']*100:.1f}%）|{x['early_1']}|{x['early_2']}|")
+    lines+=['',
+            'MH有82.7%曾在1h收盤收回區間，5m粒度為90.7%，所以使用者的懷疑有描述性依據；但贏單亦有41.8%／51.8%出現同樣現象。只觀察收回無法把假突破與後來恢復的回踩分開，更不能證明因果。',
+            '', '13筆MH沒有1h收回、7筆連5m收回也沒有；因此不能說MH全部是假突破。這些數字不代表其餘每筆都是假突破。','',
+            '## 收回當下，退出是否更好？','',
+            '先以原交易固定進出場母體，找嚴格早於原出場棒的首次事件，按該1h收盤市價及原完整費用、當時已發生funding計算退出值。這是事件條件診斷，不含替代交易或風控變化。',
+            '', '|確認條件／時期|事件數|照原策略最終淨利|當時全退出淨利|繼續持有相對退出差額|',
+            '|---|---:|---:|---:|---:|']
+    for x in r['conditional']:
+        if x['side']!='ALL':continue
+        lines.append(f"|{x['confirmation']}根／{x['period']}|{x['n']}|{x['original_net']:+.2f}|{x['exit_now_net']:+.2f}|{x['hold_minus_exit']:+.2f}|")
+    lines+=['', '第一次收回的143筆，99筆繼續持有比當時退出更好，平均每筆差額+39.49美元；連續2根的97筆，65筆繼續持有更好，平均+36.62美元。這兩個差額在2026前與2026皆為正。',
+            '', '即使某組照原策略最終仍虧損，也不表示提前退出能少虧：例如連續2根事件，最終合計-458.43，但在確認時全退為-4010.17。應比較當下兩個動作的差額，不能只看該組最終是否負收益。','',
+            '## 完整交易序列驗證','',
+            '新增FAIL出口只在原出場條件未觸發時執行；原TP／SafeNet／MFE／MH／BE優先。新出口共用原出場記帳、冷卻、日/月熔斷及連敗狀態，未改進場條件。',
+            '', '固定200U／20x、原交易成本及完整funding、額外0bp。MDD為逐時mark收盤淨值，不是棒內回撤。','',
+            '|規則|交易數|淨利USD|勝率|MDD|MH|新增FAIL出場|SafeNet|',
+            '|---|---:|---:|---:|---:|---:|---:|---:|']
+    for n in ['base','fail1','fail2']:
+        x=row(n);m=x['full']
+        lines.append(f"|{n}|{m['n']}|{m['net_pnl']:.2f}|{m['wr']:.1f}%|{m['mdd']:.2f}|{m['mh']}|{x['fail_exits']}|{m['sn']}|")
+    lines+=['', 'MH顯著減少主要是改以FAIL提早退出，不能只看出場名称。兩候選均降低總淨利、勝率並擴大MDD與最差30日損失。','',
+            '|相同進場的交易歸因|1根|2根|','|---|---:|---:|']
+    for key,title in [('same_entry_old_mh_delta','原MH的淨損益改善'),('same_entry_old_winner_delta','原贏單的淨損益差額')]:
+        lines.append(f"|{title}|{r['diagnostics']['1'][key]:+.2f}|{r['diagnostics']['2'][key]:+.2f}|")
+    lines+=['', '1根確認使共同進場中61筆原贏單轉為非正，2根也有37筆；原MH轉成淨盈利的共同交易兩組皆為0。這不代表每筆原MH都更差，而是少虧的總額不足彌補贏單損失。',
+            '', '共同進場／消失／新增交易：1根226／43／20；2根248／21／8。上表只列共同交易部分歸因，不能與完整增量直接等同；完整配對CSV保留其他交易差額。','',
+            '## 成本與分期','', '|規則|固定200U增量0／2／5bp|歷史排程增量0／2／5bp|','|---|---:|---:|']
+    for n in ['fail1','fail2']:
+        cells=[]
+        for h in [False,True]:cells.append('／'.join(f"{row(n,s,h)['full']['net_pnl']-row('base',s,h)['full']['net_pnl']:+.2f}" for s in [0,2,5]))
+        lines.append(f"|{n}|{'|'.join(cells)}|")
+    lines+=['', '固定200U三種成本下，兩候選的全期、2026前、2026收益均低於基準；MDD／最差30日亦超過原允許惡化10%的門檻。沒有通過經濟門檻者，依登記停止，不做WF／10bp／隨機出場對照，不宣稱那些檢查通過。','',
+            '|規則|全期增量|7日區塊95%區間|Holm調整p|','|---|---:|---:|---:|']
+    for n in ['1','2']:
+        x=r['diagnostics'][n];u=x['uncertainty'];lo,hi=u['block7_ci95']
+        lines.append(f"|{n}根|{u['delta']:+.2f}|{lo:+.2f}～{hi:+.2f}|{x['holm_p']:.3f}|")
+    lines+=['', '區塊bootstrap2000次為歷史每日現金流差額敏感度，不重建行情；p是改善的單尾檢查，不代表策略等效。研究者已看過兩年行情，因此不稱真正未見OOS。','',
+            '## 驗證與決策','',
+            '- 18組完整成本／保證金序列完成，6組原引擎／前輪基準逐筆一致性通過。',
+            '- 3規則×10000／16000根共6組已完成交易前綴一致。',
+            '- 5個unittest通過：進場棒不得觸發、等號邊界、重返外側／不連續時重置、資料無效清零、界線鎖定與多空分開計數，以及原出場棒不調用新出口的整合對照。',
+            '- 正式策略與凍結行情SHA256未變；沒有部署、修改.env或VPS。',
+            '', '**保留原策略，不採用這兩個突破失效出口。** 這輪證明「收回區間」常見於MH，但也是不少贏單的過程。不能因此直接反向做單，或立刻再加一堆條件尋找會成功的版本。未證明所有突破失效定義都無用，僅否決本次鎖定的1h收盤1／2根規則。','',
+            '## 重現','', '```powershell',
+            r'.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_breakout_failure.py -v',
+            r'.\.venv\Scripts\python.exe backtest/research/breakout_failure_20260908.py',
+            r'.\.venv\Scripts\python.exe backtest/research/write_breakout_failure_report_20260908.py','```','',
+            'data/breakout_failure_20260908保存逐筆baseline_failure_paths、條件表、交易配對、各候選交易／funding／淨值及results。彙總另存doc/research_results/20260908_breakout_failure；完整重現需本機凍結行情，不自動下載。']
+    (ROOT/'doc/breakout_failure_results_20260908.md').write_text(('\n'.join(lines)+'\n').replace('名称','名稱'),encoding='utf-8')
+    dest=ROOT/'doc/research_results/20260908_breakout_failure';dest.mkdir(parents=True,exist_ok=True)
+    for name in ['registration.json','results.json','summary.csv','groups.csv','conditional.csv']:shutil.copyfile(OUT/name,dest/name)
+
+
+if __name__=='__main__':main()

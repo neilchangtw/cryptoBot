@@ -1,0 +1,15 @@
+{
+  "hashes": {
+    "backtest\\research\\breakout_failure_20260908.py": "60bd68ff4eb69a6693bee52a8386482516fd274382a2f20d8332477048123623",
+    "doc\\breakout_failure_plan_20260908.md": "eb11f6ad57b0d9520b6589fc5b0beb8ba58b985a5845418ba61e138d1861db33",
+    "strategy.py": "4b379a8034eb9169af12b3a547f340602cf0c6efa84d6bc5ef9829e8dc5631a8",
+    "executor.py": "304914263b77b1db08d76f4df4edeeca1f3d5cda20c0e0f651732c4a9034c737",
+    "backtest\\research\\v14_export_trades.py": "222450d9d330352bd210473192fc21527036819ce542e4de5354d006a20f9669",
+    "data\\maxhold_review_20260908\\candles.csv": "855beafe423d3779ded175b0745d4e8bcd48ec5fa943ca3eb3782e683c548918",
+    "data\\eth_5m_monthly_20260908\\ETHUSDT_5m_full.csv": "9bbc9b595ee4779cffda590bba1de575000e90475c14cc2288273ad843e47cc3"
+  },
+  "rules": [
+    1,
+    2
+  ]
+}
