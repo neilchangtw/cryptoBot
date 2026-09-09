@@ -1,0 +1,21 @@
+{
+  "fees": [
+    4.0,
+    3.6,
+    3.5,
+    3.0,
+    2.0,
+    0.0
+  ],
+  "hashes": {
+    "C:\\Users\\neil.chang\\workspace\\cryptoBot\\backtest\\research\\execution_cost_20260909.py": "86e3f3fd3d80082439b41f0b802f5c0114036e1b1b1eac25a244f2195b08c857",
+    "C:\\Users\\neil.chang\\workspace\\cryptoBot\\doc\\execution_cost_plan_20260909.md": "4d67681bd9e88a81fbef2ed29e7db0fc4970ecb5eb53645b5b62aad5343e8fc3",
+    "C:\\Users\\neil.chang\\workspace\\cryptoBot\\strategy.py": "4b379a8034eb9169af12b3a547f340602cf0c6efa84d6bc5ef9829e8dc5631a8",
+    "C:\\Users\\neil.chang\\workspace\\cryptoBot\\executor.py": "304914263b77b1db08d76f4df4edeeca1f3d5cda20c0e0f651732c4a9034c737",
+    "C:\\Users\\neil.chang\\workspace\\cryptoBot\\binance_trade.py": "3c920e1ffd346f28d010cf3cd0caa429bb6efd34050c75a1d050e54e4fa35ae1",
+    "C:\\Users\\neil.chang\\workspace\\cryptoBot\\backtest\\research\\v14_export_trades.py": "222450d9d330352bd210473192fc21527036819ce542e4de5354d006a20f9669",
+    "C:\\Users\\neil.chang\\workspace\\cryptoBot\\data\\maxhold_review_20260908\\candles.csv": "855beafe423d3779ded175b0745d4e8bcd48ec5fa943ca3eb3782e683c548918",
+    "C:\\Users\\neil.chang\\Desktop\\Neil_Settout\\n.其他\\crypto\\實戰ALL.txt": "96221fe38b83cae5470f5f409bd8622ba7609eb47fea199a2951a641e283b152",
+    "C:\\Users\\neil.chang\\Desktop\\Neil_Settout\\n.其他\\crypto\\回測ALL.txt": "7be9cf20bc0c5b5c4f8d982c729fc5ba880ea26e261938f86fd69aa4ec8b31ce"
+  }
+}
