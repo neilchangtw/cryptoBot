@@ -68,6 +68,8 @@ journalctl -u cryptobot -f                                       # 看日誌
 | [doc/strategy_optimization_plan_20260908.md](doc/strategy_optimization_plan_20260908.md) | 9/8 優化研究計畫與預登記門檻；歷史驗證已完成 |
 | [doc/optimization_execution_20260908.md](doc/optimization_execution_20260908.md) | 完整funding／mark淨值稽核：15組規則、90組成本測試、18組WF；**NO PROMOTION**，S/DOWN TP3%證據不足 |
 | [doc/research_results/20260908/README.md](doc/research_results/20260908/README.md) | 可追溯研究彙總、結果JSON、重現方式與本機輸入限制 |
+| [doc/spot_futures_sync_results_20260909.md](doc/spot_futures_sync_results_20260909.md) | 現貨／合約同步突破：266/269 原交易及 75/75 MH 已同步；24 組回測，**NO PROMOTION** |
+| [doc/flow_price_results_20260909.md](doc/flow_price_results_20260909.md) | 5m 買賣力道與價格反應：48 組回測；空單過濾 +$164.07，但僅 3 筆原事件、**證據不足，不部署** |
 
 ---
 
