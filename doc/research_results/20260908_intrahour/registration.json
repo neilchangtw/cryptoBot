@@ -1,0 +1,20 @@
+{
+  "rules": [
+    "m5_w30",
+    "m5_w60",
+    "m15_w30",
+    "m15_w60",
+    "m30_w30",
+    "m30_w60"
+  ],
+  "hashes": {
+    "backtest\\research\\intrahour_entry_20260908.py": "cfcafa7dde2c841567323a839982986529be7055c123857f0d9e39775b59460b",
+    "doc\\intrahour_entry_plan_20260908.md": "8798cb204d62811cc547f5fadf69c47049637472e57ae9fabb3dc2fcd96f1984",
+    "strategy.py": "4b379a8034eb9169af12b3a547f340602cf0c6efa84d6bc5ef9829e8dc5631a8",
+    "executor.py": "304914263b77b1db08d76f4df4edeeca1f3d5cda20c0e0f651732c4a9034c737",
+    "backtest\\research\\v14_export_trades.py": "222450d9d330352bd210473192fc21527036819ce542e4de5354d006a20f9669",
+    "data\\maxhold_review_20260908\\candles.csv": "855beafe423d3779ded175b0745d4e8bcd48ec5fa943ca3eb3782e683c548918",
+    "data\\eth_5m_monthly_20260908\\ETHUSDT_5m_full.csv": "9bbc9b595ee4779cffda590bba1de575000e90475c14cc2288273ad843e47cc3",
+    "data\\eth_5m_monthly_20260908\\hour_quality.csv": "e6723fb3300118b54908bafe6f898f6d479dfaa4ea28860d46a68e846f04c303"
+  }
+}

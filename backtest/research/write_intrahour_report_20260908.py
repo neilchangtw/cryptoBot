@@ -1,0 +1,87 @@
+"""由本機研究結果產生報告及可提交的彙總證據。"""
+from pathlib import Path
+import json
+import shutil
+import pandas as pd
+
+ROOT=Path(__file__).resolve().parents[2]
+OUT=ROOT/'data/intrahour_entry_20260908'
+
+
+def main():
+    r=json.loads((OUT/'results.json').read_text()); rows=r['rows']; di=r['diagnostics']
+    names=['base','quality','m5_w30','m5_w60','m15_w30','m15_w60','m30_w30','m30_w60']
+    labels={'base':'原策略','quality':'品質對照','m5_w30':'5m／30分鐘','m5_w60':'5m／60分鐘',
+            'm15_w30':'15m／30分鐘','m15_w60':'15m／60分鐘','m30_w30':'30m／30分鐘','m30_w60':'30m／60分鐘'}
+    def row(n,slip=0,hist=False):return next(x for x in rows if x['name']==n and x['slip']==slip and x['historical']==hist)
+    lines=['# 子K突破形成過程研究結果（2026-09-08）','',
+           '**NO PROMOTION：5個實際改變交易的持續站穩過濾全部REJECTED；30m／30分鐘為無新增資訊對照。**','',
+           '## 先登記，再執行','',
+           '先保存[預登記計畫](intrahour_entry_plan_20260908.md)及SHA256，再執行候選。計畫原文保持不變；研究完成狀態以本報告為準。',
+           '', '唯一假說：原1h策略準備開單時，要求最近30分鐘每根已完成5m／15m／30m收盤均在前15根已完成1h收盤界線之外；60分鐘是唯一鄰近值。L/S同時套用，沒有追加方向、量能、比例或交集掃描。',
+           '', '所有交易仍於1h收盤決策，沒有使用下一小時資料、回填突破界線成交價或修改原TP/MH。仍計入拒單造成的後續占倉、日/月熔斷、月進場上限、連敗冷卻及替代交易。','',
+           '## 資料與異常處理','',
+           '- 凍結兩年17519根1h與210228根5m；不更新窗口。固定200U、20x，另測歷史保證金排程；皆扣原交易成本與完整公開funding，額外0/2/5bp。',
+           '- 15m／30m收盤由同一份5m按整點取每組最後值，沒有另讀不同版本的API子K。此次只研究子K收盤，未使用子K高低價作進出場。',
+           '- 原2個來源不一致小時與其前15h界線受影響的訊號，共17個訊號小時無效；另有最初15根暖機，品質遮罩共32根false。無效時不建立新倉、不強制平舊倉。',
+           '- quality品質對照與base在全部六個成本／保證金設定下逐筆一致；本輪沒有因品質遮罩改變基準交易。這不代表行情修訂對更長GK／均線窗口必然沒有影響；未改價、未驗證修訂後策略。',
+           '- 來源、策略、executor、原引擎與預登記文件研究前後SHA256保持一致。','',
+           '## 完整序列主比較','',
+           '固定200U，額外0bp；MDD為逐時mark收盤策略淨值回撤，不是私人帳戶或棒內最大回撤。','',
+           '|規則|交易數|淨利USD|相對基準|MH數／率|MDD|SafeNet|','|---|---:|---:|---:|---:|---:|---:|']
+    baseline=row('base')['full']['net_pnl']
+    for n in names:
+        x=row(n)['full']
+        lines.append(f"|{labels[n]}|{x['n']}|{x['net_pnl']:,.2f}|{x['net_pnl']-baseline:+,.2f}|{x['mh']}／{x['mh']/x['n']*100:.1f}%|{x['mdd']:.2f}|{x['sn']}|")
+    lines+=['', '5m／30分鐘的MH筆數75→60，但MH比例27.9%→29.9%，勝率63.2%→56.7%。MDD下降不構成收益改善；原目標不允許事後改為只追求低回撤。',
+            '', '30m／30分鐘只看最後一根30m的收盤，與1h收盤及原突破條件相同，所以應完全重現基準；實測六個設定全都一致。這不是30m勝出，而是沒有施加額外限制。','',
+            '## 為什麼5m／30分鐘少賺','',
+            '與品質對照配對，原269筆只保留133筆共同交易，消失136筆、另出現68筆替代交易；共同交易結果不變。消失交易不全部等於直接被gate拒絕，亦包含狀態變動造成的未再進場。','',
+            '|完整差額分解|USD|','|---|---:|']
+    d=di['m5_w30']
+    for title,value in [('避開的原MH虧損',-d['removed_mh_net']),('避開的其他虧損',-d['removed_other_loss']),
+                        ('失去的原贏單收益',-d['removed_winner_net']),('新增68筆替代交易淨利',d['new_net']),
+                        ('共同交易差額',d['common_delta']),('總增量',d['uncertainty']['delta'])]:
+        lines.append(f'|{title}|{value:+,.2f}|')
+    lines+=['',f"被移除的原贏单共{d['paired']['removed_winners']}筆。避免部分MH虧損，無法補回失去的贏單收益；新增交易也沒有補足差額。這是完整引擎結果，不是把原交易表直接刪掉重算。",'',
+            '## 分期與方向','', '|規則|2026前淨利|2026淨利|L淨利|S淨利|','|---|---:|---:|---:|---:|']
+    for n in names:
+        x=row(n)
+        lines.append(f"|{labels[n]}|{x['early']['net_pnl']:.2f}|{x['late']['net_pnl']:.2f}|{x['side']['L']['net']:.2f}|{x['side']['S']['net']:.2f}|")
+    lines+=['','各有效過濾規則在2026前、2026均少賺，L與S各自總淨利亦均下降；沒有依表格事後改成只套用某一方向。分期淨利由mark淨值差計算，方向淨利為已完成交易加總。','',
+            '## 滑價與保證金','', '|規則|固定200U增量0／2／5bp|歷史排程增量0／2／5bp|','|---|---:|---:|']
+    for n in names[2:]:
+        cols=[]
+        for h in [False,True]:
+            cols.append('／'.join(f"{row(n,s,h)['full']['net_pnl']-row('quality',s,h)['full']['net_pnl']:+.2f}" for s in [0,2,5]))
+        lines.append(f"|{labels[n]}|{'|'.join(cols)}|")
+    lines+=['','扣成本結論沒有翻轉；詳細PF、最差30日、MH金額與曝險時數見summary.csv。因沒有候選通過已登記經濟門檻，按計畫不再執行10bp及100次隨機拒單對照。','',
+            '## 向前驗證與不確定性','',
+            '2025-09～2026-08六段，每兩個月依前段已完成且早於48h embargo的交易選擇。固定200U／0bp訓練，選擇後同規則重跑六種成本／保證金設定；交易狀態跨段保留。','',
+            '|段起點|訓練基準筆數|選擇|','|---|---:|---|']
+    for x in r['wf_choices']:lines.append(f"|{x['start'][:10]}|{x['baseline_training']}|{x['chosen']}|")
+    lines+=['','所有有效過濾的訓練收益均未高於quality，因此六段均維持品質對照，六個WF序列相對增量皆為0。這表示選擇程序沒有選用新gate，不是候選6/6通過。','',
+            '|規則|全期增量|7日區塊95%區間|Holm調整p|','|---|---:|---:|---:|']
+    for n in names[2:]:
+        x=di[n];u=x['uncertainty'];ci=u['block7_ci95']
+        lines.append(f"|{labels[n]}|{u['delta']:+.2f}|{ci[0]:+.2f}～{ci[1]:+.2f}|{x['holm_p']:.3f}|")
+    lines+=['','bootstrap固定2000次、7日時間區塊，採用每日現金流差額，保留無交易日；是既有歷史差額敏感度，沒有重建市場或證明未來必然更差。p為單尾檢查是否改善；接近1不表示兩策略等效。','',
+            '## 驗證與結論限制','',
+            '- 6組原引擎／前輪保存基準一致性，以及6組30m／30分鐘無新增資訊對照，全部通過。',
+            '- 全8規則在10000／16000根的特徵與已完成交易前綴核對通過（16組交易前綴）；WF固定選擇序列另做16000根前綴通過。WF的訓練選擇只讀cutoff之前已出場交易；該前綴測試本身不重新估計選擇。',
+            '- 5個unittest通過：子K端點、不同粒度辨識能力、嚴格空單界線、異常傳遞窗口、缺棒／位移，以及首次拒單不建立冷卻或耗用月上限的整合對照。',
+            '- 正式策略、.env、VPS未變更；未自動安裝collector、未部署、未push。',
+            '', '**結論僅限於本次「要求提前持續站穩」規則。** 它濾掉許多原贏單，現有數據不支持採用。不能外推為5m資料一概無用，也不能立即反向交易或改成只追最後5分鐘突破；反向假說是另一項研究，必須重新登記並有新驗證資料。',
+            '', '本輪48組靜態規則／成本／部位序列、6組連續WF完成；沒有合格候選，維持原策略。','',
+            '## 重現','', '```powershell',
+            r'.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_intrahour_entry.py -v',
+            r'.\.venv\Scripts\python.exe backtest/research/intrahour_entry_20260908.py',
+            r'.\.venv\Scripts\python.exe backtest/research/write_intrahour_report_20260908.py','```','',
+            '本機data/intrahour_entry_20260908保存逐筆交易、funding、淨值、gate事件、交易配對、registration.json、results.json及summary.csv。可提交彙總另存doc/research_results/20260908_intrahour；重現需要本機凍結行情，Git彙總不包含完整原始行情。']
+    text='\n'.join(lines)+'\n';text=text.replace('贏单','贏單')
+    (ROOT/'doc/intrahour_entry_results_20260908.md').write_text(text,encoding='utf-8')
+    target=ROOT/'doc/research_results/20260908_intrahour';target.mkdir(parents=True,exist_ok=True)
+    for name in ['registration.json','results.json','summary.csv']:shutil.copyfile(OUT/name,target/name)
+
+
+if __name__=='__main__':main()
