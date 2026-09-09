@@ -1,0 +1,21 @@
+{
+  "rules": [
+    "hourly",
+    "control",
+    "tp5",
+    "tp15",
+    "protect5",
+    "protect15",
+    "both5",
+    "both15"
+  ],
+  "hashes": {
+    "backtest\\research\\profit_protection_20260909.py": "813006d3b49071104b541aa2ea53fc3f8e392fb9edafcfc72d058bcf4bb9b9c9",
+    "doc\\profit_protection_plan_20260909.md": "1b298276a83b5fc12ec7ed58624d80bb5c8d67d5ca02d77479567494c898e375",
+    "strategy.py": "4b379a8034eb9169af12b3a547f340602cf0c6efa84d6bc5ef9829e8dc5631a8",
+    "executor.py": "304914263b77b1db08d76f4df4edeeca1f3d5cda20c0e0f651732c4a9034c737",
+    "backtest\\research\\v14_export_trades.py": "222450d9d330352bd210473192fc21527036819ce542e4de5354d006a20f9669",
+    "data\\maxhold_review_20260908\\candles.csv": "855beafe423d3779ded175b0745d4e8bcd48ec5fa943ca3eb3782e683c548918",
+    "data\\eth_5m_monthly_20260908\\ETHUSDT_5m_full.csv": "9bbc9b595ee4779cffda590bba1de575000e90475c14cc2288273ad843e47cc3"
+  }
+}
