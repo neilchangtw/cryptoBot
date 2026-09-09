@@ -1,0 +1,8 @@
+[
+  {"name":"long_flat_price","side":"L","early_buy_fraction":0.5,"late_buy_fraction":0.7,"close45":100,"close60":100,"strong":true,"weak":true,"blocked":true},
+  {"name":"long_price_progress","side":"L","early_buy_fraction":0.5,"late_buy_fraction":0.7,"close45":100,"close60":101,"strong":true,"weak":false,"blocked":false},
+  {"name":"short_price_rebound","side":"S","early_buy_fraction":0.5,"late_buy_fraction":0.3,"close45":100,"close60":101,"strong":true,"weak":true,"blocked":true},
+  {"name":"strong_but_not_increasing","side":"L","early_buy_fraction":0.8,"late_buy_fraction":0.7,"close45":100,"close60":99,"strong":false,"weak":true,"blocked":false},
+  {"name":"increasing_but_wrong_direction","side":"L","early_buy_fraction":0.1,"late_buy_fraction":0.4,"close45":100,"close60":99,"strong":false,"weak":true,"blocked":false},
+  {"name":"equal_imbalance","side":"L","early_buy_fraction":0.7,"late_buy_fraction":0.7,"close45":100,"close60":100,"strong":false,"weak":true,"blocked":false}
+]

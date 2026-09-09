@@ -1,0 +1,33 @@
+{
+  "rules": [
+    "base",
+    "quality",
+    "pair",
+    "pair_long",
+    "pair_short",
+    "price",
+    "flow",
+    "hour"
+  ],
+  "main": [
+    "pair",
+    "pair_long",
+    "pair_short"
+  ],
+  "hashes": {
+    "backtest\\research\\flow_price_20260909.py": "dd1c7f49f71bc3b6827ac4b3f7e3e8cb27d0ab2165d811043c0bc56c69e2353b",
+    "backtest\\research\\spot_futures_sync_20260909.py": "f157f56f3a912358ff72e3806a20dc66f7aecc9aa0fbeb61cb77b952f7dd34a7",
+    "backtest\\research\\intrahour_entry_20260908.py": "cfcafa7dde2c841567323a839982986529be7055c123857f0d9e39775b59460b",
+    "backtest\\research\\execute_optimization_plan_20260908.py": "95b9ae1859857f157b38be335cc906d2728b55b7344250dbecc530d30ff74b61",
+    "doc\\flow_price_plan_20260909.md": "9fe56679931ce91bc4d106156d65ff30bd654afada36c8aca15e1a38ddfd82b4",
+    "strategy.py": "4b379a8034eb9169af12b3a547f340602cf0c6efa84d6bc5ef9829e8dc5631a8",
+    "executor.py": "304914263b77b1db08d76f4df4edeeca1f3d5cda20c0e0f651732c4a9034c737",
+    "backtest\\research\\v14_export_trades.py": "222450d9d330352bd210473192fc21527036819ce542e4de5354d006a20f9669",
+    "data\\maxhold_review_20260908\\candles.csv": "855beafe423d3779ded175b0745d4e8bcd48ec5fa943ca3eb3782e683c548918",
+    "data\\eth_5m_monthly_20260908\\ETHUSDT_5m_full.csv": "9bbc9b595ee4779cffda590bba1de575000e90475c14cc2288273ad843e47cc3",
+    "data\\eth_5m_monthly_20260908\\manifest.json": "47d8f8a609ea4943b4bf1d7ad0aab595fa0143fabc6fe6972df4b5da09a289cc",
+    "data\\eth_5m_monthly_20260908\\hour_quality.csv": "e6723fb3300118b54908bafe6f898f6d479dfaa4ea28860d46a68e846f04c303",
+    "data\\public_cost_history_20260908\\mark_1h_full.csv": "3f9586a44ad530cb63df07a63c749de479953ae2e9ab4f25d81c19e47f0929cb",
+    "data\\public_cost_history_20260908\\funding_full.csv": "148be5e74fe66f6dff6e54fac228022707b9073b68db1b6277df216b3e6ceb77"
+  }
+}
