@@ -64,6 +64,9 @@ journalctl -u cryptobot -f                                       # 看日誌
 | [doc/v32_l15_s15_10gate_audit.md](doc/v32_l15_s15_10gate_audit.md) | L15/S15 基準 10-Gate 稽核（8 PASS、1 N/A、1 FAIL；G8 時序翻轉 FAIL，但為現行鎖定基準，不需升級） |
 | [doc/v33_s_mild_up_research.md](doc/v33_s_mild_up_research.md) | V33 真實盤回饋研究（S/MILD_UP 進場 slope 過濾全 REJECTED；MH9 REJECTED；MH8 僅 SHADOW ONLY，線上維持 V14+R+V25-D） |
 | [doc/v34_dialogue_research.md](doc/v34_dialogue_research.md) | V34 2026-08 對話研究彙整（零交易 gate 診斷、週末/GK/突破敏感度、SIDE 1.3% shadow、2,000 天結果、V29 重稽核、GK shift A/B；**未部署**） |
+| [doc/v35_high_gk_acceleration_research.md](doc/v35_high_gk_acceleration_research.md) | V35 高 GK 趨勢加速補單（OOS／成本／鄰域未通過；**REJECTED**） |
+| [doc/v36_multitrack_research.md](doc/v36_multitrack_research.md) | V36 多軌研究（V29 恢復、episode、執行、prospective 資料、Beta sleeve；**均未升級**） |
+| [doc/v37_microstructure_shadow_plan.md](doc/v37_microstructure_shadow_plan.md) | V37 微結構研究計畫（輕量 5m 接受度診斷＋prospective shadow；**尚未執行**） |
 | [doc/maxhold_review_20260908.md](doc/maxhold_review_20260908.md) | 9/8 附件復盤：269筆回測重現、35筆實戰對齊，MH／TP敏感度初查 |
 | [doc/strategy_optimization_plan_20260908.md](doc/strategy_optimization_plan_20260908.md) | 9/8 優化研究計畫與預登記門檻；歷史驗證已完成 |
 | [doc/optimization_execution_20260908.md](doc/optimization_execution_20260908.md) | 完整funding／mark淨值稽核：15組規則、90組成本測試、18組WF；**NO PROMOTION**，S/DOWN TP3%證據不足 |
