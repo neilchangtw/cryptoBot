@@ -1,0 +1,12 @@
+{
+  "note": "Synthetic arithmetic and timing fixture, never used as performance evidence.",
+  "oi_start": "2026-01-01 00:25:00",
+  "oi_values": [100, 100, 100, 110, 120, 999, 999],
+  "oi_decision_open": "2026-01-01 00:00:00",
+  "expected_oi_change_10min": 0.2,
+  "premium_start": "2025-12-31 19:00:00",
+  "premium_values": [-0.003, -0.002, -0.001, 0.001, 0.003, 0.9, 0.9],
+  "premium_decision_open": "2026-01-01 00:00:00",
+  "expected_premium_level_3h": 0.004,
+  "expected_premium_change": 0.002
+}
