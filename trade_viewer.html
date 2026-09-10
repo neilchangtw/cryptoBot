@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ETH 交易對照檢視器</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #667085;
+      --line: #d7deea;
+      --grid: #e8edf4;
+      --price: #246bfd;
+      --long: #087ea4;
+      --short: #d97706;
+      --win: #17803d;
+      --loss: #c02b38;
+      --select: #7c3aed;
+      --hover: #eef4ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0e1421;
+        --panel: #151d2d;
+        --text: #e8edf6;
+        --muted: #9aa6ba;
+        --line: #344056;
+        --grid: #273247;
+        --price: #72a1ff;
+        --long: #4cc9f0;
+        --short: #f5a524;
+        --win: #45c76f;
+        --loss: #ff6b79;
+        --select: #b797ff;
+        --hover: #1b2940;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft JhengHei", "Segoe UI", sans-serif;
+    }
+    button, select, input { font: inherit; }
+    .shell { width: min(1500px, 100%); margin: 0 auto; padding: 20px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+    h1 { font-size: 24px; margin: 0 0 4px; font-weight: 650; }
+    .subtitle { color: var(--muted); font-size: 13px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .controls { display: grid; grid-template-columns: 150px 120px 150px 150px auto; gap: 12px; align-items: end; }
+    label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+    select, input, button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--text);
+      padding: 7px 10px;
+    }
+    button { cursor: pointer; font-weight: 600; }
+    button.primary { background: var(--price); color: #fff; border-color: var(--price); }
+    button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid color-mix(in srgb, var(--price) 35%, transparent); }
+    .quick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .quick button { min-height: 34px; padding: 5px 10px; font-weight: 500; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+    .stat small { display: block; color: var(--muted); margin-bottom: 5px; }
+    .stat strong { font-size: 21px; font-variant-numeric: tabular-nums; }
+    .positive { color: var(--win); }
+    .negative { color: var(--loss); }
+    .chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .chart-head h2 { margin: 0; font-size: 17px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 12px; }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .swatch { width: 18px; height: 3px; background: var(--price); display: inline-block; }
+    .symbol { font-size: 14px; font-weight: 700; }
+    .symbol.long { color: var(--long); }
+    .symbol.short { color: var(--short); }
+    .symbol.win { color: var(--win); }
+    .symbol.loss { color: var(--loss); }
+    .chart-wrap { position: relative; min-height: 470px; }
+    #chart { width: 100%; height: 470px; display: block; touch-action: pan-y; }
+    .tooltip {
+      display: none;
+      position: absolute;
+      pointer-events: none;
+      background: var(--text);
+      color: var(--panel);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: nowrap;
+      z-index: 3;
+    }
+    .selected-detail {
+      min-height: 42px;
+      border-top: 1px solid var(--line);
+      margin-top: 8px;
+      padding-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .selected-detail strong { color: var(--text); }
+    .table-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .table-head h2 { margin: 0; font-size: 17px; }
+    .table-wrap { overflow: auto; max-height: 540px; border-top: 1px solid var(--line); }
+    table { border-collapse: collapse; width: 100%; min-width: 1020px; font-size: 13px; }
+    th { position: sticky; top: 0; z-index: 1; background: var(--panel); color: var(--muted); text-align: left; font-weight: 600; }
+    th, td { padding: 9px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: var(--hover); }
+    tbody tr.selected { background: color-mix(in srgb, var(--select) 14%, transparent); }
+    .side { font-weight: 700; }
+    .side.L { color: var(--long); }
+    .side.S { color: var(--short); }
+    .message { display: none; margin-bottom: 14px; padding: 12px; border: 1px solid var(--loss); color: var(--loss); border-radius: 8px; }
+    .empty { color: var(--muted); text-align: center; padding: 36px; }
+    .source-path { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+    @media (max-width: 850px) {
+      .shell { padding: 12px; }
+      header { align-items: start; flex-direction: column; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .controls .actions { grid-column: 1 / -1; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      #chart { height: 390px; }
+      .chart-wrap { min-height: 390px; }
+    }
+    @media (max-width: 480px) {
+      .controls { grid-template-columns: 1fr; }
+      .controls .actions { grid-column: auto; }
+      .stats { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <h1>ETH 交易對照檢視器</h1>
+        <div class="subtitle">ETHUSDT 1h 收盤價折線・時間為 UTC+8・唯讀</div>
+      </div>
+      <div id="klineInfo" class="subtitle"></div>
+    </header>
+
+    <div id="message" class="message" role="alert"></div>
+
+    <section class="panel" aria-label="篩選條件">
+      <div class="controls">
+        <label>資料來源
+          <select id="source"></select>
+        </label>
+        <label>方向
+          <select id="side">
+            <option value="ALL">全部</option>
+            <option value="L">L 做多</option>
+            <option value="S">S 做空</option>
+          </select>
+        </label>
+        <label>開始日期
+          <input id="dateFrom" type="date">
+        </label>
+        <label>結束日期
+          <input id="dateTo" type="date">
+        </label>
+        <div class="actions"><button id="load" type="button" class="primary">更新圖表</button></div>
+      </div>
+      <div class="quick" style="margin-top:12px">
+        <span class="subtitle">快速區間：</span>
+        <button type="button" data-days="7">7天</button>
+        <button type="button" data-days="30">30天</button>
+        <button type="button" data-days="90">90天</button>
+        <button type="button" data-days="all">全部交易</button>
+        <button id="focusSelected" type="button" disabled>定位選取交易</button>
+      </div>
+      <div id="sourcePath" class="source-path" style="margin-top:10px"></div>
+    </section>
+
+    <section class="stats" aria-label="區間統計">
+      <div class="stat"><small>交易數</small><strong id="statTrades">—</strong></div>
+      <div class="stat"><small>勝率</small><strong id="statWr">—</strong></div>
+      <div class="stat"><small>合計 PnL</small><strong id="statPnl">—</strong></div>
+      <div class="stat"><small>K 線資料點</small><strong id="statPoints">—</strong></div>
+    </section>
+
+    <section class="panel">
+      <div class="chart-head">
+        <h2>收盤價與進出場</h2>
+        <div class="legend" aria-label="圖例">
+          <span><i class="swatch"></i>收盤價</span>
+          <span><i class="symbol long">▲</i>L 進場</span>
+          <span><i class="symbol short">▼</i>S 進場</span>
+          <span><i class="symbol win">●</i>獲利出場</span>
+          <span><i class="symbol loss">×</i>虧損出場</span>
+        </div>
+      </div>
+      <div id="chartWrap" class="chart-wrap">
+        <svg id="chart" role="img" aria-label="ETHUSDT 一小時收盤價與交易進出場標記"></svg>
+        <div id="tooltip" class="tooltip" role="tooltip"></div>
+      </div>
+      <div id="selectedDetail" class="selected-detail" aria-live="polite">點圖上的標記或表格列，可查看單筆交易。</div>
+    </section>
+
+    <section class="panel">
+      <div class="table-head">
+        <h2>交易對應表</h2>
+        <span id="tableCount" class="subtitle"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="num">#</th><th>方向</th><th>進場時間</th><th class="num">進場價</th>
+              <th>出場時間</th><th class="num">出場價</th><th>出場原因</th>
+              <th class="num">持倉</th><th class="num">PnL</th><th>Regime</th>
+            </tr>
+          </thead>
+          <tbody id="tradeRows"></tbody>
+        </table>
+        <div id="empty" class="empty" hidden>這個區間沒有交易。</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const NS = "http://www.w3.org/2000/svg";
+    const state = { meta: null, data: null, selectedId: null };
+    const el = id => document.getElementById(id);
+
+    function localDate(text) { return new Date(text.replace(" ", "T") + ":00"); }
+    function dayText(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    function money(value) { return value >= 0 ? `+$${value.toFixed(2)}` : `-$${Math.abs(value).toFixed(2)}`; }
+    function price(value) { return Number(value).toLocaleString("zh-TW", {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>'"]/g, char => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;"})[char]);
+    }
+    function svg(tag, attrs = {}) {
+      const node = document.createElementNS(NS, tag);
+      Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+      return node;
+    }
+    function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+    function showError(error) {
+      el("message").textContent = error instanceof Error ? error.message : String(error);
+      el("message").style.display = "block";
+    }
+    function clearError() { el("message").style.display = "none"; }
+
+    async function getJson(url) {
+      const response = await fetch(url);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    }
+
+    function activeSource() {
+      return state.meta.sources.find(item => item.id === el("source").value);
+    }
+
+    function applySourceDefaults() {
+      const source = activeSource();
+      if (!source) return;
+      el("dateFrom").value = source.default_from;
+      el("dateTo").value = source.default_to;
+      el("sourcePath").textContent = `交易資料：${source.path}`;
+    }
+
+    async function init() {
+      try {
+        state.meta = await getJson("/api/meta");
+        const select = el("source");
+        state.meta.sources.forEach(item => {
+          const option = document.createElement("option");
+          option.value = item.id;
+          option.textContent = `${item.label}（${item.count}筆）`;
+          select.appendChild(option);
+        });
+        if (state.meta.sources.some(item => item.id === "live")) select.value = "live";
+        el("klineInfo").textContent = `K線 ${state.meta.kline.first}～${state.meta.kline.last}`;
+        applySourceDefaults();
+        await loadData();
+      } catch (error) { showError(error); }
+    }
+
+    async function loadData(preserveSelected = null) {
+      clearError();
+      const from = el("dateFrom").value;
+      const to = el("dateTo").value;
+      if (!from || !to || from > to) return showError("請確認開始與結束日期。 ");
+      const query = new URLSearchParams({ source: el("source").value, side: el("side").value, from, to });
+      try {
+        state.data = await getJson(`/api/data?${query}`);
+        state.selectedId = preserveSelected;
+        updateStats();
+        renderTable();
+        drawChart();
+        selectTrade(state.data.trades.some(item => item.id === preserveSelected) ? preserveSelected : null);
+      } catch (error) { showError(error); }
+    }
+
+    function updateStats() {
+      const s = state.data.stats;
+      el("statTrades").textContent = `${s.trades}（${s.wins}W ${s.losses}L）`;
+      el("statWr").textContent = s.trades ? `${s.win_rate.toFixed(1)}%` : "—";
+      el("statPnl").textContent = money(s.pnl);
+      el("statPnl").className = s.pnl >= 0 ? "positive" : "negative";
+      el("statPoints").textContent = s.points === s.shown_points ? String(s.points) : `${s.shown_points}/${s.points}`;
+      el("tableCount").textContent = `顯示 ${s.trades} 筆`;
+    }
+
+    function renderTable() {
+      const tbody = el("tradeRows");
+      tbody.replaceChildren();
+      el("empty").hidden = state.data.trades.length > 0;
+      state.data.trades.forEach(trade => {
+        const row = document.createElement("tr");
+        row.dataset.id = trade.id;
+        row.innerHTML = `
+          <td class="num">${escapeHtml(trade.number)}</td>
+          <td><span class="side ${escapeHtml(trade.side)}">${escapeHtml(trade.side)}</span></td>
+          <td>${escapeHtml(trade.entry_time)}</td><td class="num">${price(trade.entry_price)}</td>
+          <td>${escapeHtml(trade.exit_time)}</td><td class="num">${price(trade.exit_price)}</td>
+          <td>${escapeHtml(trade.exit_reason)}</td><td class="num">${trade.hold}h</td>
+          <td class="num ${trade.pnl >= 0 ? "positive" : "negative"}">${money(trade.pnl)}</td>
+          <td>${escapeHtml(trade.regime)}</td>`;
+        row.addEventListener("click", () => selectTrade(trade.id, true));
+        tbody.appendChild(row);
+      });
+    }
+
+    function selectTrade(id, scroll = false) {
+      state.selectedId = id;
+      document.querySelectorAll("tbody tr").forEach(row => row.classList.toggle("selected", row.dataset.id === id));
+      const trade = state.data?.trades.find(item => item.id === id);
+      el("focusSelected").disabled = !trade;
+      if (!trade) {
+        el("selectedDetail").innerHTML = "點圖上的標記或表格列，可查看單筆交易。";
+      } else {
+        el("selectedDetail").innerHTML = `<strong>#${escapeHtml(trade.number)} ${escapeHtml(trade.side)}</strong>　${escapeHtml(trade.entry_time)} ${price(trade.entry_price)} → ${escapeHtml(trade.exit_time)} ${price(trade.exit_price)}　<strong class="${trade.pnl >= 0 ? "positive" : "negative"}">${money(trade.pnl)}</strong>　${escapeHtml(trade.exit_reason)}・${escapeHtml(trade.regime)}`;
+        if (scroll) document.querySelector(`tbody tr[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({block: "nearest"});
+      }
+      drawChart();
+    }
+
+    function drawChart() {
+      const chart = el("chart");
+      const candles = state.data?.candles || [];
+      chart.replaceChildren();
+      if (!candles.length) {
+        const text = svg("text", {x: "50%", y: "50%", "text-anchor": "middle", fill: css("--muted")});
+        text.textContent = "這個日期區間沒有 K 線資料";
+        chart.appendChild(text);
+        return;
+      }
+      const width = Math.max(340, chart.clientWidth || 1000);
+      const height = chart.clientHeight || 470;
+      const margin = {left: 72, right: 24, top: 20, bottom: 42};
+      const innerW = width - margin.left - margin.right;
+      const innerH = height - margin.top - margin.bottom;
+      chart.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+      const times = candles.map(d => localDate(d.time).getTime());
+      const prices = candles.map(d => d.close);
+      state.data.trades.forEach(t => prices.push(t.entry_price, t.exit_price));
+      let minT = Math.min(...times), maxT = Math.max(...times);
+      let minP = Math.min(...prices), maxP = Math.max(...prices);
+      if (maxT === minT) maxT += 3600000;
+      const pad = Math.max((maxP - minP) * 0.07, maxP * 0.005);
+      minP -= pad; maxP += pad;
+      const x = value => margin.left + (value - minT) / (maxT - minT) * innerW;
+      const y = value => margin.top + (maxP - value) / (maxP - minP) * innerH;
+
+      const frame = svg("rect", {x: margin.left, y: margin.top, width: innerW, height: innerH, fill: "none", stroke: css("--line")});
+      chart.appendChild(frame);
+      for (let i = 0; i <= 5; i++) {
+        const yy = margin.top + innerH * i / 5;
+        chart.appendChild(svg("line", {x1: margin.left, x2: margin.left + innerW, y1: yy, y2: yy, stroke: css("--grid")}));
+        const label = svg("text", {x: margin.left - 9, y: yy + 4, "text-anchor": "end", fill: css("--muted"), "font-size": 12});
+        label.textContent = price(maxP - (maxP - minP) * i / 5);
+        chart.appendChild(label);
+      }
+      for (let i = 0; i <= 5; i++) {
+        const xx = margin.left + innerW * i / 5;
+        const dt = new Date(minT + (maxT - minT) * i / 5);
+        const label = svg("text", {x: xx, y: height - 15, "text-anchor": i === 0 ? "start" : i === 5 ? "end" : "middle", fill: css("--muted"), "font-size": 12});
+        label.textContent = `${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, "0")}:00`;
+        chart.appendChild(label);
+      }
+
+      const path = candles.map((d, i) => `${i ? "L" : "M"}${x(times[i]).toFixed(2)},${y(d.close).toFixed(2)}`).join(" ");
+      chart.appendChild(svg("path", {d: path, fill: "none", stroke: css("--price"), "stroke-width": 1.8, "vector-effect": "non-scaling-stroke"}));
+
+      state.data.trades.forEach(trade => {
+        const selected = trade.id === state.selectedId;
+        const ex = x(localDate(trade.entry_time).getTime());
+        const xx = x(localDate(trade.exit_time).getTime());
+        const ey = y(trade.entry_price), xy = y(trade.exit_price);
+        chart.appendChild(svg("line", {
+          x1: ex, y1: ey, x2: xx, y2: xy,
+          stroke: selected ? css("--select") : css("--muted"),
+          "stroke-width": selected ? 2.5 : 1,
+          "stroke-dasharray": selected ? "none" : "3 4",
+          opacity: selected ? 1 : 0.45,
+        }));
+        const entry = svg("polygon", {
+          points: trade.side === "L" ? `${ex},${ey-8} ${ex-7},${ey+6} ${ex+7},${ey+6}` : `${ex},${ey+8} ${ex-7},${ey-6} ${ex+7},${ey-6}`,
+          fill: trade.side === "L" ? css("--long") : css("--short"),
+          stroke: selected ? css("--select") : css("--panel"), "stroke-width": selected ? 3 : 1.5,
+          cursor: "pointer", role: "button", "aria-label": `交易 ${trade.number} 進場`, tabindex: 0,
+        });
+        entry.addEventListener("click", () => selectTrade(trade.id, true));
+        entry.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") selectTrade(trade.id, true); });
+        chart.appendChild(entry);
+        const exit = trade.pnl >= 0
+          ? svg("circle", {cx: xx, cy: xy, r: selected ? 7 : 5.5, fill: css("--win"), stroke: selected ? css("--select") : css("--panel"), "stroke-width": selected ? 3 : 1.5, cursor: "pointer", role: "button", "aria-label": `交易 ${trade.number} 獲利出場`, tabindex: 0})
+          : svg("path", {d: `M${xx-6},${xy-6}L${xx+6},${xy+6}M${xx+6},${xy-6}L${xx-6},${xy+6}`, fill: "none", stroke: selected ? css("--select") : css("--loss"), "stroke-width": selected ? 4 : 3, cursor: "pointer", role: "button", "aria-label": `交易 ${trade.number} 虧損出場`, tabindex: 0});
+        exit.addEventListener("click", () => selectTrade(trade.id, true));
+        exit.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") selectTrade(trade.id, true); });
+        chart.appendChild(exit);
+      });
+
+      const guide = svg("line", {y1: margin.top, y2: margin.top + innerH, stroke: css("--muted"), "stroke-width": 1, opacity: 0, "pointer-events": "none"});
+      chart.appendChild(guide);
+      const overlay = svg("rect", {x: margin.left, y: margin.top, width: innerW, height: innerH, fill: "transparent", "pointer-events": "none"});
+      chart.appendChild(overlay);
+      const tooltip = el("tooltip");
+      chart.onmousemove = event => {
+        const box = chart.getBoundingClientRect();
+        const px = (event.clientX - box.left) * width / box.width;
+        if (px < margin.left || px > margin.left + innerW) {
+          guide.setAttribute("opacity", 0); tooltip.style.display = "none"; return;
+        }
+        const targetTime = minT + Math.max(0, Math.min(innerW, px - margin.left)) / innerW * (maxT - minT);
+        let low = 0, high = times.length - 1;
+        while (low < high) { const mid = Math.floor((low + high) / 2); if (times[mid] < targetTime) low = mid + 1; else high = mid; }
+        const idx = low > 0 && Math.abs(times[low - 1] - targetTime) < Math.abs(times[low] - targetTime) ? low - 1 : low;
+        const gx = x(times[idx]);
+        guide.setAttribute("x1", gx); guide.setAttribute("x2", gx); guide.setAttribute("opacity", 0.75);
+        tooltip.innerHTML = `${candles[idx].time}<br>Close ${price(candles[idx].close)}`;
+        tooltip.style.display = "block";
+        tooltip.style.left = `${Math.min(el("chartWrap").clientWidth - 130, Math.max(8, event.clientX - box.left + 12))}px`;
+        tooltip.style.top = `${Math.max(4, event.clientY - box.top - 48)}px`;
+      };
+      chart.onmouseleave = () => { guide.setAttribute("opacity", 0); tooltip.style.display = "none"; };
+    }
+
+    el("load").addEventListener("click", loadData);
+    el("source").addEventListener("change", async () => { applySourceDefaults(); await loadData(); });
+    el("side").addEventListener("change", loadData);
+    document.querySelectorAll("[data-days]").forEach(button => button.addEventListener("click", async () => {
+      const source = activeSource();
+      const days = button.dataset.days;
+      if (days === "all") {
+        el("dateFrom").value = source.first;
+        el("dateTo").value = source.last;
+      } else {
+        const end = new Date(el("dateTo").value + "T00:00:00");
+        const start = new Date(end); start.setDate(start.getDate() - Number(days) + 1);
+        el("dateFrom").value = dayText(start);
+      }
+      await loadData();
+    }));
+    el("focusSelected").addEventListener("click", async () => {
+      const trade = state.data.trades.find(item => item.id === state.selectedId);
+      if (!trade) return;
+      const entry = localDate(trade.entry_time); entry.setDate(entry.getDate() - 1);
+      const exit = localDate(trade.exit_time); exit.setDate(exit.getDate() + 1);
+      el("dateFrom").value = dayText(entry); el("dateTo").value = dayText(exit);
+      await loadData(trade.id);
+    });
+    new ResizeObserver(() => { if (state.data) drawChart(); }).observe(el("chartWrap"));
+    init();
+  </script>
+</body>
+</html>

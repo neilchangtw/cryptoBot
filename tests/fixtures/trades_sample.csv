@@ -1,0 +1,2 @@
+trade_id,trade_number,entry_time_utc8,exit_time_utc8,direction,sub_strategy,entry_price,exit_price,exit_type,hold_bars,net_pnl_usd,entry_regime
+x1,1,2026-01-01 10:00:00,2026-01-01 12:00:00,SHORT,S,2000,1980,TP,2,36,DOWN
