@@ -1,0 +1,17 @@
+{
+  "family": "oi",
+  "decimal_all_feature_hours": 17519,
+  "independent_saved_scenarios": 30,
+  "checked": [
+    "decimal_features",
+    "assumed_available_before_decision",
+    "saved_gate_rules",
+    "gate_trade_conservation",
+    "cash_equity_trade_funding_conservation",
+    "position_size",
+    "hold_bars",
+    "same_side_cooldown"
+  ],
+  "status": "PASS",
+  "limitation": "Does not establish historical receipt times or immutability of public archives."
+}

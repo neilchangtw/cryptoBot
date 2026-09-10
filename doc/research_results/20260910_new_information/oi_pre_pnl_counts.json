@@ -1,0 +1,14 @@
+{
+  "oi_both": {
+    "direct_original_events": 115,
+    "clusters24h": 97
+  },
+  "oi_long": {
+    "direct_original_events": 42,
+    "clusters24h": 39
+  },
+  "oi_short": {
+    "direct_original_events": 73,
+    "clusters24h": 68
+  }
+}

@@ -1,0 +1,4949 @@
+{
+  "indexed_utc": "2026-09-10T08:02:14.067638+00:00",
+  "head": "6f3a246aec474548ec6e069d83b12585d87ca8ff",
+  "workspace_status_at_index": " M AGENTS.md\n?? backtest/research/fetch_new_information_20260910.py\n?? backtest/research/index_new_information_20260910.py\n?? backtest/research/loss_followthrough_analysis.py\n?? backtest/research/tp_sensitivity_analysis.py\n?? doc/dynamic_tp_research_20260904.md\n?? doc/loss_followthrough_analysis_20260904.md\n?? doc/new_information_plan_20260910.md\n?? doc/price_candle_trade_analysis_20260904.md\n?? doc/strategy_research_prompt_20260910.md\n?? doc/tp_rollercoaster_analysis_20260904.md\n?? doc/trade_viewer.md\n?? doc/v37_microstructure_shadow_plan.md\n?? tests/fixtures/trades_sample.csv\n?? tests/test_trade_viewer.py\n?? trade_viewer.bat\n?? trade_viewer.html\n?? trade_viewer.py\n",
+  "records": [
+    {
+      "path": "doc/breakout_failure_plan_20260908.md",
+      "sha256": "eb11f6ad57b0d9520b6589fc5b0beb8ba58b985a5845418ba61e138d1861db33",
+      "bytes": 3163,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 突破失效研究登記"
+        },
+        {
+          "line": 5,
+          "text": "## 問題與定義"
+        },
+        {
+          "line": 15,
+          "text": "## 兩組固定出場候選"
+        },
+        {
+          "line": 23,
+          "text": "## 完整驗證"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/breakout_failure_results_20260908.md",
+      "sha256": "70f64c6c1a73e549d58caa4317d09c76bfb273607ddd24b12bdc8ae2adda9052",
+      "bytes": 6516,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 突破失效與MaxHold研究結果"
+        },
+        {
+          "line": 7,
+          "text": "## 定義與限制"
+        },
+        {
+          "line": 15,
+          "text": "## 多數MH是否曾收回區間？"
+        },
+        {
+          "line": 27,
+          "text": "## 收回當下，退出是否更好？"
+        },
+        {
+          "line": 44,
+          "text": "## 完整交易序列驗證"
+        },
+        {
+          "line": 67,
+          "text": "## 成本與分期"
+        },
+        {
+          "line": 83,
+          "text": "## 驗證與決策"
+        },
+        {
+          "line": 92,
+          "text": "## 重現"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/breakout_failure_20260908.py",
+        "backtest/research/write_breakout_failure_report_20260908.py"
+      ]
+    },
+    {
+      "path": "doc/dynamic_tp_research_20260904.md",
+      "sha256": "81e78ed3e33cd3155ccc17efe890d5f1204cc858038819fec96865dbf9770cca",
+      "bytes": 5447,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 動態 TP 研究（2026-09-04 最新 K 線）"
+        },
+        {
+          "line": 3,
+          "text": "## 結論"
+        },
+        {
+          "line": 15,
+          "text": "## 資料與方法"
+        },
+        {
+          "line": 28,
+          "text": "## 粗網格結果"
+        },
+        {
+          "line": 40,
+          "text": "## S/DOWN 單一規則細鄰域"
+        },
+        {
+          "line": 65,
+          "text": "## 為什麼不建議用 GK 直接決定 TP"
+        },
+        {
+          "line": 71,
+          "text": "## 與 V25 舊結論的關係"
+        },
+        {
+          "line": 77,
+          "text": "## 建議"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/dynamic_tp_regime_analysis.py"
+      ]
+    },
+    {
+      "path": "doc/eth_5m_data_audit_20260908.md",
+      "sha256": "e3b18d0740cdd2c3897141483d9373c5cbc4398e3579afd3d6f922bb7b57183f",
+      "bytes": 4319,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# ETH 5m資料來源稽核與按月補齊"
+        },
+        {
+          "line": 5,
+          "text": "## 兩根差異的定位"
+        },
+        {
+          "line": 24,
+          "text": "## 下載安排與執行結果"
+        },
+        {
+          "line": 46,
+          "text": "## 研究使用邊界"
+        },
+        {
+          "line": 54,
+          "text": "## 檔案與重現"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/fetch_5m_monthly_20260908.py"
+      ]
+    },
+    {
+      "path": "doc/execution_cost_plan_20260909.md",
+      "sha256": "4d67681bd9e88a81fbef2ed29e7db0fc4970ecb5eb53645b5b62aad5343e8fc3",
+      "bytes": 2263,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 成交成本改善研究預登記"
+        },
+        {
+          "line": 5,
+          "text": "## 可回答與不可回答"
+        },
+        {
+          "line": 11,
+          "text": "## 預定情境"
+        },
+        {
+          "line": 19,
+          "text": "## 執行方式評估"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/execution_cost_results_20260909.md",
+      "sha256": "3b56c883ab3b1a96bfd67f0e6f335a82cf3dc03a8ef70a06bdba14e1271aba08",
+      "bytes": 8510,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 成交成本改善研究結果"
+        },
+        {
+          "line": 7,
+          "text": "## 固定 200U、額外滑價 0bp 的完整結果"
+        },
+        {
+          "line": 22,
+          "text": "## 原交易清單不變的算術對照"
+        },
+        {
+          "line": 35,
+          "text": "## 分期與額外成本壓測"
+        },
+        {
+          "line": 59,
+          "text": "## 35 筆實戰的成交價偏差"
+        },
+        {
+          "line": 76,
+          "text": "## 哪些省費方式可以落地"
+        },
+        {
+          "line": 84,
+          "text": "## 後續需要的最小資料"
+        },
+        {
+          "line": 91,
+          "text": "## 驗證與重現"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/execution_cost_20260909.py",
+        "backtest/research/write_execution_cost_report_20260909.py"
+      ]
+    },
+    {
+      "path": "doc/flow_price_plan_20260909.md",
+      "sha256": "9fe56679931ce91bc4d106156d65ff30bd654afada36c8aca15e1a38ddfd82b4",
+      "bytes": 4840,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 5m 買賣力道與價格反應研究預登記"
+        },
+        {
+          "line": 5,
+          "text": "## 與過往研究的區別"
+        },
+        {
+          "line": 9,
+          "text": "## 固定計算"
+        },
+        {
+          "line": 25,
+          "text": "## 八個規則"
+        },
+        {
+          "line": 37,
+          "text": "## 資料品質"
+        },
+        {
+          "line": 43,
+          "text": "## 驗證門檻"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/flow_price_results_20260909.md",
+      "sha256": "52e593dedf6b2cfabb1b612b527abbcdfb19940a889332bc585084129728d2f3",
+      "bytes": 10533,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 5m 買賣力道與價格反應研究結果"
+        },
+        {
+          "line": 5,
+          "text": "## 規則與因果"
+        },
+        {
+          "line": 14,
+          "text": "## 資料與驗證"
+        },
+        {
+          "line": 23,
+          "text": "## 固定 200U 全期結果"
+        },
+        {
+          "line": 38,
+          "text": "## 原交易四格診斷"
+        },
+        {
+          "line": 60,
+          "text": "## 完整交易變化與收益分解"
+        },
+        {
+          "line": 74,
+          "text": "## 前後期、最近時段與成本"
+        },
+        {
+          "line": 103,
+          "text": "## 額外資訊對照與不確定性"
+        },
+        {
+          "line": 115,
+          "text": "## 決策與下一步"
+        },
+        {
+          "line": 123,
+          "text": "## 重現"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/flow_price_20260909.py",
+        "backtest/research/write_flow_price_report_20260909.py"
+      ]
+    },
+    {
+      "path": "doc/intrahour_entry_plan_20260908.md",
+      "sha256": "8798cb204d62811cc547f5fadf69c47049637472e57ae9fabb3dc2fcd96f1984",
+      "bytes": 4109,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 5m／15m／30m突破形成研究預登記"
+        },
+        {
+          "line": 5,
+          "text": "## 唯一假說與六組候選"
+        },
+        {
+          "line": 14,
+          "text": "## 資料品質與基準"
+        },
+        {
+          "line": 20,
+          "text": "## 執行與驗證"
+        },
+        {
+          "line": 29,
+          "text": "## 判定"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/intrahour_entry_results_20260908.md",
+      "sha256": "dbbe0c4f90035b812d8caacee9400bf5cc371951fc6d88d719605c8b2288a628",
+      "bytes": 7958,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 子K突破形成過程研究結果（2026-09-08）"
+        },
+        {
+          "line": 5,
+          "text": "## 先登記，再執行"
+        },
+        {
+          "line": 13,
+          "text": "## 資料與異常處理"
+        },
+        {
+          "line": 21,
+          "text": "## 完整序列主比較"
+        },
+        {
+          "line": 40,
+          "text": "## 為什麼5m／30分鐘少賺"
+        },
+        {
+          "line": 55,
+          "text": "## 分期與方向"
+        },
+        {
+          "line": 70,
+          "text": "## 滑價與保證金"
+        },
+        {
+          "line": 83,
+          "text": "## 向前驗證與不確定性"
+        },
+        {
+          "line": 109,
+          "text": "## 驗證與結論限制"
+        },
+        {
+          "line": 120,
+          "text": "## 重現"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/intrahour_entry_20260908.py",
+        "backtest/research/write_intrahour_report_20260908.py"
+      ]
+    },
+    {
+      "path": "doc/live_data_spec.md",
+      "sha256": "de9532ce208f28876478b8c67d641bb4f71bff68c6b61fb479606ea704845dec",
+      "bytes": 7768,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 現行實盤資料與策略規格"
+        },
+        {
+          "line": 5,
+          "text": "## 1. 運行範圍與資金"
+        },
+        {
+          "line": 18,
+          "text": "## 2. 共用指標與訊號時點"
+        },
+        {
+          "line": 20,
+          "text": "### Garman-Klass 壓縮"
+        },
+        {
+          "line": 43,
+          "text": "### 突破與 R regime"
+        },
+        {
+          "line": 55,
+          "text": "## 3. Long（L）策略"
+        },
+        {
+          "line": 57,
+          "text": "### 進場 gate（必須全部通過）"
+        },
+        {
+          "line": 65,
+          "text": "### 出場順序"
+        },
+        {
+          "line": 73,
+          "text": "## 4. Short（S）策略"
+        },
+        {
+          "line": 75,
+          "text": "### 進場 gate（必須全部通過）"
+        },
+        {
+          "line": 83,
+          "text": "### 出場順序"
+        },
+        {
+          "line": 92,
+          "text": "## 5. 帳戶熔斷與 V29 健康度"
+        },
+        {
+          "line": 104,
+          "text": "## 6. 實盤流程與成交語意"
+        },
+        {
+          "line": 111,
+          "text": "## 7. 資料檔與欄位責任"
+        },
+        {
+          "line": 124,
+          "text": "## 8. 維運與研究文件的分工"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/loss_followthrough_analysis_20260904.md",
+      "sha256": "c7f37d01578981d4c386bb811030a17d4eaffbfb62a53ab120b2c4d83f42b243",
+      "bytes": 7104,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 回測虧損單後續方向分析（2026-09-04）"
+        },
+        {
+          "line": 3,
+          "text": "## 結論"
+        },
+        {
+          "line": 13,
+          "text": "## 資料與判定方式"
+        },
+        {
+          "line": 23,
+          "text": "## 虧損前其實有沒有走對"
+        },
+        {
+          "line": 36,
+          "text": "## 出場後的價格方向"
+        },
+        {
+          "line": 51,
+          "text": "## 72 小時分類"
+        },
+        {
+          "line": 64,
+          "text": "## 完整引擎 MaxHold 延長"
+        },
+        {
+          "line": 68,
+          "text": "### L 延長"
+        },
+        {
+          "line": 76,
+          "text": "### S 全 regime 一起延長"
+        },
+        {
+          "line": 91,
+          "text": "### S 按 regime 延長"
+        },
+        {
+          "line": 97,
+          "text": "## 回答問題"
+        },
+        {
+          "line": 104,
+          "text": "## 限制"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/maxhold_entry_diagnostic_20260908.md",
+      "sha256": "4d905a91448f0db2ed6fb8c11a3d3fd0597072eff79c3e5773c7b0bdaa62a628",
+      "bytes": 6747,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# MaxHold進場條件比較結果（2026-09-08）"
+        },
+        {
+          "line": 5,
+          "text": "## 比較範圍與方法"
+        },
+        {
+          "line": 14,
+          "text": "## 交易結果總覽"
+        },
+        {
+          "line": 21,
+          "text": "## 開單當下的差異"
+        },
+        {
+          "line": 38,
+          "text": "## MH多，是否值得全部不開？"
+        },
+        {
+          "line": 51,
+          "text": "## 時期穩定性與小樣本"
+        },
+        {
+          "line": 71,
+          "text": "## 關聯檢查與查重"
+        },
+        {
+          "line": 86,
+          "text": "## 是否有改善辦法"
+        },
+        {
+          "line": 92,
+          "text": "## 重現與檔案"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/maxhold_entry_diagnostic_20260908.py"
+      ]
+    },
+    {
+      "path": "doc/maxhold_entry_filter_plan_20260908.md",
+      "sha256": "1a67e6f9f5d3edbf1ecde351b82c4aadc1c424f7f13471d4f3813b7000c5c19c",
+      "bytes": 5968,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# MaxHold 進場條件分析計畫"
+        },
+        {
+          "line": 5,
+          "text": "## 研究問題"
+        },
+        {
+          "line": 11,
+          "text": "## 已知負面證據與查重"
+        },
+        {
+          "line": 18,
+          "text": "## 第一部分：進場特徵與結果對照"
+        },
+        {
+          "line": 36,
+          "text": "## 第二部分：候選登記與完整回測"
+        },
+        {
+          "line": 49,
+          "text": "## 判定與限制"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/maxhold_review_20260908.md",
+      "sha256": "8b90007714923a863ab03fd84e21b6be4750291864f3bd8ac7ace33718314b38",
+      "bytes": 10539,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# MaxHold 與策略完整性分析（2026-09-08）"
+        },
+        {
+          "line": 5,
+          "text": "## 資料與驗證"
+        },
+        {
+          "line": 18,
+          "text": "## 回測與實戰差在哪裡"
+        },
+        {
+          "line": 42,
+          "text": "## 為什麼不能直接消滅 MaxHold"
+        },
+        {
+          "line": 48,
+          "text": "## 直接降低 MaxHold 的實測"
+        },
+        {
+          "line": 74,
+          "text": "## 比降低 MH 更值得優先驗證的候選"
+        },
+        {
+          "line": 97,
+          "text": "## 策略完整性的優先補強"
+        },
+        {
+          "line": 106,
+          "text": "## 範圍限制與重現"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/maxhold_review_20260908.py"
+      ]
+    },
+    {
+      "path": "doc/optimization_execution_20260908.md",
+      "sha256": "d7412d207986d34c6c35dea291ed68657831c47322a39cf20e34d928b44b9df4",
+      "bytes": 13727,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 策略優化計畫執行結果（2026-09-08）"
+        },
+        {
+          "line": 7,
+          "text": "## 1. 資料、成本及風險口徑"
+        },
+        {
+          "line": 21,
+          "text": "## 2. 全部單項結果"
+        },
+        {
+          "line": 49,
+          "text": "## 3. 出場候選：收益較好，但未取得升級證據"
+        },
+        {
+          "line": 69,
+          "text": "## 4. 成本與保證金敏感度"
+        },
+        {
+          "line": 84,
+          "text": "## 5. 不確定性與真正向前驗證"
+        },
+        {
+          "line": 117,
+          "text": "## 6. 新條件與實作核對"
+        },
+        {
+          "line": 128,
+          "text": "## 7. 實際決策與後續"
+        },
+        {
+          "line": 136,
+          "text": "## 檔案與重現"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/execute_optimization_plan_20260908.py",
+        "backtest/research/write_optimization_report_20260908.py"
+      ]
+    },
+    {
+      "path": "doc/phase1_cost_risk_20260908.md",
+      "sha256": "ea5fe440fa74d9510f0d2e03a05435f55518b1e84d04f03185350a3c46896b7d",
+      "bytes": 7003,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 第一階段：成本與風險口徑稽核"
+        },
+        {
+          "line": 5,
+          "text": "## 已完成的驗證"
+        },
+        {
+          "line": 16,
+          "text": "## 基準與逐時浮動淨值"
+        },
+        {
+          "line": 35,
+          "text": "## Funding盤點與有限估算"
+        },
+        {
+          "line": 55,
+          "text": "## 資料缺口及下一步用量"
+        },
+        {
+          "line": 68,
+          "text": "## 重現與產出"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/phase1_cost_risk_20260908.py"
+      ]
+    },
+    {
+      "path": "doc/price_candle_trade_analysis_20260904.md",
+      "sha256": "263dd3ab23c971cc69702020eedc5da16e5a7ba31baafd3fea0eaa30a925ce11",
+      "bytes": 9429,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# ETH 交易價格區間與進場 K 棒分析（2026-09-04）"
+        },
+        {
+          "line": 3,
+          "text": "## 結論"
+        },
+        {
+          "line": 18,
+          "text": "## 資料與驗證"
+        },
+        {
+          "line": 28,
+          "text": "## 價格區間"
+        },
+        {
+          "line": 43,
+          "text": "## 進場 K 棒"
+        },
+        {
+          "line": 64,
+          "text": "## 完整引擎反事實測試"
+        },
+        {
+          "line": 81,
+          "text": "## 其他檢查"
+        },
+        {
+          "line": 83,
+          "text": "### 1. 實戰與回測貼合"
+        },
+        {
+          "line": 91,
+          "text": "### 2. Regime"
+        },
+        {
+          "line": 102,
+          "text": "### 3. 時段與星期"
+        },
+        {
+          "line": 108,
+          "text": "### 4. MaxHold 後續價格"
+        },
+        {
+          "line": 121,
+          "text": "## 優化空間與下一步"
+        },
+        {
+          "line": 128,
+          "text": "## 限制"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/profit_protection_plan_20260909.md",
+      "sha256": "1b298276a83b5fc12ec7ed58624d80bb5c8d67d5ca02d77479567494c898e375",
+      "bytes": 3051,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 1h 進場、5m／15m 獲利保護研究預登記"
+        },
+        {
+          "line": 5,
+          "text": "## 規則"
+        },
+        {
+          "line": 16,
+          "text": "## 對照與資料"
+        },
+        {
+          "line": 22,
+          "text": "## 驗收與停止"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/profit_protection_results_20260909.md",
+      "sha256": "3bcd83cf08d0cead3687a6023c33955b5c92f33672837311827ff56ee47e863c",
+      "bytes": 6837,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 1h 進場、5m／15m 獲利保護研究結果"
+        },
+        {
+          "line": 7,
+          "text": "## 規則與口徑"
+        },
+        {
+          "line": 18,
+          "text": "## 固定 200U、原全成本結果"
+        },
+        {
+          "line": 35,
+          "text": "## 前後期與成本"
+        },
+        {
+          "line": 57,
+          "text": "## 勝率變高，為何收益反而降低"
+        },
+        {
+          "line": 74,
+          "text": "## 不確定性與停止決策"
+        },
+        {
+          "line": 87,
+          "text": "## 驗證與重現"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/profit_protection_20260909.py",
+        "backtest/research/write_profit_protection_report_20260909.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260908/download_manifest.json",
+      "sha256": "8c40a6329444e1a78c8abf95fa86ffcb60accbbb7141ffaf268aec29d7d62f29",
+      "bytes": 2504,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260908/README.md",
+      "sha256": "2fc521abc3b51cb37b8a5ea35ad87f4c26844865cb0a76b88c0149a8080f1962",
+      "bytes": 2918,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 2026-09-08 策略優化研究彙總"
+        },
+        {
+          "line": 5,
+          "text": "## 已提交的證據"
+        },
+        {
+          "line": 13,
+          "text": "## 本輪主要結果"
+        },
+        {
+          "line": 19,
+          "text": "## 重現"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/dynamic_tp_regime_analysis.py",
+        "backtest/research/execute_optimization_plan_20260908.py",
+        "backtest/research/fetch_public_cost_years.py",
+        "backtest/research/maxhold_review_20260908.py",
+        "backtest/research/phase1_cost_risk_20260908.py",
+        "backtest/research/price_candle_trade_analysis.py",
+        "backtest/research/write_optimization_report_20260908.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260908/results.json",
+      "sha256": "ec8683d1d9657b2222529fbed8ccb1b5aeef8d91f5dbfa4aa8e65fafe246af49",
+      "bytes": 370752,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260908/summary.csv",
+      "sha256": "ecc7aba1508d8d801e89ded855f06ef5743478f9b889e5608c305d0670cd6c4a",
+      "bytes": 3316,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260908_breakout_failure/conditional.csv",
+      "sha256": "6482aec35e4b751563c9e091335c1af2c2a37c96611296c744dbbf95e67a7767",
+      "bytes": 1757,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260908_breakout_failure/groups.csv",
+      "sha256": "548885f01344071d43b4e2ce47bba6987d972abb2df042bbe9e194ac41944e0a",
+      "bytes": 294,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260908_breakout_failure/registration.json",
+      "sha256": "045632855599822d9c8e6c48444fe8dd338f5422d2714a358e7175f3cbd71d9f",
+      "bytes": 837,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/breakout_failure_20260908.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260908_breakout_failure/results.json",
+      "sha256": "fcd9e88fd5499964ce58c85cca9bd11ce6627466bdaf400a31a3a44730fcc341",
+      "bytes": 37516,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/breakout_failure_20260908.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260908_breakout_failure/summary.csv",
+      "sha256": "517b49832baf0dc40824674ccb80adb223b5052411e08f5cc1544ebd32a08c6a",
+      "bytes": 3621,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260908_intrahour/registration.json",
+      "sha256": "c56e34a1ff5f237cf9dd551ee7ae956f638cee4e2e4450817246f62ffee47579",
+      "bytes": 1037,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/intrahour_entry_20260908.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260908_intrahour/results.json",
+      "sha256": "8376aae1628d2cffaa534805ae3adc31975b48231ea265774aed39eff70ed3a9",
+      "bytes": 109580,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/intrahour_entry_20260908.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260908_intrahour/summary.csv",
+      "sha256": "51caf1c192385785f6f7c4954debd0ee85863fc8759d06a4a6f0202058b31e0e",
+      "bytes": 9638,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_execution_cost/README.md",
+      "sha256": "4378b4b4055bf6ff2d8bab67843a6ec82d504ee8a8867da482b9fde56d96d2e5",
+      "bytes": 193,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 成交成本研究"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_execution_cost/registration.json",
+      "sha256": "5ccdac70af887a060b7650c879ea7b9f1ef90fa9301a187eab69174eecbcfd5c",
+      "bytes": 1465,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/execution_cost_20260909.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260909_execution_cost/results.json",
+      "sha256": "2b6d5a6d21e9f856f294df93a77adc17bc3136925a67c1306eaffbbe9309427e",
+      "bytes": 68577,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/execution_cost_20260909.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260909_execution_cost/sources.json",
+      "sha256": "4304d5c40507102dba6d0b3c2ae77bf44c8848e421d2b21f3392305a933d5ff6",
+      "bytes": 398,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_execution_cost/summary.csv",
+      "sha256": "8899813b6274d350d2349b3b7a56387dff0f13e7cef6a295a7381fa71703932a",
+      "bytes": 7118,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_flow_price/baseline_flow_labels.csv",
+      "sha256": "28aa001240d722004ef917e213a11a9eee4c02ae70a71543d3cf3fc9b20b7952",
+      "bytes": 98682,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_flow_price/buckets.csv",
+      "sha256": "52147b7897fc1b0d4bc117c98825486aa42bae1f36fb51558b3551fb39f187c0",
+      "bytes": 5338,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_flow_price/independent_audit.json",
+      "sha256": "89891e1044b87d01310a32562b53b59e67327ea593596ac22221c7a4725f403c",
+      "bytes": 162,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_flow_price/README.md",
+      "sha256": "063cb98c39d70219d353ee165fdd216695a0810ba0d596d26b5b15fd964b8b35",
+      "bytes": 291,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 5m 買賣力道與價格反應"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_flow_price/registration.json",
+      "sha256": "9457db1c3408546e2bc02aab19bd7270c916c5f9d1158414fb29ebc0b559cda4",
+      "bytes": 1883,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/execute_optimization_plan_20260908.py",
+        "backtest/research/flow_price_20260909.py",
+        "backtest/research/intrahour_entry_20260908.py",
+        "backtest/research/spot_futures_sync_20260909.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260909_flow_price/results.json",
+      "sha256": "9202f55559e49a2dfe48dbf3f96b4b876d1b11a1fabf9bfa887f9aa0cf61812c",
+      "bytes": 158353,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/execute_optimization_plan_20260908.py",
+        "backtest/research/flow_price_20260909.py",
+        "backtest/research/intrahour_entry_20260908.py",
+        "backtest/research/spot_futures_sync_20260909.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260909_flow_price/summary.csv",
+      "sha256": "a7e673cb8d3646817f2fac49a35dbd5d47e5b7f62b78d35ba82a3da43cee1886",
+      "bytes": 9511,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_profit_protection/original_exit_groups.csv",
+      "sha256": "c70a38d3638e73783d7b2d4aa8b63715d0a0563cb5b2bffe058e3890bc64d2af",
+      "bytes": 1202,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_profit_protection/README.md",
+      "sha256": "1286ba8a8491ef50cc82621db38dae2f6ddae36bf9d3d5dc853fc2793341b250",
+      "bytes": 213,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 獲利保護研究"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_profit_protection/registration.json",
+      "sha256": "a73e62a34f545321a6c9677869466216170aa78e9774027cfcbdbafeebf157fb",
+      "bytes": 943,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/profit_protection_20260909.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260909_profit_protection/results.json",
+      "sha256": "804bc29b3e3f45eded8c4158cd967d21936e4e29db03c6cb0981f1f3388f2c71",
+      "bytes": 82320,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/profit_protection_20260909.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260909_profit_protection/summary.csv",
+      "sha256": "80d7e0104747bf42c1027f494e8e5dcfb5e0d67f71e2a82063c41303112ecce6",
+      "bytes": 9619,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_research_commits.md",
+      "sha256": "8dedb06dd16fb130352d499b882ea87fc69b37cb0fca5d10170b0dce6dfe4c67",
+      "bytes": 2793,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 2026-09-09 研究提交索引"
+        },
+        {
+          "line": 17,
+          "text": "## 驗證及重現邊界"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_second_breakout/README.md",
+      "sha256": "c5ecb2951e61fc7c881afb50fa5ebedf2ee09ce71889bcb035825de0fe4cd433",
+      "bytes": 141,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 再次突破研究"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_second_breakout/registration.json",
+      "sha256": "9d9f63d940fccb82a9d0cdf74597b5bd1ef94bb6b6359d71fb778738d6c2d97c",
+      "bytes": 968,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/second_breakout_20260909.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260909_second_breakout/results.json",
+      "sha256": "750709afcf4d56b5163ec756904177fbdc119540ce9b572cdd3198de72c9306e",
+      "bytes": 143615,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/second_breakout_20260909.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260909_second_breakout/retry_lineage.csv",
+      "sha256": "5163eec20564984157d747e7559944fca630913cd01084c3a8009389a5b7e064",
+      "bytes": 32485,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_second_breakout/summary.csv",
+      "sha256": "7a9472317347d016d8756b382a2478d921ca3b442cdc179f4abf0cda23e317f9",
+      "bytes": 11685,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_second_breakout/wait_seed_outcomes.csv",
+      "sha256": "e73dfec0241f5f72bf43fa6a9212eaf83fc56e16ab528831a690b17daab2b049",
+      "bytes": 36708,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_spot_sync/baseline_spot_labels.csv",
+      "sha256": "bdcfe06926670bccad79c160ade64cac735e83f0948a5a785ec20ff08c034005",
+      "bytes": 67099,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_spot_sync/buckets.csv",
+      "sha256": "d45d21546ac7577f7d5284207ef0cbb0c7d601c2ebe98485db9de3fc3d61eafb",
+      "bytes": 2210,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_spot_sync/independent_audit.json",
+      "sha256": "d3d19cab8249f5487db0eaf1c69df210c6d5a10e917bef46e1552b6b789bd781",
+      "bytes": 159,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_spot_sync/manifest.json",
+      "sha256": "f4d8171c4b24f3ae87ae92caa3e44772770d98fe6e4d44d099ab82c612961866",
+      "bytes": 7845,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_spot_sync/README.md",
+      "sha256": "aa4a1032ca340b672fd406d14d2bd5604ae89a075222cbb73a436f74d9208975",
+      "bytes": 319,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 現貨／合約同步突破研究"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/research_results/20260909_spot_sync/registration.json",
+      "sha256": "3313756b5bb0fc843a92984e5ea1955b26a8a311f47230333be5add02e1a0797",
+      "bytes": 1635,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/execute_optimization_plan_20260908.py",
+        "backtest/research/fetch_spot_sync_20260909.py",
+        "backtest/research/intrahour_entry_20260908.py",
+        "backtest/research/spot_futures_sync_20260909.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260909_spot_sync/results.json",
+      "sha256": "cd8b30ee31c85e892dadd9aad626f46525351a8d3e790f89075950cd558ed531",
+      "bytes": 75523,
+      "headings": [],
+      "referenced_existing_scripts": [
+        "backtest/research/execute_optimization_plan_20260908.py",
+        "backtest/research/fetch_spot_sync_20260909.py",
+        "backtest/research/intrahour_entry_20260908.py",
+        "backtest/research/spot_futures_sync_20260909.py",
+        "backtest/research/v14_export_trades.py"
+      ]
+    },
+    {
+      "path": "doc/research_results/20260909_spot_sync/summary.csv",
+      "sha256": "fb059d969329be26c2a375b42f515e648e2ab8e8ee82fbc44595fb8a01a05067",
+      "bytes": 4812,
+      "headings": [],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/second_breakout_plan_20260909.md",
+      "sha256": "cce91d64af2a16ed69ff8c27646b8dc7514bafd3574b40355f59e14cc6b1d8bc",
+      "bytes": 3926,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 固定界線再次突破研究預登記"
+        },
+        {
+          "line": 5,
+          "text": "## 與已做研究的區別"
+        },
+        {
+          "line": 9,
+          "text": "## 固定定義"
+        },
+        {
+          "line": 15,
+          "text": "## 十個規則"
+        },
+        {
+          "line": 24,
+          "text": "## 驗證與停止"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/second_breakout_results_20260909.md",
+      "sha256": "6f21f4bc490e175772985c94c242ea574c77f50834959f75e5187af2fcab22a7",
+      "bytes": 8181,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 固定界線再次突破研究結果"
+        },
+        {
+          "line": 5,
+          "text": "## 研究定義"
+        },
+        {
+          "line": 15,
+          "text": "## 固定 200U、原成本全期結果"
+        },
+        {
+          "line": 34,
+          "text": "## 原單平倉後的再進場表現"
+        },
+        {
+          "line": 49,
+          "text": "## 事件漏斗"
+        },
+        {
+          "line": 65,
+          "text": "## 分期與成本"
+        },
+        {
+          "line": 87,
+          "text": "## L/S 分開觀察（不事後改選方向）"
+        },
+        {
+          "line": 99,
+          "text": "## 不確定性與停止決策"
+        },
+        {
+          "line": 112,
+          "text": "## 驗證與重現"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/second_breakout_20260909.py",
+        "backtest/research/write_second_breakout_report_20260909.py"
+      ]
+    },
+    {
+      "path": "doc/spot_futures_sync_plan_20260909.md",
+      "sha256": "7658fbd17105490e3fa23973de9fa35086085bddcd497c0349d3ea6398aed038",
+      "bytes": 3618,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# ETH 現貨／合約同步突破研究預登記"
+        },
+        {
+          "line": 5,
+          "text": "## 資料與規則"
+        },
+        {
+          "line": 18,
+          "text": "## 資料稽核與時間因果"
+        },
+        {
+          "line": 24,
+          "text": "## 驗證及停止條件"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/spot_futures_sync_results_20260909.md",
+      "sha256": "d63aa3e4ae36e0ce98159f6a3866bd93eab212c327a0db01cdcef9908d826bd9",
+      "bytes": 8454,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# ETH 現貨／合約同步突破研究結果"
+        },
+        {
+          "line": 5,
+          "text": "## 定義與資料"
+        },
+        {
+          "line": 14,
+          "text": "## 固定部位完整回測"
+        },
+        {
+          "line": 27,
+          "text": "## 原交易的同步分類"
+        },
+        {
+          "line": 48,
+          "text": "## 收益差異分解"
+        },
+        {
+          "line": 58,
+          "text": "## 分期、成本與樣本"
+        },
+        {
+          "line": 88,
+          "text": "## 驗證與研究決策"
+        },
+        {
+          "line": 98,
+          "text": "## 重現與來源"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/fetch_spot_sync_20260909.py",
+        "backtest/research/spot_futures_sync_20260909.py",
+        "backtest/research/write_spot_sync_report_20260909.py"
+      ]
+    },
+    {
+      "path": "doc/strategy_optimization_plan_20260908.md",
+      "sha256": "8d6b75ba48efd829c6a3fbf524f614b4d31f19a73bb0c06a73bec40bb8bbfa8f",
+      "bytes": 11790,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# 策略優化研究計畫（2026-09-08，歷史驗證已完成）"
+        },
+        {
+          "line": 13,
+          "text": "## 目標"
+        },
+        {
+          "line": 21,
+          "text": "## 第一階段：先把比較口徑補齊"
+        },
+        {
+          "line": 30,
+          "text": "## 第二階段：參數候選"
+        },
+        {
+          "line": 43,
+          "text": "## 第三階段：交易員常用條件的低成本診斷"
+        },
+        {
+          "line": 49,
+          "text": "### C1：成交量確認（2 組）"
+        },
+        {
+          "line": 58,
+          "text": "### C2：ADX／DMI 趨勢確認（2 組）"
+        },
+        {
+          "line": 66,
+          "text": "### C3：跌破後回測確認進場（2 組＋2 組延遲對照）"
+        },
+        {
+          "line": 80,
+          "text": "## 其他策略方向如何處理"
+        },
+        {
+          "line": 87,
+          "text": "## 驗證順序與防止上帝視角"
+        },
+        {
+          "line": 97,
+          "text": "## 預先登記的淘汰標準"
+        },
+        {
+          "line": 114,
+          "text": "## 預定產出與執行範圍"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/tp_rollercoaster_analysis_20260904.md",
+      "sha256": "d5e633acce6b359e2ecae0ced4bf57152d1812f9d5edabf4c45ac6b25d86eb25",
+      "bytes": 5926,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# TP 計算與浮盈回吐分析（2026-09-04）"
+        },
+        {
+          "line": 3,
+          "text": "## 結論"
+        },
+        {
+          "line": 12,
+          "text": "## TP 如何計算"
+        },
+        {
+          "line": 16,
+          "text": "### L 做多"
+        },
+        {
+          "line": 22,
+          "text": "### S 做空"
+        },
+        {
+          "line": 33,
+          "text": "## 為什麼碰到 TP 還會回吐"
+        },
+        {
+          "line": 46,
+          "text": "## TP 成交回吐統計"
+        },
+        {
+          "line": 56,
+          "text": "### 理論 TP 成交與貼近實盤成交"
+        },
+        {
+          "line": 66,
+          "text": "## 哪些虧損真的坐過山車"
+        },
+        {
+          "line": 79,
+          "text": "## 降低 TP 的完整回測"
+        },
+        {
+          "line": 83,
+          "text": "### L TP"
+        },
+        {
+          "line": 98,
+          "text": "### S TP"
+        },
+        {
+          "line": 113,
+          "text": "## 最終判斷"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/v10_research.md",
+      "sha256": "92514f0fce9a6738cc66559c5378d7b71c0067f94567bc084817abad4bca64cf",
+      "bytes": 42394,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V10 $1K 帳戶穩定獲利研究"
+        },
+        {
+          "line": 24,
+          "text": "## 背景：V9 結論"
+        },
+        {
+          "line": 35,
+          "text": "## 回測規格"
+        },
+        {
+          "line": 52,
+          "text": "### 回撤熔斷（Circuit Breaker）"
+        },
+        {
+          "line": 60,
+          "text": "### V10 7 道關卡"
+        },
+        {
+          "line": 74,
+          "text": "## 策略說明"
+        },
+        {
+          "line": 76,
+          "text": "### 4h-1h 反彈做空（Counter-Trend Pullback Short）"
+        },
+        {
+          "line": 109,
+          "text": "### 為什麼 Short-only 而非 L+S？"
+        },
+        {
+          "line": 124,
+          "text": "## 研究歷程"
+        },
+        {
+          "line": 126,
+          "text": "### R1：ETH 1h 全面數據特性分析"
+        },
+        {
+          "line": 169,
+          "text": "### R2：多策略探索（5 種方向）"
+        },
+        {
+          "line": 207,
+          "text": "### R3：Strategy E 風控優化"
+        },
+        {
+          "line": 233,
+          "text": "### R4：maxTotal=1 + Short-only 測試"
+        },
+        {
+          "line": 262,
+          "text": "### R5：冠軍配置詳細驗證"
+        },
+        {
+          "line": 268,
+          "text": "#### Champion1（推薦）"
+        },
+        {
+          "line": 307,
+          "text": "#### Champion2"
+        },
+        {
+          "line": 316,
+          "text": "#### Champion3"
+        },
+        {
+          "line": 325,
+          "text": "#### Gate Check（Champion1）"
+        },
+        {
+          "line": 339,
+          "text": "#### Walk-Forward 6-Fold（Champion1）"
+        },
+        {
+          "line": 352,
+          "text": "#### 參數敏感度（Champion1 ± 1 step）"
+        },
+        {
+          "line": 389,
+          "text": "## 最終結果：3 組 7/7 ALL PASS 配置"
+        },
+        {
+          "line": 391,
+          "text": "### 共同設定"
+        },
+        {
+          "line": 408,
+          "text": "### 配置比較"
+        },
+        {
+          "line": 429,
+          "text": "### 推薦 Champion1 的邏輯"
+        },
+        {
+          "line": 439,
+          "text": "## 核心洞察"
+        },
+        {
+          "line": 441,
+          "text": "### 1. 4h-1h Multi-Timeframe 是解鎖穩定性的關鍵"
+        },
+        {
+          "line": 446,
+          "text": "### 2. Short-only 在 $1K 帳戶優於 L+S"
+        },
+        {
+          "line": 452,
+          "text": "### 3. maxTotal=1 是風控的核心"
+        },
+        {
+          "line": 459,
+          "text": "### 4. EMAcross 是主要獲利引擎"
+        },
+        {
+          "line": 466,
+          "text": "### 5. 1h 短線均值回歸（TP/SL 框架）結構性無法盈利"
+        },
+        {
+          "line": 474,
+          "text": "### 6. 已知風險"
+        },
+        {
+          "line": 485,
+          "text": "## 排除的方向"
+        },
+        {
+          "line": 487,
+          "text": "### V10 排除清單"
+        },
+        {
+          "line": 506,
+          "text": "## 研究腳本索引"
+        },
+        {
+          "line": 521,
+          "text": "## R6：15m vs 1h 時框比較"
+        },
+        {
+          "line": 527,
+          "text": "### 手續費拖累分析"
+        },
+        {
+          "line": 537,
+          "text": "### 4 種方法測試"
+        },
+        {
+          "line": 546,
+          "text": "### 結果對比"
+        },
+        {
+          "line": 555,
+          "text": "### 關鍵發現"
+        },
+        {
+          "line": 602,
+          "text": "## V10-L 做多策略研究"
+        },
+        {
+          "line": 609,
+          "text": "### 目標"
+        },
+        {
+          "line": 631,
+          "text": "### 回測規格"
+        },
+        {
+          "line": 643,
+          "text": "### V10-S 月度 PnL（合併計算用）"
+        },
+        {
+          "line": 653,
+          "text": "### R1：趨勢回調 + EMAcross 出場"
+        },
+        {
+          "line": 663,
+          "text": "### R2：趨勢回調 + TP 出場"
+        },
+        {
+          "line": 673,
+          "text": "### R3：GK 壓縮突破 + EMAcross 出場"
+        },
+        {
+          "line": 683,
+          "text": "### R4：GK 突破 + EarlyStop 變體"
+        },
+        {
+          "line": 697,
+          "text": "### R5：趨勢過濾器"
+        },
+        {
+          "line": 707,
+          "text": "### R6：均值回歸 Dip Buying"
+        },
+        {
+          "line": 717,
+          "text": "### R7：風控收緊"
+        },
+        {
+          "line": 729,
+          "text": "### R8：TP + MaxHold 出場（突破！）"
+        },
+        {
+          "line": 741,
+          "text": "### R9：Fine-tune"
+        },
+        {
+          "line": 758,
+          "text": "### R10：驗證 & 壓力測試"
+        },
+        {
+          "line": 762,
+          "text": "#### Walk-Forward"
+        },
+        {
+          "line": 772,
+          "text": "#### 壓力測試（Fee / SafeNet 穿透）"
+        },
+        {
+          "line": 784,
+          "text": "#### 參數高原（Champion）"
+        },
+        {
+          "line": 796,
+          "text": "#### Anti-Lookahead"
+        },
+        {
+          "line": 810,
+          "text": "#### 連虧分析"
+        },
+        {
+          "line": 818,
+          "text": "### 最終推薦：Runner-up"
+        },
+        {
+          "line": 828,
+          "text": "#### 策略規格"
+        },
+        {
+          "line": 855,
+          "text": "#### OOS 績效"
+        },
+        {
+          "line": 867,
+          "text": "#### L+S 合併績效"
+        },
+        {
+          "line": 891,
+          "text": "#### 全部目標檢查"
+        },
+        {
+          "line": 913,
+          "text": "### V10-L 核心洞察"
+        },
+        {
+          "line": 915,
+          "text": "#### 1. TP + MaxHold 是 Long 做多在 $1K 帳戶的唯一可行出場方式"
+        },
+        {
+          "line": 923,
+          "text": "#### 2. GK 壓縮突破是最佳進場（所有範式中）"
+        },
+        {
+          "line": 931,
+          "text": "#### 3. L 策略精確補償 S 策略弱月"
+        },
+        {
+          "line": 938,
+          "text": "#### 4. 已知風險"
+        },
+        {
+          "line": 947,
+          "text": "### V10-L 研究腳本索引"
+        },
+        {
+          "line": 962,
+          "text": "### V10-L 排除的方向"
+        },
+        {
+          "line": 976,
+          "text": "## V10-S v2：純 1h Short 策略（2026-04-13）"
+        },
+        {
+          "line": 978,
+          "text": "### 背景"
+        },
+        {
+          "line": 983,
+          "text": "### 目標"
+        },
+        {
+          "line": 998,
+          "text": "### R1：三範式探索（468 configs）"
+        },
+        {
+          "line": 1010,
+          "text": "### R2：Fine-tune + 風控解鎖（6,912 configs）"
+        },
+        {
+          "line": 1028,
+          "text": "### R3：Comprehensive Validation（3 候選）"
+        },
+        {
+          "line": 1038,
+          "text": "#### Walk-Forward"
+        },
+        {
+          "line": 1048,
+          "text": "#### Stress Test（IS period）"
+        },
+        {
+          "line": 1052,
+          "text": "#### Parameter Plateau（OOS）"
+        },
+        {
+          "line": 1063,
+          "text": "#### Consecutive Loss Analysis"
+        },
+        {
+          "line": 1073,
+          "text": "#### Anti-lookahead"
+        },
+        {
+          "line": 1077,
+          "text": "### V10-S v2 推薦配置"
+        },
+        {
+          "line": 1104,
+          "text": "#### 績效"
+        },
+        {
+          "line": 1117,
+          "text": "#### L+S 合併月度"
+        },
+        {
+          "line": 1140,
+          "text": "#### 出場分佈（OOS）"
+        },
+        {
+          "line": 1148,
+          "text": "### V10-S v2 核心洞察"
+        },
+        {
+          "line": 1160,
+          "text": "### V10-S v2 腳本索引"
+        },
+        {
+          "line": 1168,
+          "text": "### V10-S v2 排除的方向"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v10_fetch_15m_data.py",
+        "backtest/research/v10_r1_data_analysis.py",
+        "backtest/research/v10_r1b_mfe_mae_fast.py",
+        "backtest/research/v10_r2_4h_trend_analysis.py",
+        "backtest/research/v10_r3_stratE_optimize.py",
+        "backtest/research/v10_r4_maxone_short.py",
+        "backtest/research/v10_r5_champion_validate.py",
+        "backtest/research/v10_r6_15m_comparison.py",
+        "backtest/research/v10l_r10_validation.py",
+        "backtest/research/v10l_r1_trend_pullback.py",
+        "backtest/research/v10l_r3_gk_breakout.py",
+        "backtest/research/v10l_r5_trend_filter.py",
+        "backtest/research/v10l_r6_dip_buy.py",
+        "backtest/research/v10l_r7_risk_tighten.py",
+        "backtest/research/v10l_r8_tp_maxhold.py",
+        "backtest/research/v10l_r9_finetune.py",
+        "backtest/research/v10s2_r1_exploration.py",
+        "backtest/research/v10s2_r2_finetune.py",
+        "backtest/research/v10s2_r3_validation.py"
+      ]
+    },
+    {
+      "path": "doc/v11_research.md",
+      "sha256": "af8a5b5dcd9aa1471bbb8c07ec2b6e8edf631e4948734e49da07b1c1eb3cbe39",
+      "bytes": 9628,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V11 策略研究"
+        },
+        {
+          "line": 7,
+          "text": "## 研究背景"
+        },
+        {
+          "line": 9,
+          "text": "### V10 基線（當前數據）"
+        },
+        {
+          "line": 34,
+          "text": "### 指標計算方式"
+        },
+        {
+          "line": 44,
+          "text": "## R1：TP / MaxHold 參數掃描"
+        },
+        {
+          "line": 46,
+          "text": "### 動機"
+        },
+        {
+          "line": 52,
+          "text": "### 方法"
+        },
+        {
+          "line": 60,
+          "text": "### Sweep 1 結果（L TP/MH，S 固定 TP1.5 MH5）"
+        },
+        {
+          "line": 72,
+          "text": "### Sweep 2 結果（S TP/MH，L 固定 TP2.0 MH5）"
+        },
+        {
+          "line": 84,
+          "text": "### Sweep 3 聯合優化 Top 5"
+        },
+        {
+          "line": 97,
+          "text": "## R1b：候選配置驗證"
+        },
+        {
+          "line": 99,
+          "text": "### 候選清單"
+        },
+        {
+          "line": 113,
+          "text": "### 驗證結果"
+        },
+        {
+          "line": 126,
+          "text": "### ★ V11-E 冠軍：L:TP3.5%MH6 + S:TP2.0%MH7"
+        },
+        {
+          "line": 185,
+          "text": "## V11-E 規格（研究結論）"
+        },
+        {
+          "line": 187,
+          "text": "### L 策略（做多）"
+        },
+        {
+          "line": 199,
+          "text": "### S 策略（做空）"
+        },
+        {
+          "line": 211,
+          "text": "### V10 → V11-E 變更摘要"
+        },
+        {
+          "line": 222,
+          "text": "## 發現：strategy.py 指標不一致"
+        },
+        {
+          "line": 237,
+          "text": "## 研究腳本"
+        },
+        {
+          "line": 247,
+          "text": "## 後續研究方向"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v11_baseline.py",
+        "backtest/research/v11_r1_tp_mh_sweep.py",
+        "backtest/research/v11_r1b_validate.py"
+      ]
+    },
+    {
+      "path": "doc/v12_research.md",
+      "sha256": "0f3b2f4abd45f5bb02c99d5d7c473f76cba6dd373f38ba177636625965eba1e3",
+      "bytes": 18387,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V12 策略研究：全新 S 做空進場邏輯"
+        },
+        {
+          "line": 9,
+          "text": "## 研究背景"
+        },
+        {
+          "line": 11,
+          "text": "### V11-E S 基線"
+        },
+        {
+          "line": 28,
+          "text": "### 研究動機"
+        },
+        {
+          "line": 36,
+          "text": "### 研究約束"
+        },
+        {
+          "line": 43,
+          "text": "### 排除方向"
+        },
+        {
+          "line": 49,
+          "text": "### 候選方向"
+        },
+        {
+          "line": 61,
+          "text": "## R1：月相統計驗證"
+        },
+        {
+          "line": 63,
+          "text": "### 假設"
+        },
+        {
+          "line": 67,
+          "text": "### 方法"
+        },
+        {
+          "line": 73,
+          "text": "### 結果"
+        },
+        {
+          "line": 81,
+          "text": "### 結論"
+        },
+        {
+          "line": 85,
+          "text": "### 腳本"
+        },
+        {
+          "line": 91,
+          "text": "## R2：方向 A — 動量衰竭做空（Momentum Exhaustion）"
+        },
+        {
+          "line": 93,
+          "text": "### 假設"
+        },
+        {
+          "line": 98,
+          "text": "### 方法"
+        },
+        {
+          "line": 107,
+          "text": "### 結果"
+        },
+        {
+          "line": 114,
+          "text": "### 結論"
+        },
+        {
+          "line": 118,
+          "text": "### 腳本"
+        },
+        {
+          "line": 124,
+          "text": "## R3：方向 B/D/E — 成交量異常 + 過度延伸 + RSI 過買"
+        },
+        {
+          "line": 126,
+          "text": "### 方法"
+        },
+        {
+          "line": 148,
+          "text": "### 結果"
+        },
+        {
+          "line": 168,
+          "text": "### 結論"
+        },
+        {
+          "line": 174,
+          "text": "### 腳本"
+        },
+        {
+          "line": 180,
+          "text": "## R4：方向 C — BTC-ETH 背離做空"
+        },
+        {
+          "line": 182,
+          "text": "### 假設"
+        },
+        {
+          "line": 188,
+          "text": "### 方法"
+        },
+        {
+          "line": 212,
+          "text": "### 結果"
+        },
+        {
+          "line": 233,
+          "text": "### 結論"
+        },
+        {
+          "line": 237,
+          "text": "### 腳本"
+        },
+        {
+          "line": 243,
+          "text": "## R5：方向 F/G/H/I — Bollinger Band + ATR + N-bar High + Volume 擴展"
+        },
+        {
+          "line": 245,
+          "text": "### 方法"
+        },
+        {
+          "line": 272,
+          "text": "### 結果"
+        },
+        {
+          "line": 281,
+          "text": "### 結論"
+        },
+        {
+          "line": 288,
+          "text": "### 腳本"
+        },
+        {
+          "line": 294,
+          "text": "## R6：方向 J/K/L/M/N — 失敗突破 + 量價背離 + MACD + Donchian + SMA"
+        },
+        {
+          "line": 296,
+          "text": "### 方法"
+        },
+        {
+          "line": 328,
+          "text": "### 結果"
+        },
+        {
+          "line": 340,
+          "text": "### K (PV Divergence) 分析"
+        },
+        {
+          "line": 353,
+          "text": "### 結論"
+        },
+        {
+          "line": 359,
+          "text": "### 腳本"
+        },
+        {
+          "line": 365,
+          "text": "## R7：複合信號做空（Composite Signal Short）"
+        },
+        {
+          "line": 367,
+          "text": "### 假設"
+        },
+        {
+          "line": 371,
+          "text": "### 方法"
+        },
+        {
+          "line": 385,
+          "text": "### 結果"
+        },
+        {
+          "line": 395,
+          "text": "### 結論"
+        },
+        {
+          "line": 399,
+          "text": "### 腳本"
+        },
+        {
+          "line": 405,
+          "text": "## R8：GK Expansion Reversal（GK 擴張反轉做空）"
+        },
+        {
+          "line": 407,
+          "text": "### 假設"
+        },
+        {
+          "line": 411,
+          "text": "### 方法"
+        },
+        {
+          "line": 437,
+          "text": "### 結果"
+        },
+        {
+          "line": 459,
+          "text": "### 結論"
+        },
+        {
+          "line": 464,
+          "text": "### 腳本"
+        },
+        {
+          "line": 470,
+          "text": "## 全研究匯總"
+        },
+        {
+          "line": 472,
+          "text": "### 所有方向結果一覽"
+        },
+        {
+          "line": 500,
+          "text": "### 排名（OOS PnL 前 5）"
+        },
+        {
+          "line": 512,
+          "text": "### 核心結論"
+        },
+        {
+          "line": 524,
+          "text": "### 建議"
+        },
+        {
+          "line": 535,
+          "text": "## 研究腳本索引"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v12_r1_lunar.py",
+        "backtest/research/v12_r2_momentum_exhaust.py",
+        "backtest/research/v12_r3_overext_vol.py",
+        "backtest/research/v12_r4_btc_eth_div.py",
+        "backtest/research/v12_r5_bb_atr_high.py",
+        "backtest/research/v12_r6_novel.py",
+        "backtest/research/v12_r7_composite.py",
+        "backtest/research/v12_r8_gk_expansion.py"
+      ]
+    },
+    {
+      "path": "doc/v13_research.md",
+      "sha256": "9aed14ec75ffa0d3e2a9d6618f6e574e166cd4c761dd6567fc5f5f8bf0ce75cb",
+      "bytes": 30615,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V13 策略研究：全時框策略探索 + GK 窗口優化 + 出場增強"
+        },
+        {
+          "line": 9,
+          "text": "## 研究背景"
+        },
+        {
+          "line": 11,
+          "text": "### V11-E 基線（要超越的目標）"
+        },
+        {
+          "line": 29,
+          "text": "### V13 目標"
+        },
+        {
+          "line": 44,
+          "text": "## R0：時框特性分析"
+        },
+        {
+          "line": 46,
+          "text": "### 方法"
+        },
+        {
+          "line": 50,
+          "text": "### 結果"
+        },
+        {
+          "line": 68,
+          "text": "### 結論"
+        },
+        {
+          "line": 72,
+          "text": "### 腳本"
+        },
+        {
+          "line": 78,
+          "text": "## R1：2h GK 壓縮突破"
+        },
+        {
+          "line": 80,
+          "text": "### 假說"
+        },
+        {
+          "line": 84,
+          "text": "### 方法"
+        },
+        {
+          "line": 90,
+          "text": "### 結果"
+        },
+        {
+          "line": 114,
+          "text": "### 結論"
+        },
+        {
+          "line": 120,
+          "text": "### 腳本"
+        },
+        {
+          "line": 126,
+          "text": "## R2：1h Order Flow (Taker Buy Ratio) + Volume Compression"
+        },
+        {
+          "line": 128,
+          "text": "### 假說"
+        },
+        {
+          "line": 133,
+          "text": "### 方法"
+        },
+        {
+          "line": 140,
+          "text": "### 結果"
+        },
+        {
+          "line": 165,
+          "text": "### 結論"
+        },
+        {
+          "line": 171,
+          "text": "### 腳本"
+        },
+        {
+          "line": 177,
+          "text": "## R3：Conditional MaxHold Extension（出場增強）"
+        },
+        {
+          "line": 179,
+          "text": "### 假說"
+        },
+        {
+          "line": 186,
+          "text": "### 方法"
+        },
+        {
+          "line": 193,
+          "text": "### 結果"
+        },
+        {
+          "line": 222,
+          "text": "### 結論"
+        },
+        {
+          "line": 226,
+          "text": "### 腳本"
+        },
+        {
+          "line": 232,
+          "text": "## R4：GK 窗口重新優化（核心突破）"
+        },
+        {
+          "line": 234,
+          "text": "### 假說"
+        },
+        {
+          "line": 238,
+          "text": "### 方法"
+        },
+        {
+          "line": 246,
+          "text": "### 結果"
+        },
+        {
+          "line": 291,
+          "text": "### 結論"
+        },
+        {
+          "line": 295,
+          "text": "### 腳本"
+        },
+        {
+          "line": 301,
+          "text": "## R5：Walk-Forward 驗證 + 效果分解 + 參數穩定性"
+        },
+        {
+          "line": 303,
+          "text": "### 效果分解"
+        },
+        {
+          "line": 312,
+          "text": "### Walk-Forward 結果"
+        },
+        {
+          "line": 352,
+          "text": "### 參數鄰域穩定性（S 策略）"
+        },
+        {
+          "line": 403,
+          "text": "### 出場原因分佈 (OOS)"
+        },
+        {
+          "line": 427,
+          "text": "### 詳細統計 (OOS)"
+        },
+        {
+          "line": 435,
+          "text": "### IS 月報"
+        },
+        {
+          "line": 454,
+          "text": "### 最差日 (OOS)"
+        },
+        {
+          "line": 464,
+          "text": "### 最佳日 (OOS)"
+        },
+        {
+          "line": 471,
+          "text": "### 目標檢查"
+        },
+        {
+          "line": 486,
+          "text": "### 防前瞻自檢"
+        },
+        {
+          "line": 497,
+          "text": "### 腳本"
+        },
+        {
+          "line": 503,
+          "text": "## R6：L 策略深度優化"
+        },
+        {
+          "line": 505,
+          "text": "### 假說"
+        },
+        {
+          "line": 509,
+          "text": "### 方法"
+        },
+        {
+          "line": 515,
+          "text": "### 結果"
+        },
+        {
+          "line": 559,
+          "text": "### 結論"
+        },
+        {
+          "line": 563,
+          "text": "### 腳本"
+        },
+        {
+          "line": 569,
+          "text": "## R7：Walk-Forward 驗證 + 完整月報"
+        },
+        {
+          "line": 571,
+          "text": "### 方法"
+        },
+        {
+          "line": 578,
+          "text": "### 結果"
+        },
+        {
+          "line": 665,
+          "text": "### 結論"
+        },
+        {
+          "line": 669,
+          "text": "### 腳本"
+        },
+        {
+          "line": 675,
+          "text": "## R8：S 策略深度優化"
+        },
+        {
+          "line": 677,
+          "text": "### 假說"
+        },
+        {
+          "line": 681,
+          "text": "### 方法"
+        },
+        {
+          "line": 692,
+          "text": "### 結果"
+        },
+        {
+          "line": 765,
+          "text": "### 目標檢查"
+        },
+        {
+          "line": 778,
+          "text": "### 結論"
+        },
+        {
+          "line": 784,
+          "text": "### 腳本"
+        },
+        {
+          "line": 790,
+          "text": "## R9：L 策略精調（收斂確認）"
+        },
+        {
+          "line": 792,
+          "text": "### 假說"
+        },
+        {
+          "line": 796,
+          "text": "### 方法"
+        },
+        {
+          "line": 800,
+          "text": "### 結果"
+        },
+        {
+          "line": 815,
+          "text": "### 結論"
+        },
+        {
+          "line": 819,
+          "text": "### 腳本"
+        },
+        {
+          "line": 825,
+          "text": "## V13 最終策略規格"
+        },
+        {
+          "line": 827,
+          "text": "### L 策略（做多）"
+        },
+        {
+          "line": 857,
+          "text": "### S 策略（做空）"
+        },
+        {
+          "line": 887,
+          "text": "### V13 vs V11-E 差異總覽"
+        },
+        {
+          "line": 900,
+          "text": "## 研究迭代日誌"
+        },
+        {
+          "line": 917,
+          "text": "## 排除方向更新"
+        },
+        {
+          "line": 945,
+          "text": "## V13 研究結論"
+        },
+        {
+          "line": 947,
+          "text": "### 最終成果"
+        },
+        {
+          "line": 960,
+          "text": "### 四大改進來源"
+        },
+        {
+          "line": 969,
+          "text": "### 研究紀律"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v13_r1_2h_gk_breakout.py",
+        "backtest/research/v13_r1_2h_quick.py",
+        "backtest/research/v13_r2_orderflow.py",
+        "backtest/research/v13_r3_conditional_mh.py",
+        "backtest/research/v13_r4_gk_windows.py",
+        "backtest/research/v13_r5_detail_report.py",
+        "backtest/research/v13_r5_validation.py",
+        "backtest/research/v13_r6_l_optimize.py",
+        "backtest/research/v13_r6_l_optimize_fast.py",
+        "backtest/research/v13_r6_v2.py",
+        "backtest/research/v13_r7_session_validate.py",
+        "backtest/research/v13_r8_s_combo.py",
+        "backtest/research/v13_r8_s_optimize.py",
+        "backtest/research/v13_r9_l_finetune.py"
+      ]
+    },
+    {
+      "path": "doc/v14_research.md",
+      "sha256": "eb3d56cf82df38ecb5cee152cdb33e84f721b4c839beabeab798533080f22a5a",
+      "bytes": 17354,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V14 策略研究：出場機制創新（Exit Mechanism Innovation）"
+        },
+        {
+          "line": 10,
+          "text": "## 研究背景"
+        },
+        {
+          "line": 12,
+          "text": "### V13 基線（要超越的目標）"
+        },
+        {
+          "line": 39,
+          "text": "### V14 研究範圍"
+        },
+        {
+          "line": 47,
+          "text": "## R1：V13 MH 虧損出場特徵分析"
+        },
+        {
+          "line": 51,
+          "text": "### 方法"
+        },
+        {
+          "line": 56,
+          "text": "### 核心發現"
+        },
+        {
+          "line": 58,
+          "text": "#### 1. MH 虧損 vs TP 獲利的 PnL 軌跡在 bar 1 就已分化"
+        },
+        {
+          "line": 75,
+          "text": "#### 2. 「先賺後虧」佔 MH 虧損的多數"
+        },
+        {
+          "line": 84,
+          "text": "#### 3. GK pctile 無法預測 MH vs TP"
+        },
+        {
+          "line": 90,
+          "text": "#### 4. Bar 3 是最強預測器（L）"
+        },
+        {
+          "line": 99,
+          "text": "#### 5. 假設提前出場效果巨大"
+        },
+        {
+          "line": 111,
+          "text": "#### 6. ATR(14) 無預測力"
+        },
+        {
+          "line": 115,
+          "text": "### R1 結論"
+        },
+        {
+          "line": 124,
+          "text": "## R2：MFE Trailing Exit"
+        },
+        {
+          "line": 128,
+          "text": "### 機制"
+        },
+        {
+          "line": 141,
+          "text": "### 參數掃描"
+        },
+        {
+          "line": 148,
+          "text": "### 結果"
+        },
+        {
+          "line": 150,
+          "text": "#### L 策略：MFE Trailing 有效"
+        },
+        {
+          "line": 164,
+          "text": "#### S 策略：MFE Trailing 全部失敗"
+        },
+        {
+          "line": 170,
+          "text": "#### 合併"
+        },
+        {
+          "line": 175,
+          "text": "### R2 結論"
+        },
+        {
+          "line": 182,
+          "text": "## R3：Conditional Early Exit（條件式提前出場）"
+        },
+        {
+          "line": 186,
+          "text": "### 機制"
+        },
+        {
+          "line": 193,
+          "text": "### 參數掃描"
+        },
+        {
+          "line": 200,
+          "text": "### 結果"
+        },
+        {
+          "line": 202,
+          "text": "#### L 最佳：bar2<=-1.0% → MH 縮短到 4"
+        },
+        {
+          "line": 210,
+          "text": "#### S：全部配置比 baseline 差（同 R2）"
+        },
+        {
+          "line": 212,
+          "text": "#### 合併"
+        },
+        {
+          "line": 217,
+          "text": "### R3 結論"
+        },
+        {
+          "line": 225,
+          "text": "## R4：Combined L Improvements + S Independent Exploration"
+        },
+        {
+          "line": 229,
+          "text": "### Part 1：L 策略 R2+R3 組合"
+        },
+        {
+          "line": 245,
+          "text": "### Part 2：S 策略全面探索（25 種配置）"
+        },
+        {
+          "line": 260,
+          "text": "### R4 結論"
+        },
+        {
+          "line": 267,
+          "text": "## R5：Champion 完整驗證"
+        },
+        {
+          "line": 271,
+          "text": "### Champion L 配置"
+        },
+        {
+          "line": 282,
+          "text": "### 1. Walk-Forward 8-fold：6/6 PASS（baseline 5/6）"
+        },
+        {
+          "line": 297,
+          "text": "### 2. 月度 PnL 對比（OOS）"
+        },
+        {
+          "line": 320,
+          "text": "### 3. 參數穩健性：16/16 全部 6/6 WF"
+        },
+        {
+          "line": 345,
+          "text": "### 4. 交易層級變化分析"
+        },
+        {
+          "line": 362,
+          "text": "### R5 結論"
+        },
+        {
+          "line": 372,
+          "text": "## 最終比較：V13 vs R5 Champion vs R6 Champion"
+        },
+        {
+          "line": 391,
+          "text": "## R6：reduced_mh=5 Deep Exploration"
+        },
+        {
+          "line": 395,
+          "text": "### 背景"
+        },
+        {
+          "line": 400,
+          "text": "### 掃描結果（28 組）"
+        },
+        {
+          "line": 414,
+          "text": "### New Champion 月度分佈"
+        },
+        {
+          "line": 435,
+          "text": "### R6 穩健性（9 組）"
+        },
+        {
+          "line": 452,
+          "text": "### R6 結論"
+        },
+        {
+          "line": 463,
+          "text": "## V14 Champion L 策略規格（R6 最終版）"
+        },
+        {
+          "line": 493,
+          "text": "## 待探索方向"
+        },
+        {
+          "line": 499,
+          "text": "## 排除的方向"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v14_r1_mh_loss_analysis.py",
+        "backtest/research/v14_r2_mfe_trailing.py",
+        "backtest/research/v14_r3_conditional_early_exit.py",
+        "backtest/research/v14_r4_combined_and_s_explore.py",
+        "backtest/research/v14_r5_champion_validation.py",
+        "backtest/research/v14_r6_reduced_mh5_deep.py"
+      ]
+    },
+    {
+      "path": "doc/v15_research.md",
+      "sha256": "c52ae0f9ad7ed4c223caa377aa52f01295471b6d04da11ce084ef4bc33778448",
+      "bytes": 18148,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V15 策略研究：進場過濾優化（Entry Filter Optimization）"
+        },
+        {
+          "line": 10,
+          "text": "## 研究背景"
+        },
+        {
+          "line": 12,
+          "text": "### V14 基線（要超越的目標）"
+        },
+        {
+          "line": 28,
+          "text": "### V15 目標"
+        },
+        {
+          "line": 34,
+          "text": "## R0：V14 弱月深度診斷"
+        },
+        {
+          "line": 38,
+          "text": "### 方法"
+        },
+        {
+          "line": 43,
+          "text": "### 核心發現"
+        },
+        {
+          "line": 45,
+          "text": "#### 1. ATR 是最強分化因子"
+        },
+        {
+          "line": 54,
+          "text": "#### 2. GK Percentile 非單調關係（L）"
+        },
+        {
+          "line": 66,
+          "text": "#### 3. 進場時間有極端差異"
+        },
+        {
+          "line": 75,
+          "text": "#### 4. BTC 趨勢不是有效過濾器"
+        },
+        {
+          "line": 82,
+          "text": "#### 5. 動量與成交量皆無效"
+        },
+        {
+          "line": 87,
+          "text": "### R0 結論"
+        },
+        {
+          "line": 96,
+          "text": "## R1：三大進場過濾掃描"
+        },
+        {
+          "line": 100,
+          "text": "### H1: ATR 最低門檻"
+        },
+        {
+          "line": 114,
+          "text": "### H2: 進場時間細化"
+        },
+        {
+          "line": 128,
+          "text": "### H3: GK Percentile 下限"
+        },
+        {
+          "line": 142,
+          "text": "### H4: 組合掃描"
+        },
+        {
+          "line": 150,
+          "text": "### R1 結論"
+        },
+        {
+          "line": 156,
+          "text": "## R2：Deep Validation"
+        },
+        {
+          "line": 160,
+          "text": "### 1. 組件拆解"
+        },
+        {
+          "line": 171,
+          "text": "### 2. 參數穩健性（ALL config, 15 perturbations）"
+        },
+        {
+          "line": 177,
+          "text": "### 3. 交易層級分析"
+        },
+        {
+          "line": 188,
+          "text": "### 4. Overfitting check"
+        },
+        {
+          "line": 194,
+          "text": "### R2 結論"
+        },
+        {
+          "line": 201,
+          "text": "## R3：動態出場 + 進場動量"
+        },
+        {
+          "line": 205,
+          "text": "### H5: ATR-Scaled TP（L only）"
+        },
+        {
+          "line": 224,
+          "text": "### H6: Dynamic MH (GK-adaptive)：**ABANDONED**"
+        },
+        {
+          "line": 228,
+          "text": "### H7: Entry Momentum Filter：**ABANDONED**"
+        },
+        {
+          "line": 233,
+          "text": "### H8: Bar Range Confirmation"
+        },
+        {
+          "line": 243,
+          "text": "### Best Combinations"
+        },
+        {
+          "line": 254,
+          "text": "## R4：最終候選驗證"
+        },
+        {
+          "line": 258,
+          "text": "### 全候選對比"
+        },
+        {
+          "line": 270,
+          "text": "### H9: BTC GK Filter：**COMPLETE FAILURE**"
+        },
+        {
+          "line": 274,
+          "text": "### 敏感度熱圖"
+        },
+        {
+          "line": 291,
+          "text": "### Config A 月度明細（OOS）"
+        },
+        {
+          "line": 313,
+          "text": "### Config D 月度明細（+S_rng>=10）"
+        },
+        {
+          "line": 319,
+          "text": "## 推薦方案"
+        },
+        {
+          "line": 321,
+          "text": "### ★ 推薦：Config D（ATR15 + GK7 + S_rng>=10）"
+        },
+        {
+          "line": 357,
+          "text": "### 替代方案"
+        },
+        {
+          "line": 368,
+          "text": "## V15 策略規格（推薦 Config D）"
+        },
+        {
+          "line": 370,
+          "text": "### L 策略（做多）"
+        },
+        {
+          "line": 393,
+          "text": "### S 策略（做空）"
+        },
+        {
+          "line": 416,
+          "text": "## 排除的方向"
+        },
+        {
+          "line": 431,
+          "text": "## 10-Gate 懷疑論稽核（Skeptical Audit）"
+        },
+        {
+          "line": 436,
+          "text": "### 稽核結果"
+        },
+        {
+          "line": 453,
+          "text": "### 關鍵 FAIL 分析"
+        },
+        {
+          "line": 467,
+          "text": "### CONDITIONAL Gate 詳解"
+        },
+        {
+          "line": 481,
+          "text": "### 正面發現"
+        },
+        {
+          "line": 488,
+          "text": "### 最終判定：**REJECTED**"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v15_audit_10gate.py",
+        "backtest/research/v15_r0_v14_diagnostic.py",
+        "backtest/research/v15_r1_entry_filters.py",
+        "backtest/research/v15_r2_validation.py",
+        "backtest/research/v15_r3_dynamic_exits.py",
+        "backtest/research/v15_r4_final_validation.py"
+      ]
+    },
+    {
+      "path": "doc/v16_research.md",
+      "sha256": "6a4e73e4fddb3eb1b365484e66b1039d1a65299d778aee5aeaddf1f930c3b661",
+      "bytes": 12565,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V16 Research: TBR Flow Reversal — 全新策略探索"
+        },
+        {
+          "line": 8,
+          "text": "## 研究動機"
+        },
+        {
+          "line": 19,
+          "text": "## 排除清單（25,000+ 已測試配置）"
+        },
+        {
+          "line": 34,
+          "text": "## R0: Signal Discovery（IS-only）"
+        },
+        {
+          "line": 38,
+          "text": "### 探索的特徵"
+        },
+        {
+          "line": 49,
+          "text": "### Quintile 分析結果"
+        },
+        {
+          "line": 54,
+          "text": "### 策略掃描（IS-only）"
+        },
+        {
+          "line": 74,
+          "text": "## R1: Asymmetric Threshold Scan + OOS Validation"
+        },
+        {
+          "line": 78,
+          "text": "### S2 策略邏輯"
+        },
+        {
+          "line": 90,
+          "text": "### Threshold Scan（IS）"
+        },
+        {
+          "line": 104,
+          "text": "### WF 分析"
+        },
+        {
+          "line": 113,
+          "text": "### V14 Overlap"
+        },
+        {
+          "line": 121,
+          "text": "## R2: Skeptical Validation"
+        },
+        {
+          "line": 125,
+          "text": "### TEST 1: Random Filter Simulation（100x）"
+        },
+        {
+          "line": 131,
+          "text": "### TEST 2: TBR vs Momentum Proxy"
+        },
+        {
+          "line": 137,
+          "text": "### TEST 3: L Exit Optimization"
+        },
+        {
+          "line": 143,
+          "text": "### TEST 4: Fee Stress"
+        },
+        {
+          "line": 150,
+          "text": "## R3: Engine Calibration + Final Recommendation"
+        },
+        {
+          "line": 154,
+          "text": "### 引擎校準"
+        },
+        {
+          "line": 160,
+          "text": "### Full V14 Exit Engine"
+        },
+        {
+          "line": 166,
+          "text": "### 策略比較矩陣（同一引擎）"
+        },
+        {
+          "line": 176,
+          "text": "### WF with Full Exits"
+        },
+        {
+          "line": 184,
+          "text": "### Parameter Robustness (Full Exits)"
+        },
+        {
+          "line": 191,
+          "text": "### Swap Test (Full Exits)"
+        },
+        {
+          "line": 198,
+          "text": "### OOS Monthly (S2 vs V14, Full Exits)"
+        },
+        {
+          "line": 218,
+          "text": "### V14 Overlap (Full Exits)"
+        },
+        {
+          "line": 226,
+          "text": "## Final Target Check"
+        },
+        {
+          "line": 242,
+          "text": "## Anti-Happy-Table Self-Check"
+        },
+        {
+          "line": 258,
+          "text": "## S2 TBR Flow Reversal 策略規格"
+        },
+        {
+          "line": 260,
+          "text": "### 進場"
+        },
+        {
+          "line": 278,
+          "text": "### 出場"
+        },
+        {
+          "line": 282,
+          "text": "### Edge Source"
+        },
+        {
+          "line": 290,
+          "text": "## 結論"
+        },
+        {
+          "line": 310,
+          "text": "## 10-Gate 懷疑論稽核"
+        },
+        {
+          "line": 316,
+          "text": "### 稽核結果總表"
+        },
+        {
+          "line": 333,
+          "text": "### 稽核修正後的認知"
+        },
+        {
+          "line": 342,
+          "text": "### 最終判定"
+        },
+        {
+          "line": 348,
+          "text": "## 研究腳本索引"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v16_audit_gate1to5.py",
+        "backtest/research/v16_audit_gate6to10.py",
+        "backtest/research/v16_r0_signal_discovery.py",
+        "backtest/research/v16_r1_tbr_reversal.py",
+        "backtest/research/v16_r2_skeptical_validation.py",
+        "backtest/research/v16_r3_calibration.py"
+      ]
+    },
+    {
+      "path": "doc/v17_research.md",
+      "sha256": "92d597ab30f1fc2837d4843793f024b2053326d06b96df0ab239aaa11f585720",
+      "bytes": 7093,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V17 Research: Non-Breakout Alpha Search"
+        },
+        {
+          "line": 11,
+          "text": "## Background"
+        },
+        {
+          "line": 23,
+          "text": "## R0: Non-Breakout Bar Analysis (`v17_r0_non_breakout_analysis.py`)"
+        },
+        {
+          "line": 38,
+          "text": "## R1: Mean Reversion Scan (`v17_r1_mean_reversion_scan.py`)"
+        },
+        {
+          "line": 59,
+          "text": "## R2: Trend Following Without Breakout (`v17_r2_trend_non_breakout.py`)"
+        },
+        {
+          "line": 91,
+          "text": "## R3: Range Position WITHOUT Breakout (`v17_r3_rpos_without_breakout.py`)"
+        },
+        {
+          "line": 95,
+          "text": "### Section 1: Full vs Breakout-only vs Non-breakout (IS)"
+        },
+        {
+          "line": 108,
+          "text": "### Section 2: Extended scan (16 configs) — ALL IS negative"
+        },
+        {
+          "line": 109,
+          "text": "### Section 3: Enhanced with filters (32 configs) — ALL IS negative"
+        },
+        {
+          "line": 121,
+          "text": "## R4: Final Non-Breakout Scan (`v17_r4_final_scan.py`)"
+        },
+        {
+          "line": 139,
+          "text": "## Final Summary"
+        },
+        {
+          "line": 150,
+          "text": "## Definitive Conclusion"
+        },
+        {
+          "line": 166,
+          "text": "## Script Index"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v17_r0_non_breakout_analysis.py",
+        "backtest/research/v17_r1_mean_reversion_scan.py",
+        "backtest/research/v17_r2_trend_non_breakout.py",
+        "backtest/research/v17_r3_rpos_without_breakout.py",
+        "backtest/research/v17_r4_final_scan.py"
+      ]
+    },
+    {
+      "path": "doc/v18_research.md",
+      "sha256": "e9f67853bdd70c7cebc56c269576e64eeb1e34b4e80e97de045c09cb5a006f93",
+      "bytes": 6625,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V18 Research: Multi-Timeframe Non-Breakout Alpha Search"
+        },
+        {
+          "line": 11,
+          "text": "## Background"
+        },
+        {
+          "line": 21,
+          "text": "## Data"
+        },
+        {
+          "line": 30,
+          "text": "## R0: Timeframe Feasibility Analysis (`v18_r0_timeframe_feasibility.py`)"
+        },
+        {
+          "line": 32,
+          "text": "### Fee Ratio (Actual vs V13 Estimate)"
+        },
+        {
+          "line": 40,
+          "text": "### Non-Breakout MFE Analysis"
+        },
+        {
+          "line": 52,
+          "text": "### Conditional MFE Highlights"
+        },
+        {
+          "line": 63,
+          "text": "## R1: 30m Signal Scan (`v18_r1_30m_signal_scan.py`)"
+        },
+        {
+          "line": 85,
+          "text": "## R2: 15m Signal Scan (`v18_r2_15m_signal_scan.py`)"
+        },
+        {
+          "line": 113,
+          "text": "## Cross-Timeframe Summary"
+        },
+        {
+          "line": 124,
+          "text": "## Definitive Conclusion"
+        },
+        {
+          "line": 128,
+          "text": "### Why fee is not the problem"
+        },
+        {
+          "line": 133,
+          "text": "### The actual problem: zero directional predictability"
+        },
+        {
+          "line": 144,
+          "text": "### Implication"
+        },
+        {
+          "line": 152,
+          "text": "## Script Index"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v18_download_data.py",
+        "backtest/research/v18_r0_timeframe_feasibility.py",
+        "backtest/research/v18_r1_30m_signal_scan.py",
+        "backtest/research/v18_r2_15m_signal_scan.py"
+      ]
+    },
+    {
+      "path": "doc/v19_research.md",
+      "sha256": "8a7076c9ed485fba565210f352c9e4fc95d9795e9baad0f63bd4916985f86e3a",
+      "bytes": 11081,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V19 Research: 跳脫框架自由探索"
+        },
+        {
+          "line": 12,
+          "text": "## 研究範圍"
+        },
+        {
+          "line": 14,
+          "text": "### 已排除（V6-V18 已窮舉）"
+        },
+        {
+          "line": 23,
+          "text": "### V19 嘗試的新方向"
+        },
+        {
+          "line": 32,
+          "text": "## R0: 數據下載 (`v19_r0_download_data.py`)"
+        },
+        {
+          "line": 34,
+          "text": "### 數據可用性"
+        },
+        {
+          "line": 52,
+          "text": "## R1: 跨市場宏觀 + 情緒可行性研究 (`v19_r1_macro_feasibility.py`)"
+        },
+        {
+          "line": 54,
+          "text": "### B. 相關性分析"
+        },
+        {
+          "line": 72,
+          "text": "### C. 五分位條件報酬"
+        },
+        {
+          "line": 77,
+          "text": "### D. FGI 極端值"
+        },
+        {
+          "line": 86,
+          "text": "### E. Risk-On/Off 多因子"
+        },
+        {
+          "line": 96,
+          "text": "### F. 信號原型 IS/OOS"
+        },
+        {
+          "line": 110,
+          "text": "### R1 結論"
+        },
+        {
+          "line": 119,
+          "text": "## R2: 統計結構 + HMM Regime Detection (`v19_r2_regime_detection.py`)"
+        },
+        {
+          "line": 121,
+          "text": "### A. 自相關結構"
+        },
+        {
+          "line": 133,
+          "text": "### B. HMM Walk-Forward (3 state)"
+        },
+        {
+          "line": 147,
+          "text": "### C. 交易信號測試"
+        },
+        {
+          "line": 159,
+          "text": "### D. MFE 對稱性（終極證明）"
+        },
+        {
+          "line": 176,
+          "text": "## V19 最終結論"
+        },
+        {
+          "line": 178,
+          "text": "### 已嘗試的所有方向"
+        },
+        {
+          "line": 194,
+          "text": "### 累計研究規模"
+        },
+        {
+          "line": 205,
+          "text": "### 根本原因"
+        },
+        {
+          "line": 215,
+          "text": "### 對 V14 策略的啟示"
+        },
+        {
+          "line": 227,
+          "text": "## Script Index"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v19_r0_download_data.py",
+        "backtest/research/v19_r1_macro_feasibility.py",
+        "backtest/research/v19_r2_regime_detection.py"
+      ]
+    },
+    {
+      "path": "doc/v20_research.md",
+      "sha256": "633d3f5aadc0ac884d5509c773b1ef139b1d17a058e9d2741cf5d64eacb5b05b",
+      "bytes": 6890,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V20 研究：多標的 V14 框架測試（2026/04/16）"
+        },
+        {
+          "line": 8,
+          "text": "## 背景"
+        },
+        {
+          "line": 19,
+          "text": "## R0: 候選標的盤點與數據下載"
+        },
+        {
+          "line": 21,
+          "text": "### 候選標的（10 個）"
+        },
+        {
+          "line": 38,
+          "text": "### 數據下載結果 (`v20_r0_download_multi.py`)"
+        },
+        {
+          "line": 57,
+          "text": "## R0: V14 Locked-Parameter Screening (`v20_r0_screening.py`)"
+        },
+        {
+          "line": 59,
+          "text": "### V14 鎖定參數"
+        },
+        {
+          "line": 73,
+          "text": "### 篩選標準"
+        },
+        {
+          "line": 81,
+          "text": "### 篩選結果"
+        },
+        {
+          "line": 98,
+          "text": "### 篩選判定"
+        },
+        {
+          "line": 116,
+          "text": "## 分析"
+        },
+        {
+          "line": 118,
+          "text": "### 1. IS < 0 是 Universal Failure"
+        },
+        {
+          "line": 122,
+          "text": "### 2. OOS 正收益是 Regime 運氣"
+        },
+        {
+          "line": 129,
+          "text": "### 3. Fee% 不是瓶頸"
+        },
+        {
+          "line": 140,
+          "text": "### 4. Breakout 頻率相似但質量不同"
+        },
+        {
+          "line": 151,
+          "text": "## 最終結論"
+        },
+        {
+          "line": 164,
+          "text": "## 研究腳本"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v20_r0_download_multi.py",
+        "backtest/research/v20_r0_screening.py"
+      ]
+    },
+    {
+      "path": "doc/v21_research.md",
+      "sha256": "1a315389fa81a5cf2503a3df3baed06385e4e29b9e310b0b099080863681fcf2",
+      "bytes": 14361,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V21 研究：獨立 edge 與 V14 改良（2026/04/21）"
+        },
+        {
+          "line": 12,
+          "text": "## 背景"
+        },
+        {
+          "line": 25,
+          "text": "## R0: CoinGlass 付費數據評估"
+        },
+        {
+          "line": 45,
+          "text": "## V21 硬性約束"
+        },
+        {
+          "line": 65,
+          "text": "## Path A: 獨立 edge 探索（7 輪全 REJECTED）"
+        },
+        {
+          "line": 67,
+          "text": "### R1: Weekly Range Escape"
+        },
+        {
+          "line": 90,
+          "text": "### R2: Daily Opening Range Breakout"
+        },
+        {
+          "line": 108,
+          "text": "### R3: Multi-bar Staircase (N=4)"
+        },
+        {
+          "line": 127,
+          "text": "### R4: Staircase N=6 LOCKED（R3 N-sweep 發現後）"
+        },
+        {
+          "line": 160,
+          "text": "### R5: Prior Day HL Breakout"
+        },
+        {
+          "line": 177,
+          "text": "### R6: Monthly Range Breakout"
+        },
+        {
+          "line": 212,
+          "text": "### R7: Swing Pivot Break (5-bar fractal)"
+        },
+        {
+          "line": 230,
+          "text": "## Path A 總結"
+        },
+        {
+          "line": 242,
+          "text": "### 共通失敗模式"
+        },
+        {
+          "line": 248,
+          "text": "### 核心發現"
+        },
+        {
+          "line": 262,
+          "text": "## Path B: V14.1 改良（3 輪 全 REJECTED）"
+        },
+        {
+          "line": 269,
+          "text": "### V14 Baseline（本輪重測，production slippage model）"
+        },
+        {
+          "line": 280,
+          "text": "### B1: Signal Clustering Filter — 負 trade 後擴展 cooldown"
+        },
+        {
+          "line": 293,
+          "text": "### B2: Path-dependent Exit — L bar 2/3 深 drawdown 早切"
+        },
+        {
+          "line": 312,
+          "text": "### B3: Conditional Non-trading — L 連敗 → 跳過下 N 筆 L signal"
+        },
+        {
+          "line": 336,
+          "text": "## Path B 總結"
+        },
+        {
+          "line": 344,
+          "text": "### 核心發現"
+        },
+        {
+          "line": 351,
+          "text": "### 排除清單新增"
+        },
+        {
+          "line": 359,
+          "text": "## V21 最終結論"
+        },
+        {
+          "line": 375,
+          "text": "## 相關檔案"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v21_b1b2b3_candidates.py",
+        "backtest/research/v21_r1_weekly_range.py",
+        "backtest/research/v21_r2r3_candidates.py",
+        "backtest/research/v21_r4_full_audit.py",
+        "backtest/research/v21_r4r5_candidates.py",
+        "backtest/research/v21_r6_full_audit.py",
+        "backtest/research/v21_r6r7_candidates.py"
+      ]
+    },
+    {
+      "path": "doc/v22_research.md",
+      "sha256": "cfae21a61a1dcb255c714190aed56084861ea189f1cfaff4a8b1e6c410b55481",
+      "bytes": 8608,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V22 研究 — 古典技術分析理論掃描"
+        },
+        {
+          "line": 11,
+          "text": "## 結論"
+        },
+        {
+          "line": 28,
+          "text": "## 各輪結果表"
+        },
+        {
+          "line": 43,
+          "text": "## R2 iHS 10-Gate 稽核（唯一接近 viable 的候選）"
+        },
+        {
+          "line": 63,
+          "text": "## R3 ASC 三角 10-Gate 稽核（最異常 OOS > IS）"
+        },
+        {
+          "line": 81,
+          "text": "## 失敗模式分類"
+        },
+        {
+          "line": 97,
+          "text": "## 延伸禁區（加入 CLAUDE.md）"
+        },
+        {
+          "line": 110,
+          "text": "## 最終啟示"
+        },
+        {
+          "line": 126,
+          "text": "## V14 自稽核（V22 延伸，回頭檢查 baseline）"
+        },
+        {
+          "line": 157,
+          "text": "## 相關檔案"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v22_common.py",
+        "backtest/research/v22_r1_ichimoku.py",
+        "backtest/research/v22_r2_headshoulders.py",
+        "backtest/research/v22_r2_ihs_audit.py",
+        "backtest/research/v22_r3_asc_audit.py",
+        "backtest/research/v22_r3_triangle.py",
+        "backtest/research/v22_r4_harmonic.py",
+        "backtest/research/v22_r5_fibonacci.py",
+        "backtest/research/v22_r6_pivotpoints.py",
+        "backtest/research/v22_r7r8_elliott_wyckoff.py",
+        "backtest/research/v22_v14_self_audit.py"
+      ]
+    },
+    {
+      "path": "doc/v23_research.md",
+      "sha256": "deb0f543827b3382c0586ff51c1601c353acca1f00d89228f9ea0589fc77cc9c",
+      "bytes": 15370,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V23 研究 — V14 壓力測試 + Overlay 探索"
+        },
+        {
+          "line": 12,
+          "text": "## 階段 1：V14 壓力測試（2026-04-22 完成）"
+        },
+        {
+          "line": 16,
+          "text": "### S1 時序翻轉"
+        },
+        {
+          "line": 32,
+          "text": "### S2 Regime 拆解（SMA200 斜率，±2%/100bar 分類）"
+        },
+        {
+          "line": 47,
+          "text": "### S3 橫盤段（rolling window price range）"
+        },
+        {
+          "line": 64,
+          "text": "### S4 最壞 Rolling Drawdown（non-overlapping top 5）"
+        },
+        {
+          "line": 81,
+          "text": "### 實戰風險地圖"
+        },
+        {
+          "line": 91,
+          "text": "### Stage 2 KPI 修正"
+        },
+        {
+          "line": 101,
+          "text": "## 階段 2：Overlay 探索"
+        },
+        {
+          "line": 103,
+          "text": "### Path R — Regime Gate (2026-04-22 完成)"
+        },
+        {
+          "line": 144,
+          "text": "### Path V — Vol Target (2026-04-22 完成，REJECTED)"
+        },
+        {
+          "line": 159,
+          "text": "### Path H — Multi-asset Hedge (2026-04-22 完成，REJECTED)"
+        },
+        {
+          "line": 181,
+          "text": "## 階段 3：最終報告"
+        },
+        {
+          "line": 183,
+          "text": "### V23 總結論"
+        },
+        {
+          "line": 187,
+          "text": "### 最終推薦：V14+R"
+        },
+        {
+          "line": 208,
+          "text": "### 誠實限制說明"
+        },
+        {
+          "line": 215,
+          "text": "### G6 Swap Test 獨立驗證 (2026-04-22)"
+        },
+        {
+          "line": 230,
+          "text": "### V14 vs V14+R 部署對照"
+        },
+        {
+          "line": 247,
+          "text": "## 模擬盤運行狀態 (2026-04-22 21:00 UTC+8)"
+        },
+        {
+          "line": 249,
+          "text": "### 系統狀態"
+        },
+        {
+          "line": 255,
+          "text": "### 9 天 5 筆已實現交易（自 2026-04-14 上線起）"
+        },
+        {
+          "line": 270,
+          "text": "### 本月（2026-04）熔斷計數"
+        },
+        {
+          "line": 278,
+          "text": "### 若部署 V14+R 的影響"
+        },
+        {
+          "line": 284,
+          "text": "### V23 結論 — 何時停止"
+        },
+        {
+          "line": 296,
+          "text": "## 相關檔案"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v22_v14_self_audit.py",
+        "backtest/research/v23_g6_verification.py",
+        "backtest/research/v23_overlay_engine.py",
+        "backtest/research/v23_path_h_round1.py",
+        "backtest/research/v23_path_r_round1.py",
+        "backtest/research/v23_path_r_round4_audit.py",
+        "backtest/research/v23_path_v_round1.py",
+        "backtest/research/v23_s1_s4_stress_test.py"
+      ]
+    },
+    {
+      "path": "doc/v24_research.md",
+      "sha256": "501eb1c16169fff0e2cd5585a34c54a7eacb563163c5bbf2dc727947df698422",
+      "bytes": 9758,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V24 Research — V14+R Risk Engineering"
+        },
+        {
+          "line": 10,
+          "text": "## 研究架構"
+        },
+        {
+          "line": 22,
+          "text": "## Direction B — Leverage Recalibration（完成）"
+        },
+        {
+          "line": 24,
+          "text": "### 研究設計"
+        },
+        {
+          "line": 32,
+          "text": "### 關鍵發現"
+        },
+        {
+          "line": 60,
+          "text": "### Direction B 結論：三檔風險輪廓推薦"
+        },
+        {
+          "line": 76,
+          "text": "## Direction A — Vol Overlay on V14+R（REJECTED）"
+        },
+        {
+          "line": 78,
+          "text": "### 研究設計"
+        },
+        {
+          "line": 93,
+          "text": "### 結果"
+        },
+        {
+          "line": 109,
+          "text": "### 根因分析"
+        },
+        {
+          "line": 122,
+          "text": "## Direction C — Multi-asset Diversification（REJECTED）"
+        },
+        {
+          "line": 124,
+          "text": "### 研究設計"
+        },
+        {
+          "line": 132,
+          "text": "### Round 1：KPI 初篩"
+        },
+        {
+          "line": 139,
+          "text": "### Round 2：IS/OOS 驗證"
+        },
+        {
+          "line": 158,
+          "text": "### Direction C 結論"
+        },
+        {
+          "line": 177,
+          "text": "## 最終推薦：BEST VERSION"
+        },
+        {
+          "line": 179,
+          "text": "### 結論"
+        },
+        {
+          "line": 186,
+          "text": "### 三檔部署建議"
+        },
+        {
+          "line": 194,
+          "text": "### 實施步驟"
+        },
+        {
+          "line": 200,
+          "text": "### 什麼情況下才該再動 alpha"
+        },
+        {
+          "line": 210,
+          "text": "## 研究腳本索引"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v24_direction_a_vol_overlay.py",
+        "backtest/research/v24_direction_b_leverage.py",
+        "backtest/research/v24_direction_c_diversify.py",
+        "backtest/research/v24_direction_c_round2.py",
+        "backtest/research/v24_engine.py"
+      ]
+    },
+    {
+      "path": "doc/v25_research.md",
+      "sha256": "48185a7fafed435d6491c8761956fd97b48690afe597dfc4effca6292e16c948",
+      "bytes": 11489,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V25 Research — Regime-Conditional Exits"
+        },
+        {
+          "line": 10,
+          "text": "## 研究架構"
+        },
+        {
+          "line": 29,
+          "text": "## R1 — Baseline Regime Stratification"
+        },
+        {
+          "line": 33,
+          "text": "### L 策略（126 trades, PnL $3,096, WR 58.7%）"
+        },
+        {
+          "line": 41,
+          "text": "### S 策略（129 trades, PnL $3,486, WR 64.3%）"
+        },
+        {
+          "line": 49,
+          "text": "### L / S bars_held P25/P50/P75（贏家 vs 輸家）"
+        },
+        {
+          "line": 61,
+          "text": "### R1 結論"
+        },
+        {
+          "line": 72,
+          "text": "## R2 — 單變量掃描（one-variable-at-a-time grid）"
+        },
+        {
+          "line": 77,
+          "text": "### Pareto-strict 通過（IS ↑ AND OOS ↑）"
+        },
+        {
+          "line": 85,
+          "text": "### PnL 改善但 IS 或 OOS 單邊（WR 下降 < 1%）"
+        },
+        {
+          "line": 94,
+          "text": "### R2 關鍵發現"
+        },
+        {
+          "line": 105,
+          "text": "## R2B — 組合配置"
+        },
+        {
+          "line": 129,
+          "text": "## R3 — 10-Gate 稽核"
+        },
+        {
+          "line": 133,
+          "text": "### 結果總表"
+        },
+        {
+          "line": 142,
+          "text": "### G4 Parameter Neighborhood（V25-D 6/6）"
+        },
+        {
+          "line": 155,
+          "text": "### G7 6-fold Walk-Forward（V25-D）"
+        },
+        {
+          "line": 168,
+          "text": "### G8 Time Reversal"
+        },
+        {
+          "line": 179,
+          "text": "### G9 Drop-Best-Month"
+        },
+        {
+          "line": 189,
+          "text": "### R3 結論"
+        },
+        {
+          "line": 203,
+          "text": "## V25-D 最終規格"
+        },
+        {
+          "line": 205,
+          "text": "### L 策略（修改）"
+        },
+        {
+          "line": 230,
+          "text": "### S 策略（修改）"
+        },
+        {
+          "line": 250,
+          "text": "### 2Y 回測指標（V25-D vs V14+R）"
+        },
+        {
+          "line": 266,
+          "text": "## V25 結論"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v25_engine.py",
+        "backtest/research/v25_r1_stratify.py",
+        "backtest/research/v25_r2_grid.py",
+        "backtest/research/v25_r2b_combined.py",
+        "backtest/research/v25_r3_audit.py"
+      ]
+    },
+    {
+      "path": "doc/v26_research.md",
+      "sha256": "aaf69981dc59208f30ec2e0b9c81981181690f9e59042ab7cc0c3b43db117220",
+      "bytes": 9616,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V26 Research — MaxHold-Loss Reduction（MFE-floor give-up）"
+        },
+        {
+          "line": 10,
+          "text": "## 背景：MH 是 negative-by-construction，不是漏洞"
+        },
+        {
+          "line": 32,
+          "text": "## 診斷：MH 單 vs 贏家單，終端 MFE 幾乎完全可分"
+        },
+        {
+          "line": 52,
+          "text": "## 實驗：running-MFE give-up"
+        },
+        {
+          "line": 82,
+          "text": "## 結論：REJECTED"
+        },
+        {
+          "line": 100,
+          "text": "## R2 — 分批止盈（Partial / Scaled-out TP）"
+        },
+        {
+          "line": 133,
+          "text": "## R3 — 分批止損（Loss-side Scale-out，R2 的鏡像）"
+        },
+        {
+          "line": 163,
+          "text": "## 總結：MH 三面全部封死"
+        },
+        {
+          "line": 177,
+          "text": "## 不要做的事（追加）"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/v27_research.md",
+      "sha256": "cafe7a508a2abdabadb78331b0c88d06c8e65ac162e0524ad30acf7e4f7b524c",
+      "bytes": 6656,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V27 Research — Meta-labeling 進場過濾（預測 MH 結局）"
+        },
+        {
+          "line": 15,
+          "text": "## 為什麼 V26 之後還值得試這一輪"
+        },
+        {
+          "line": 25,
+          "text": "## 方法"
+        },
+        {
+          "line": 27,
+          "text": "### 引擎（v27_engine.py）"
+        },
+        {
+          "line": 33,
+          "text": "### 特徵（23 個，全部進場 bar 收盤當下已知，無前瞻）"
+        },
+        {
+          "line": 48,
+          "text": "### 檢定設計（預先登記判準，防事後挑選）"
+        },
+        {
+          "line": 60,
+          "text": "## R1a 結果：無信號"
+        },
+        {
+          "line": 83,
+          "text": "## R1b 結果：OOS 關門確認"
+        },
+        {
+          "line": 108,
+          "text": "## 結論：REJECTED，MH 方向徹底關閉"
+        },
+        {
+          "line": 124,
+          "text": "## 不要做的事（追加）"
+        },
+        {
+          "line": 134,
+          "text": "## 研究腳本"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v14_export_trades.py",
+        "backtest/research/v27_engine.py",
+        "backtest/research/v27_r1_predictability.py",
+        "backtest/research/v27_r1b_oos_confirm.py"
+      ]
+    },
+    {
+      "path": "doc/v28_research.md",
+      "sha256": "2ea09944625bc1a1ff3c977bdb7744dd50f6c095628416b5f51d1c76b65cfc46",
+      "bytes": 7792,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V28 Research — 複利化（Equity-Proportional Sizing）"
+        },
+        {
+          "line": 13,
+          "text": "## 關鍵視角：複利不是「加風險」，是「維持你本來就簽下的風險」"
+        },
+        {
+          "line": 23,
+          "text": "## R1 歷史精確重放（事件序重放，固定注碼與引擎 parity 差 $0.1）"
+        },
+        {
+          "line": 45,
+          "text": "## R2 Kelly / 幾何成長檢查"
+        },
+        {
+          "line": 54,
+          "text": "## R3 Block bootstrap（月塊重排 1000 條路徑）"
+        },
+        {
+          "line": 67,
+          "text": "## R4 壓力：抽掉最好的 3 個月（2024-11, 2026-02, 2026-03）"
+        },
+        {
+          "line": 75,
+          "text": "## 結論與建議部署形態"
+        },
+        {
+          "line": 97,
+          "text": "## R2 — 「獲利加倉」方案（使用者提案：200U+累計獲利 ×20x，虧損退回 200U 地板）"
+        },
+        {
+          "line": 126,
+          "text": "## 研究腳本"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v28_compound_sizing.py",
+        "backtest/research/v28_r2_profit_ratchet.py"
+      ]
+    },
+    {
+      "path": "doc/v29_research.md",
+      "sha256": "327a77cb1b9f8a7b28d48683990c8b1519309160dbd4ed5e1dcaaa505a779224",
+      "bytes": 5567,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V29 Research — Edge 衰退警報（回測驗證）"
+        },
+        {
+          "line": 12,
+          "text": "## 方法論"
+        },
+        {
+          "line": 29,
+          "text": "## 結果總表（歷史誤報 + bootstrap 1000 條健康路徑 + 各 500 條死亡路徑）"
+        },
+        {
+          "line": 45,
+          "text": "## 採用方案：雙層 CUSUM（R 單位，k=μ/2=14.3）"
+        },
+        {
+          "line": 64,
+          "text": "## 顯示規格（使用者回饋後定案：「策略健康度」，避免「S 越大越糟」的反直覺）"
+        },
+        {
+          "line": 81,
+          "text": "## 實作（✅ 2026-07-03 完成並測試）"
+        },
+        {
+          "line": 92,
+          "text": "## 研究腳本"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v29_edge_decay_alarm.py"
+      ]
+    },
+    {
+      "path": "doc/v30_research.md",
+      "sha256": "60a18f21cd5a04ede4fc244ff556fb409a0ca42de3a0b880e18da7476eb57e49",
+      "bytes": 5639,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V30 Research: Funding Rate Overlay（最後一個未測的免費數據源）"
+        },
+        {
+          "line": 15,
+          "text": "## 研究設計"
+        },
+        {
+          "line": 17,
+          "text": "### 數據（R0, `v30_r0_download_funding.py`）"
+        },
+        {
+          "line": 30,
+          "text": "### 特徵（進場時已知）"
+        },
+        {
+          "line": 38,
+          "text": "### 基準"
+        },
+        {
+          "line": 45,
+          "text": "## R1: 分桶診斷（`v30_r1_funding_diag.py`）"
+        },
+        {
+          "line": 49,
+          "text": "### L side"
+        },
+        {
+          "line": 57,
+          "text": "### S side"
+        },
+        {
+          "line": 71,
+          "text": "## R2: 最佳桶顯著性（`v30_r2_best_bucket_check.py`）"
+        },
+        {
+          "line": 88,
+          "text": "## V30 結論"
+        },
+        {
+          "line": 100,
+          "text": "### 加入「不要做的事」"
+        },
+        {
+          "line": 109,
+          "text": "## 腳本"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v25_engine.py",
+        "backtest/research/v30_r0_download_funding.py",
+        "backtest/research/v30_r1_funding_diag.py",
+        "backtest/research/v30_r2_best_bucket_check.py"
+      ]
+    },
+    {
+      "path": "doc/v31_research.md",
+      "sha256": "6a4a7aa06d9a764572643bd134eab4e2a3ce5c010f6d1e7e16dc9eee78035e7a",
+      "bytes": 12316,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V31 Research — 回測可信度稽核與 MaxHold 最新重測"
+        },
+        {
+          "line": 11,
+          "text": "## 1. 為什麼重做"
+        },
+        {
+          "line": 24,
+          "text": "## 2. 回測可信度稽核"
+        },
+        {
+          "line": 26,
+          "text": "### 2.1 資料完整性"
+        },
+        {
+          "line": 43,
+          "text": "### 2.2 參數、指標與出場狀態機 parity"
+        },
+        {
+          "line": 54,
+          "text": "### 2.3 最新基準重現"
+        },
+        {
+          "line": 65,
+          "text": "## 3. 仍然存在的模型限制"
+        },
+        {
+          "line": 87,
+          "text": "## 4. V31 測試設計"
+        },
+        {
+          "line": 89,
+          "text": "### 4.1 樣本切分與 gates"
+        },
+        {
+          "line": 101,
+          "text": "### 4.2 共 596 組"
+        },
+        {
+          "line": 111,
+          "text": "## 5. 結果"
+        },
+        {
+          "line": 113,
+          "text": "### 5.1 原 MH 參數重掃"
+        },
+        {
+          "line": 127,
+          "text": "### 5.2 Stalled-underwater"
+        },
+        {
+          "line": 131,
+          "text": "### 5.3 Breakout-reclaim"
+        },
+        {
+          "line": 135,
+          "text": "### 5.4 Shallow-loss grace：唯一值得追蹤但未通過的候選"
+        },
+        {
+          "line": 164,
+          "text": "## 6. 正式盤交叉驗證（2026-06-02～2026-07-23，23 筆）"
+        },
+        {
+          "line": 169,
+          "text": "### 6.1 訊號與狀態機 fidelity"
+        },
+        {
+          "line": 183,
+          "text": "### 6.2 PnL 與成交價"
+        },
+        {
+          "line": 211,
+          "text": "### 6.3 V31 shallow-loss grace 用正式成交價重算"
+        },
+        {
+          "line": 237,
+          "text": "## 7. 最終判決"
+        },
+        {
+          "line": 239,
+          "text": "### 回測是否不準？"
+        },
+        {
+          "line": 245,
+          "text": "### 是否有新版可部署？"
+        },
+        {
+          "line": 253,
+          "text": "## 8. 重跑方式"
+        },
+        {
+          "line": 256,
+          "text": "# 更新最新已收盤 K 線"
+        },
+        {
+          "line": 259,
+          "text": "# 完整 V31 稽核與 596 組掃描"
+        },
+        {
+          "line": 262,
+          "text": "# 快速 smoke test"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v31_mh_reaudit.py"
+      ]
+    },
+    {
+      "path": "doc/v32_l13_s16_10gate_audit.md",
+      "sha256": "4b1d6e913611fe81f45743bfe1f26978df8ed6d6aba56eef4750b8a28962cb51",
+      "bytes": 2852,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V32 L13/S16 完整 10-Gate 稽核"
+        },
+        {
+          "line": 7,
+          "text": "## 稽核範圍"
+        },
+        {
+          "line": 18,
+          "text": "## 基準比較"
+        },
+        {
+          "line": 29,
+          "text": "## 10-Gate 結果"
+        },
+        {
+          "line": 44,
+          "text": "## 結論"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v14_export_trades.py",
+        "backtest/research/v32_l13_s16_10gate_audit.py"
+      ]
+    },
+    {
+      "path": "doc/v32_l15_s15_10gate_audit.md",
+      "sha256": "d34839eba3a4385a04dc185956c0792369351b31821e946b764c61da3d162f19",
+      "bytes": 2543,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V32 L15/S15 基準策略完整 10-Gate 稽核"
+        },
+        {
+          "line": 5,
+          "text": "## 稽核範圍"
+        },
+        {
+          "line": 15,
+          "text": "## 基準績效"
+        },
+        {
+          "line": 25,
+          "text": "## 10-Gate 結果"
+        },
+        {
+          "line": 40,
+          "text": "## 結論"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v14_export_trades.py",
+        "backtest/research/v32_l13_s16_10gate_audit.py"
+      ]
+    },
+    {
+      "path": "doc/v32_research.md",
+      "sha256": "6c50d3c70d9603d3f984fb562111f863362cafe439e604fc1c4977edc39b92b9",
+      "bytes": 3774,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V32 研究：L/S 分離突破回看窗口"
+        },
+        {
+          "line": 5,
+          "text": "## 研究問題"
+        },
+        {
+          "line": 9,
+          "text": "## 方法"
+        },
+        {
+          "line": 21,
+          "text": "## 主要結果"
+        },
+        {
+          "line": 23,
+          "text": "### 組合結果"
+        },
+        {
+          "line": 39,
+          "text": "### L 獨立結果（S 固定 15）"
+        },
+        {
+          "line": 49,
+          "text": "### S 獨立結果（L 固定 15）"
+        },
+        {
+          "line": 59,
+          "text": "## 滑價壓力測試"
+        },
+        {
+          "line": 72,
+          "text": "## 結論"
+        },
+        {
+          "line": 74,
+          "text": "### 本輪數據冠軍"
+        },
+        {
+          "line": 83,
+          "text": "### 實務建議"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v14_export_trades.py",
+        "backtest/research/v32_separate_breakout_scan.py"
+      ]
+    },
+    {
+      "path": "doc/v33_s_mild_up_research.md",
+      "sha256": "bba0ed427904c32d8fcb25a6fc39f197ce9028d24b439842d80deaaaf9397f52",
+      "bytes": 3022,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V33 研究：S / MILD_UP 專項"
+        },
+        {
+          "line": 5,
+          "text": "## 研究動機"
+        },
+        {
+          "line": 16,
+          "text": "## 方法"
+        },
+        {
+          "line": 28,
+          "text": "## 第一階段：單變量結果"
+        },
+        {
+          "line": 41,
+          "text": "## 第二階段：進場上限 × MaxHold 組合"
+        },
+        {
+          "line": 54,
+          "text": "## MaxHold 8 壓力測試"
+        },
+        {
+          "line": 64,
+          "text": "## 結論"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v14_export_trades.py",
+        "backtest/research/v33_s_mild_up_scan.py"
+      ]
+    },
+    {
+      "path": "doc/v34_dialogue_research.md",
+      "sha256": "47eb8d4717ec71ae235c6a48953964222e0a962e5b434690882a43989ef8f647",
+      "bytes": 17694,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V34 研究：2026-08 實盤零交易、參數穩健性與 2,000 天診斷"
+        },
+        {
+          "line": 6,
+          "text": "## 摘要與決策"
+        },
+        {
+          "line": 22,
+          "text": "## 1. 8 月未開單的真正原因"
+        },
+        {
+          "line": 24,
+          "text": "### 1.1 歷史空窗是否有先例？"
+        },
+        {
+          "line": 37,
+          "text": "### 1.2 2026-08-01～08-12 gate 漏斗"
+        },
+        {
+          "line": 71,
+          "text": "## 2. Session／週末限制"
+        },
+        {
+          "line": 91,
+          "text": "## 3. GK 與 breakout K 棒的局部穩健性"
+        },
+        {
+          "line": 93,
+          "text": "### 3.1 GK percentile ±1"
+        },
+        {
+          "line": 107,
+          "text": "### 3.2 Breakout K 棒 ±1 與 GK ±1 聯合網格"
+        },
+        {
+          "line": 119,
+          "text": "### 3.3 L13/S15（研究候選，不採用）"
+        },
+        {
+          "line": 134,
+          "text": "## 4. 執行壓力與長歷史 SIDE gate 稽核"
+        },
+        {
+          "line": 136,
+          "text": "### 4.1 滑價與整根 K 棒進場延遲"
+        },
+        {
+          "line": 151,
+          "text": "### 4.2 S SIDE gate：1.0% → 1.3% 候選"
+        },
+        {
+          "line": 180,
+          "text": "## 5. 現行策略 2,000 天回測"
+        },
+        {
+          "line": 184,
+          "text": "### 5.1 基本結果"
+        },
+        {
+          "line": 203,
+          "text": "### 5.2 重大發現"
+        },
+        {
+          "line": 212,
+          "text": "### 5.3 2021 與 2023 為何偏弱？"
+        },
+        {
+          "line": 225,
+          "text": "## 6. V29 健康度與部位管理建議"
+        },
+        {
+          "line": 227,
+          "text": "### 6.1 現行行為"
+        },
+        {
+          "line": 239,
+          "text": "### 6.2 2,000 天重放的問題"
+        },
+        {
+          "line": 250,
+          "text": "### 6.3 值得正式稽核的候選"
+        },
+        {
+          "line": 264,
+          "text": "## 7. GK 的每小時計算與 `shift(1)` A/B"
+        },
+        {
+          "line": 266,
+          "text": "### 7.1 每根 1h K 的 GK"
+        },
+        {
+          "line": 284,
+          "text": "### 7.2 `shift(1)` 的正確意義"
+        },
+        {
+          "line": 301,
+          "text": "### 7.3 5.5 年 A/B 結果：保留 shift(1)"
+        },
+        {
+          "line": 333,
+          "text": "## 8. 未來工作與不做事項"
+        },
+        {
+          "line": 335,
+          "text": "### 可以繼續，但只能研究／shadow"
+        },
+        {
+          "line": 343,
+          "text": "### 本輪證據反對的改動"
+        },
+        {
+          "line": 351,
+          "text": "## 最終策略狀態（本文件結案時）"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/v35_high_gk_acceleration_research.md",
+      "sha256": "029151f414ddee1443b01383e380b76076e55442026b5dcd39cf8bed21d13f5a",
+      "bytes": 4301,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V35 研究：高 GK 趨勢加速補單"
+        },
+        {
+          "line": 6,
+          "text": "## 問題與防前視設計"
+        },
+        {
+          "line": 30,
+          "text": "## 預先定義的確認條件"
+        },
+        {
+          "line": 39,
+          "text": "## 結果"
+        },
+        {
+          "line": 41,
+          "text": "### TBR overlay"
+        },
+        {
+          "line": 51,
+          "text": "### CLV overlay"
+        },
+        {
+          "line": 61,
+          "text": "### 封存 2026-08 案例"
+        },
+        {
+          "line": 65,
+          "text": "## 結論"
+        },
+        {
+          "line": 78,
+          "text": "## 可重跑產物"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v14_export_trades.py",
+        "backtest/research/v35_high_gk_acceleration.py"
+      ]
+    },
+    {
+      "path": "doc/v36_multitrack_research.md",
+      "sha256": "a76838ed125fc568007f9bb81c967b5fc609593fc7742cf7f5aa2367cd5d0585",
+      "bytes": 4899,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V36 多軌研究：恢復機制、episode、執行、資料與 Beta sleeve"
+        },
+        {
+          "line": 12,
+          "text": "## 1. V29 紅燈後事件式恢復"
+        },
+        {
+          "line": 33,
+          "text": "## 2. Breakout episode-level 狀態"
+        },
+        {
+          "line": 49,
+          "text": "## 3. 高 GK 實盤執行品質"
+        },
+        {
+          "line": 62,
+          "text": "## 4. Order book / OI / CVD / options prospective shadow"
+        },
+        {
+          "line": 75,
+          "text": "## 5. 獨立 ETH Beta sleeve"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v36_r1_v29_event_recovery.py"
+      ]
+    },
+    {
+      "path": "doc/v37_microstructure_shadow_plan.md",
+      "sha256": "7dc4f16f32b028dde6aa96c045c55292b5b48b1a2e5b691e4b283ef9f4739bb5",
+      "bytes": 6468,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V37 研究計畫：微結構資料的輕量歷史診斷與 prospective shadow"
+        },
+        {
+          "line": 6,
+          "text": "## 一句話目標"
+        },
+        {
+          "line": 14,
+          "text": "## 已取消的做法"
+        },
+        {
+          "line": 20,
+          "text": "## 資料與執行邊界"
+        },
+        {
+          "line": 27,
+          "text": "## Phase A：輕量歷史診斷（僅 5m K 線）"
+        },
+        {
+          "line": 29,
+          "text": "### 固定假說"
+        },
+        {
+          "line": 40,
+          "text": "### 無前視對齊"
+        },
+        {
+          "line": 49,
+          "text": "### 固定評估流程"
+        },
+        {
+          "line": 57,
+          "text": "### Phase A 判定"
+        },
+        {
+          "line": 68,
+          "text": "## Phase B：prospective microstructure shadow"
+        },
+        {
+          "line": 72,
+          "text": "### 每根 1h 收盤前／收盤時保存"
+        },
+        {
+          "line": 84,
+          "text": "### prospective 規則"
+        },
+        {
+          "line": 91,
+          "text": "## Phase C：可能的決策"
+        },
+        {
+          "line": 99,
+          "text": "## V37 產出與不產出"
+        }
+      ],
+      "referenced_existing_scripts": []
+    },
+    {
+      "path": "doc/v9_research.md",
+      "sha256": "458cccd147f1f4e9b39ca01332c03e2da0af9d08285abcb303e73645ba0e0977",
+      "bytes": 18377,
+      "headings": [
+        {
+          "line": 1,
+          "text": "# V9 $1K 帳戶最佳可行策略研究"
+        },
+        {
+          "line": 12,
+          "text": "## 背景：V8 結論"
+        },
+        {
+          "line": 25,
+          "text": "## 回測規格"
+        },
+        {
+          "line": 40,
+          "text": "### V9 8 道關卡（放寬版）"
+        },
+        {
+          "line": 55,
+          "text": "## 信號說明"
+        },
+        {
+          "line": 57,
+          "text": "### BTC-ETH 相對報酬背離 (RelDiv)"
+        },
+        {
+          "line": 73,
+          "text": "## 研究歷程"
+        },
+        {
+          "line": 75,
+          "text": "### R1：深度優化 RelDiv 信號"
+        },
+        {
+          "line": 112,
+          "text": "### R2：信號集成（Ensemble）"
+        },
+        {
+          "line": 149,
+          "text": "### R3：非對稱 L/S 出場 + 斷路器"
+        },
+        {
+          "line": 226,
+          "text": "### R4：最終驗證"
+        },
+        {
+          "line": 304,
+          "text": "## 最終結果：三組 8/8 ALL PASS 配置"
+        },
+        {
+          "line": 306,
+          "text": "### 共同設定"
+        },
+        {
+          "line": 321,
+          "text": "### 配置比較"
+        },
+        {
+          "line": 341,
+          "text": "### 推薦 Config C 的邏輯"
+        },
+        {
+          "line": 349,
+          "text": "### Config C OOS 月度明細"
+        },
+        {
+          "line": 375,
+          "text": "## 排除的方向"
+        },
+        {
+          "line": 377,
+          "text": "### V9 排除清單"
+        },
+        {
+          "line": 395,
+          "text": "## 技術問題與修正"
+        },
+        {
+          "line": 397,
+          "text": "### 1. Python f-string 條件表達式 Bug"
+        },
+        {
+          "line": 402,
+          "text": "# 錯誤：f-string format spec 不支持條件表達式"
+        },
+        {
+          "line": 404,
+          "text": "# ValueError: Invalid format specifier '.0f if len(w)>0 else 0'"
+        },
+        {
+          "line": 406,
+          "text": "# 修正：先計算再格式化"
+        },
+        {
+          "line": 412,
+          "text": "### 2. Windows Python stdout 緩衝"
+        },
+        {
+          "line": 418,
+          "text": "### 3. R3 Phase 3 O(n^2) 效能問題"
+        },
+        {
+          "line": 421,
+          "text": "# 原始：每根 bar 掃描所有交易計算月度 cap → O(n_trades) per bar"
+        },
+        {
+          "line": 425,
+          "text": "# 修正：用 incremental dict 追蹤 → O(1) per bar"
+        },
+        {
+          "line": 427,
+          "text": "# entry 時更新：monthly_counts[entry_month][\"long\"] += 1"
+        },
+        {
+          "line": 432,
+          "text": "# 原始：df.index[df[\"datetime\"] == trades[-1][\"exit_dt\"]]  → O(n)"
+        },
+        {
+          "line": 433,
+          "text": "# 修正：last_loss_exit_bar = i  → O(1)"
+        },
+        {
+          "line": 436,
+          "text": "### 4. R3 Phase 2 搜索空間過大"
+        },
+        {
+          "line": 443,
+          "text": "## 核心洞察"
+        },
+        {
+          "line": 445,
+          "text": "### 1. 非對稱出場是成功關鍵"
+        },
+        {
+          "line": 459,
+          "text": "### 2. 月度 cap 是 IS 轉正的解鎖器"
+        },
+        {
+          "line": 467,
+          "text": "### 3. TH=0.03 是唯一的甜蜜點"
+        },
+        {
+          "line": 473,
+          "text": "### 4. 風險提示"
+        },
+        {
+          "line": 482,
+          "text": "## 研究腳本索引"
+        }
+      ],
+      "referenced_existing_scripts": [
+        "backtest/research/v9_r1_reldiv_deep.py",
+        "backtest/research/v9_r2_ensemble.py",
+        "backtest/research/v9_r3_reldiv_asymmetric.py",
+        "backtest/research/v9_r4_final_validation.py"
+      ]
+    }
+  ],
+  "scope_note": "Inventory is not a claim that every historical script was rerun. Nearest OI/funding/spot/flow definitions were inspected directly."
+}

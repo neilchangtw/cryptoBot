@@ -1,0 +1,26 @@
+{
+  "registered_utc": "2026-09-10T08:08:34.505932+00:00",
+  "family": "oi",
+  "main": [
+    "oi_both",
+    "oi_long",
+    "oi_short"
+  ],
+  "hashes": {
+    "doc/new_information_plan_20260910.md": "32e01f00763c4bd79cd38ea7e7f938c2142f1fbac6f51414326d4fc931fc965d",
+    "strategy.py": "4b379a8034eb9169af12b3a547f340602cf0c6efa84d6bc5ef9829e8dc5631a8",
+    "executor.py": "304914263b77b1db08d76f4df4edeeca1f3d5cda20c0e0f651732c4a9034c737",
+    "backtest/research/v14_export_trades.py": "222450d9d330352bd210473192fc21527036819ce542e4de5354d006a20f9669",
+    "backtest/research/execute_optimization_plan_20260908.py": "95b9ae1859857f157b38be335cc906d2728b55b7344250dbecc530d30ff74b61",
+    "backtest/research/intrahour_entry_20260908.py": "cfcafa7dde2c841567323a839982986529be7055c123857f0d9e39775b59460b",
+    "backtest/research/maxhold_review_20260908.py": "3938c04dff0ed6e3c2b3293bfdcb530d58e40315a515d365c58fbe943962aaff",
+    "backtest/research/price_candle_trade_analysis.py": "ff1094d525425aa04bf467b3e1eb05f3b6593e5890e1a779947f2b8aa057750e",
+    "data/maxhold_review_20260908/candles.csv": "855beafe423d3779ded175b0745d4e8bcd48ec5fa943ca3eb3782e683c548918",
+    "data/public_cost_history_20260908/mark_1h_full.csv": "3f9586a44ad530cb63df07a63c749de479953ae2e9ab4f25d81c19e47f0929cb",
+    "data/public_cost_history_20260908/funding_full.csv": "148be5e74fe66f6dff6e54fac228022707b9073b68db1b6277df216b3e6ceb77",
+    "doc/strategy_research_prompt_20260910.md": "72b5690d7c906d2cdb247d78ffb5f2fb0d891c45c4a7b9c6e7073378b6e73cdb"
+  },
+  "research_code_sha256": "7d2904a9fa81e079c5d457a2d1676ef9fe7e77209b7444c4425347e4c0bb23ec",
+  "download_manifest_sha256": "f6184c39af7d846a5cce152781a71a4585f2fecaee3148fef8c5fb8d348be1c3",
+  "comparison_is_new_holdout": false
+}

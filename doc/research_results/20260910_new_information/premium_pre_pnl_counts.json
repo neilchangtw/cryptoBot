@@ -1,0 +1,14 @@
+{
+  "premium_both": {
+    "direct_original_events": 110,
+    "clusters24h": 96
+  },
+  "premium_long": {
+    "direct_original_events": 56,
+    "clusters24h": 52
+  },
+  "premium_short": {
+    "direct_original_events": 54,
+    "clusters24h": 52
+  }
+}
