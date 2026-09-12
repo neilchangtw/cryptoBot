@@ -1,0 +1,19 @@
+{
+  "utc": "2026-09-12T03:13:26.616266+00:00",
+  "round": 2,
+  "name": "H_no_opposite_overlap",
+  "counts": {
+    "events": 6,
+    "clusters24h": 6,
+    "late_clusters24h": 3
+  },
+  "status": "INSUFFICIENT_SAMPLE",
+  "source": "Original base eligible gates and post-exit states; no payoff columns",
+  "prefix_cuts_passed": [
+    6000,
+    11000,
+    16000
+  ],
+  "candidate_pnl_trials": 0,
+  "protected_verified": 938
+}

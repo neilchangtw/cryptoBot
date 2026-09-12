@@ -1,0 +1,18 @@
+{
+  "A": {
+    "events": 44,
+    "clusters24h": 42,
+    "late_clusters24h": 10
+  },
+  "B": {
+    "events": 50,
+    "clusters24h": 47,
+    "late_clusters24h": 14
+  },
+  "quality": {
+    "a_invalid_fraction": 0.0005810912894415712,
+    "b_invalid_eligible_fraction": 0.0,
+    "source_rows": 210808,
+    "original_eligible_bar2": 225
+  }
+}

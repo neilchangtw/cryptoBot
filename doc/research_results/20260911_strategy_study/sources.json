@@ -1,0 +1,21 @@
+{
+  "checks": [
+    {
+      "url": "https://fapi.binance.com/futures/data/topLongShortPositionRatio",
+      "params": {
+        "symbol": "ETHUSDT",
+        "period": "5m",
+        "startTime": 1788825600000,
+        "limit": 3
+      },
+      "requested_utc": "2026-09-11T04:11:46.255229+00:00",
+      "error_type": "ProxyError"
+    }
+  ],
+  "mapped": false,
+  "download_bytes": 0,
+  "historical_received_ts": "unavailable",
+  "archive_revision_risk": true,
+  "official_definition": "https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/market-data",
+  "official_top_endpoint_key_required": true
+}

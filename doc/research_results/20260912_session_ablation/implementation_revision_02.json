@@ -1,0 +1,18 @@
+{
+  "registered_utc": "2026-09-12T02:41:07.140950+00:00",
+  "sha256": {
+    "doc/strategy_research_plan_20260912.md": "e401f5184c8990c8a126148bd0165d1d8a582dc9e0cc6451642cbb24de83454f",
+    "backtest/research/session_ablation_20260912.py": "f4f33a27833763614659938ceb60ec12ee2aa3c6e07b1d40f46f7d3cd98a26c4",
+    "tests/test_session_ablation_20260912.py": "289d010f7b9daeb61088185d062f14c62301f8ce3bc91b3ade33c11c3cf0dc8d",
+    "backtest/research/strategy_round2_20260911.py": "a5beadcb13b407881a69c409b3b7dc6fa8fa598c3d8410ea60b43de800b4dfc1",
+    "backtest/research/v14_export_trades.py": "222450d9d330352bd210473192fc21527036819ce542e4de5354d006a20f9669",
+    "backtest/research/execute_optimization_plan_20260908.py": "95b9ae1859857f157b38be335cc906d2728b55b7344250dbecc530d30ff74b61",
+    "backtest/research/new_information_20260910.py": "2af40489bae9e59408c233bff5cb1fbe2c5dd1b3313ca256d315ff8bb8e08cc1",
+    "doc/research_results/20260910_new_information/history_index.json": "25fa3616c4ee340dc880109eab0654e8465f2b7045b45f254c196a99e5009a63"
+  },
+  "reason": "Physical prefix can contain zero completed trades and a real open position. Supply empty normalized column schema (header only), preserve actual terminal position. No candidate formula, threshold, timing, cost or full-period behavior changed.",
+  "E_candidate_pnl_trials_before_change": 0,
+  "F_candidate_main_trials_already_computed": 1,
+  "F_cost_scenarios_already_computed": 3,
+  "supersedes": "implementation_revision.json"
+}

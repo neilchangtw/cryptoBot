@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-12T09:25:22.024346+00:00",
+  "round": 3,
+  "id": "R_breakout_renewal",
+  "sha256": {
+    "backtest/research/continuous_case03_20260912.py": "a5ac7e32bf0f2e12c986ee8bd40cd99dc809a24bda9efeaba4513d1656f52519",
+    "doc/continuous_round03_renewal_20260912.md": "f5f5bd50494e64b5ba3d9525256b9b29a920647744745f13bf0817bfe0180dbb",
+    "tests/test_continuous_case03_20260912.py": "a8ab29546756166d4bec532f16c7d3194470580cb28dcff7b9e8a306cd5d907c"
+  },
+  "candidate_pnl_trials_before": 0
+}

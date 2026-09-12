@@ -1,0 +1,25 @@
+{
+  "command": ".\\.venv\\Scripts\\python.exe -X utf8 -m unittest discover -s tests -p test_strategy_round3_20260911.py",
+  "executed_before_first_source_request": true,
+  "tests_run": 6,
+  "failures": 0,
+  "errors": 0,
+  "status": "PASS",
+  "stdout": "......\nRan 6 tests in 0.028s\nOK",
+  "python": "3.13.3 (tags/v3.13.3:6280bb5, Apr  8 2025, 14:47:33) [MSC v.1943 64 bit (AMD64)]",
+  "test_sha256": "ea62c0a130bb90dd109e774e3d19e9645f03d08a8ffe39cf2cce206b50ba6eb0",
+  "covered": [
+    "Hand-calculated 10% boundary and 55-minute assumed availability buffer",
+    "Missing intervening hour cannot be bridged",
+    "Physical prefix and future-value perturbation",
+    "24-hour chained event clusters and period head attribution",
+    "Invalid source OHLC/schema rejection",
+    "Saved source failure prevents any request session"
+  ],
+  "earlier_fixture_errors": "Two filesystem fixture attempts failed with Windows TemporaryDirectory PermissionError; no candidate calculation or market request had occurred. Original source/test saved; explicit implementation revision switches guard fixture to mocked recorded-failure presence.",
+  "not_validated": [
+    "Actual market feature prefix",
+    "Candidate stateful adapter",
+    "Profitability or economic gates"
+  ]
+}

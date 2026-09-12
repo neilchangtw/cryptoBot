@@ -1,0 +1,114 @@
+{
+  "runs": [
+    {
+      "name": "base",
+      "slip": 0,
+      "status": "PASS",
+      "equity_max_abs_error": 1.8189894035458565e-12,
+      "trades": 269,
+      "max_simultaneous": 2
+    },
+    {
+      "name": "base",
+      "slip": 2,
+      "status": "PASS",
+      "equity_max_abs_error": 1.8189894035458565e-12,
+      "trades": 269,
+      "max_simultaneous": 2
+    },
+    {
+      "name": "base",
+      "slip": 5,
+      "status": "PASS",
+      "equity_max_abs_error": 1.8189894035458565e-12,
+      "trades": 267,
+      "max_simultaneous": 2
+    },
+    {
+      "name": "no_gk",
+      "slip": 0,
+      "status": "PASS",
+      "equity_max_abs_error": 4.547473508864641e-13,
+      "trades": 422,
+      "max_simultaneous": 2
+    },
+    {
+      "name": "no_gk",
+      "slip": 2,
+      "status": "PASS",
+      "equity_max_abs_error": 1.3642420526593924e-12,
+      "trades": 415,
+      "max_simultaneous": 2
+    },
+    {
+      "name": "no_gk",
+      "slip": 5,
+      "status": "PASS",
+      "equity_max_abs_error": 9.094947017729282e-13,
+      "trades": 411,
+      "max_simultaneous": 2
+    }
+  ],
+  "prefix_terminal_identity": [
+    {
+      "name": "base",
+      "cut": 383,
+      "open_positions": 1,
+      "identity_error": 0.0,
+      "status": "PASS"
+    },
+    {
+      "name": "base",
+      "cut": 6000,
+      "open_positions": 0,
+      "identity_error": 9.094947017729282e-13,
+      "status": "PASS"
+    },
+    {
+      "name": "base",
+      "cut": 11000,
+      "open_positions": 0,
+      "identity_error": 2.7284841053187847e-12,
+      "status": "PASS"
+    },
+    {
+      "name": "base",
+      "cut": 16000,
+      "open_positions": 0,
+      "identity_error": 1.8189894035458565e-12,
+      "status": "PASS"
+    },
+    {
+      "name": "no_gk",
+      "cut": 359,
+      "open_positions": 1,
+      "identity_error": 0.0,
+      "status": "PASS"
+    },
+    {
+      "name": "no_gk",
+      "cut": 6000,
+      "open_positions": 0,
+      "identity_error": 3.410605131648481e-13,
+      "status": "PASS"
+    },
+    {
+      "name": "no_gk",
+      "cut": 11000,
+      "open_positions": 0,
+      "identity_error": 9.094947017729282e-13,
+      "status": "PASS"
+    },
+    {
+      "name": "no_gk",
+      "cut": 16000,
+      "open_positions": 0,
+      "identity_error": 0.0,
+      "status": "PASS"
+    }
+  ],
+  "full_outputs_unchanged_after_empty_prefix_fix": 31,
+  "protected_files": 914,
+  "new_downloads": 0,
+  "candidate_replays_in_report": 0
+}

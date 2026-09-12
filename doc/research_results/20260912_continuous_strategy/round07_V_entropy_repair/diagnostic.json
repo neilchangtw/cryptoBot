@@ -1,0 +1,23 @@
+{
+  "utc": "2026-09-12T14:03:15.908132+00:00",
+  "id": "V_entropy_repair",
+  "status": "DATA_LIMITED",
+  "counts": null,
+  "candidate_pnl_trials": 0,
+  "quality": {
+    "raw_defined": 15301,
+    "raw_finite": 4492,
+    "raw_infinite": 10809,
+    "raw_undefined": 2218,
+    "valid_complete_rank_bars": 443,
+    "invalid_original_gates": 260,
+    "base_eligible_gates": 269,
+    "prefixes": [
+      6000,
+      11000,
+      16000
+    ]
+  },
+  "reason": "SampEn estimator undefined in required 20-return windows; complete historical rank unavailable at original gates. No parameter/missingness rescue or payoff test.",
+  "protected_verified": 1078
+}

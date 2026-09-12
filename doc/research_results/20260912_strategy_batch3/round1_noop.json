@@ -1,0 +1,17 @@
+{
+  "utc": "2026-09-12T07:56:46.133573+00:00",
+  "checks": [
+    {
+      "slip": 0,
+      "trade_equity_funding_gate_state": "PASS"
+    },
+    {
+      "slip": 2,
+      "trade_equity_funding_gate_state": "PASS"
+    },
+    {
+      "slip": 5,
+      "trade_equity_funding_gate_state": "PASS"
+    }
+  ]
+}

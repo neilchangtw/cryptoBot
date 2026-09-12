@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-12T08:00:53.003612+00:00",
+  "round": 2,
+  "name": "N_funding_debit_budget",
+  "sha256": {
+    "backtest/research/strategy_batch3_round2_20260912.py": "be388975bf1b259cc9aa95f79977affda006310c2ed0711ddd441b2d62339656",
+    "doc/strategy_batch3_round2_20260912.md": "059fd0fc1fb1d239a6963727678bd40df6679475bd3732cd0924fda2548d7942",
+    "tests/test_strategy_batch3_funding_20260912.py": "bd5a37bbb0e4bf714d25d66e7266a95e309e0f18ed5d5b83424215b45d5fd2e0"
+  },
+  "candidate_pnl_trials_before": 0
+}

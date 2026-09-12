@@ -1,0 +1,35 @@
+{
+  "utc": "2026-09-12T08:05:11.241390+00:00",
+  "mark_path": "data/public_cost_history_20260908/mark_1h_full.csv",
+  "sha256": "3f9586a44ad530cb63df07a63c749de479953ae2e9ab4f25d81c19e47f0929cb",
+  "rows": 17519,
+  "quality": "aligned finite valid OHLC",
+  "schema": [
+    "open_time",
+    "open",
+    "high",
+    "low",
+    "close",
+    "ignore_volume",
+    "close_time",
+    "ignore_quote",
+    "ignore_trades",
+    "ignore_buy",
+    "ignore_buy_quote",
+    "ignore"
+  ],
+  "bar_quality": "PASS",
+  "schema_inventory_reused": "doc/research_results/20260912_bounded_strategy/round3_diagnostic.json",
+  "readable_inventory_scope": "prior verified 2128 CSV / 79 schemas; no synchronized mark/contract tick+fills+received archive",
+  "missing": [
+    "intrahour exact mark trigger sequence",
+    "contract execution price at mark trigger",
+    "synchronized received/revision archive",
+    "duplicate close/cancel race execution evidence"
+  ],
+  "not_assumed": [
+    "OHLC reveals first touch order",
+    "mark is executable price",
+    "25% contract penetration transfers to mark"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "utc": "2026-09-12T03:11:17.754255+00:00",
+  "round": 1,
+  "name": "G_tp_close",
+  "status": "INSUFFICIENT_SAMPLE",
+  "counts": {
+    "events": 46,
+    "clusters24h": 44,
+    "late_clusters24h": 14
+  },
+  "feature_prefix_cuts": [
+    6000,
+    11000,
+    16000
+  ],
+  "quality": "PASS under inherited closed-kline assumption",
+  "candidate_pnl_trials": 0,
+  "event_definition": "Original state TP touched, close unconfirmed, no unchanged exit at same close; no outcome columns read",
+  "protected_verified": 938
+}

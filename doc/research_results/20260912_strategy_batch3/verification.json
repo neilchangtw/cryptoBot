@@ -1,0 +1,131 @@
+{
+  "utc": "2026-09-12T08:08:31.071462+00:00",
+  "independent_saved_ledger_audit": {
+    "full_cost_ledgers": [
+      {
+        "name": "base",
+        "slip": 0,
+        "equity_error": 1.8189894035458565e-12,
+        "metrics": "PASS",
+        "fixed4000_each": "PASS",
+        "max_positions": 2
+      },
+      {
+        "name": "base",
+        "slip": 2,
+        "equity_error": 1.8189894035458565e-12,
+        "metrics": "PASS",
+        "fixed4000_each": "PASS",
+        "max_positions": 2
+      },
+      {
+        "name": "base",
+        "slip": 5,
+        "equity_error": 1.8189894035458565e-12,
+        "metrics": "PASS",
+        "fixed4000_each": "PASS",
+        "max_positions": 2
+      },
+      {
+        "name": "M",
+        "slip": 0,
+        "equity_error": 1.3642420526593924e-12,
+        "metrics": "PASS",
+        "fixed4000_each": "PASS",
+        "max_positions": 2
+      },
+      {
+        "name": "M",
+        "slip": 2,
+        "equity_error": 1.3642420526593924e-12,
+        "metrics": "PASS",
+        "fixed4000_each": "PASS",
+        "max_positions": 2
+      },
+      {
+        "name": "M",
+        "slip": 5,
+        "equity_error": 1.3642420526593924e-12,
+        "metrics": "PASS",
+        "fixed4000_each": "PASS",
+        "max_positions": 2
+      }
+    ],
+    "prefix_open_position_identity": [
+      {
+        "name": "base",
+        "cut": 383,
+        "open_positions": 1,
+        "identity_error": 0.0
+      },
+      {
+        "name": "base",
+        "cut": 6000,
+        "open_positions": 0,
+        "identity_error": 9.094947017729282e-13
+      },
+      {
+        "name": "base",
+        "cut": 11000,
+        "open_positions": 0,
+        "identity_error": 2.7284841053187847e-12
+      },
+      {
+        "name": "base",
+        "cut": 16000,
+        "open_positions": 0,
+        "identity_error": 1.8189894035458565e-12
+      },
+      {
+        "name": "M",
+        "cut": 383,
+        "open_positions": 1,
+        "identity_error": 0.0
+      },
+      {
+        "name": "M",
+        "cut": 6000,
+        "open_positions": 0,
+        "identity_error": 0.0
+      },
+      {
+        "name": "M",
+        "cut": 11000,
+        "open_positions": 0,
+        "identity_error": 1.8189894035458565e-12
+      },
+      {
+        "name": "M",
+        "cut": 16000,
+        "open_positions": 0,
+        "identity_error": 9.094947017729282e-13
+      }
+    ]
+  },
+  "round_input_hashes": [
+    3,
+    3,
+    3
+  ],
+  "tests": {
+    "unique_passed": 11,
+    "clock": 4,
+    "funding": 3,
+    "mark": 3,
+    "timestamp_resolution": 1
+  },
+  "new_baseline_noop_cost_cases": 3,
+  "base_and_M_physical_prefixes": 8,
+  "diagnostic_feature_prefixes": 9,
+  "protected_files_verified": 1008,
+  "head_unchanged": true,
+  "git_diff_check": "PASS",
+  "documentation_web_calls": 5,
+  "market_data_download_bytes": 0,
+  "orders_deploy_commit_push": 0,
+  "subagents_background_jobs_schedules": 0,
+  "previous_artifacts": {
+    "previous_protected": 979,
+    "previous_artifacts": 28
+  }
+}

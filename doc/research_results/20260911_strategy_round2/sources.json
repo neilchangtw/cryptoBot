@@ -1,0 +1,44 @@
+{
+  "raw_files": 18,
+  "raw_rows": 17519,
+  "sha256": {
+    "data/spot_futures_sync_20260909/raw/1725764400000.json": "f53eddd1e0f6fd5d798b641cdd8f374f2824f165c8b445616a8be284d7d811ed",
+    "data/spot_futures_sync_20260909/raw/1729364400000.json": "769349cb1004ded8ed0404f0077ac953b7e79267fa0755ff803f95b20eef646a",
+    "data/spot_futures_sync_20260909/raw/1732964400000.json": "52f645bbc19e49841d1e90acd6e115d9342def83987d76c4ed3a34a96543d944",
+    "data/spot_futures_sync_20260909/raw/1736564400000.json": "aaa480b9bd250bb4aefb56f94b7cda5eadcaadd1de4ad2b24f75197043f89fd2",
+    "data/spot_futures_sync_20260909/raw/1740164400000.json": "ab4f89c498a7b565804d1cb074b9d13d1262b177a237a4f0d957a828e81b1aaa",
+    "data/spot_futures_sync_20260909/raw/1743764400000.json": "478945a110d7e90c09c1b448573180de04298d32c0bb821f4dbbbf95518321ac",
+    "data/spot_futures_sync_20260909/raw/1747364400000.json": "8844c9f27e9adf5022254cfa2d113fe8626091f435dc6cf447346eeb8bcde8e1",
+    "data/spot_futures_sync_20260909/raw/1750964400000.json": "6538b1e886fab1f1783441968564c36c3440ff4693f7c6959a4b3d1c6a0b1103",
+    "data/spot_futures_sync_20260909/raw/1754564400000.json": "c935cc444a850af1f0a2c968e95a208582ad9e95d461e289bee2d54a0cefe128",
+    "data/spot_futures_sync_20260909/raw/1758164400000.json": "30e3ffa32bcb35a9738473f4a3044d931693a08fa9e72aa3b676022eb4741db7",
+    "data/spot_futures_sync_20260909/raw/1761764400000.json": "91d351d07af72f630bea6c398c21f8c2320290c6dfc9cbe66ad78c4ce53d98ef",
+    "data/spot_futures_sync_20260909/raw/1765364400000.json": "75419a05e5d09c98cd01922ddd412a986dc3729f99eb0d0122e5c7c156439b3a",
+    "data/spot_futures_sync_20260909/raw/1768964400000.json": "134994fff9a0ef2eda70fee6d3b45fc7b907ce476afd08779f5f5c31c2a39832",
+    "data/spot_futures_sync_20260909/raw/1772564400000.json": "f20bb9b597b43879e610a4a14b4dec43b19cc90f6dd593f8b452448edff779e9",
+    "data/spot_futures_sync_20260909/raw/1776164400000.json": "111acf4a05f4d3ef27ede1d3b2ce0555e6845fd5394f05742b6aee9b091fc3d9",
+    "data/spot_futures_sync_20260909/raw/1779764400000.json": "bb83fdbb36199f48645d9888bd6000cc1c95ab4a285283d4378ad8bf0086fa25",
+    "data/spot_futures_sync_20260909/raw/1783364400000.json": "e3e05394f8d700bf8d7a092e53a2942e2735825cabca4a0364e156d6c0d69fe0",
+    "data/spot_futures_sync_20260909/raw/1786964400000.json": "9c73bdf3491bcccdd394aaf660e06042bbb12add9a46d0c1f3ebaf991c565c90"
+  },
+  "restored_all_columns": "PASS",
+  "decimal_checks": 17518,
+  "decimal": "PASS",
+  "download_bytes": 0,
+  "network_requests": 0,
+  "official_sources": [
+    "https://developers.binance.com/en/docs/catalog/core-trading-spot-trading/api/rest-api/market",
+    "https://github.com/binance/binance-public-data#updates"
+  ],
+  "raw_fields": {
+    "volume": 5,
+    "taker_buy_volume": 9,
+    "open_ms": 0,
+    "close_ms": 6
+  },
+  "source_close_max_taipei": "2026-09-08 10:00:00",
+  "historical_received_ts": "unavailable",
+  "revision_status": "unverified; historical API snapshot",
+  "proxy_retry": false,
+  "longer_common_history_checked": false
+}

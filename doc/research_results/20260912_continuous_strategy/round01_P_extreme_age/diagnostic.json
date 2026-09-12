@@ -1,0 +1,19 @@
+{
+  "utc": "2026-09-12T09:16:56.943013+00:00",
+  "id": "P_extreme_age",
+  "status": "READY",
+  "counts": {
+    "events": 117,
+    "clusters24h": 106,
+    "late_clusters24h": 39
+  },
+  "candidate_pnl_trials": 0,
+  "invalid_original_gates": 0,
+  "feature_prefixes": [
+    6000,
+    11000,
+    16000
+  ],
+  "quality": "Prior closed-bar features; inherited base data/receipt assumptions, no new external series",
+  "protected_verified": 1078
+}

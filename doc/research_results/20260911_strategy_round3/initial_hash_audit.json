@@ -1,0 +1,21 @@
+{
+  "checked_utc": "2026-09-11T08:35:15.166030+00:00",
+  "checks": {
+    "prior_protected": 807,
+    "effective_registration": 18,
+    "prior_artifacts": 61
+  },
+  "explained_original_differences": [
+    "backtest/research/strategy_round2_20260911.py"
+  ],
+  "reuse": "Prior no-op, raw reconstruction, prefix and independent ledger audits reused by hash; no old replay.",
+  "git_head": "4a84081eef28de578d48e5783a6ade960699cde5",
+  "git_status": "?? backtest/research/audit_report_strategy_round2_20260911.py\n?? backtest/research/audit_strategy_study_20260911.py\n?? backtest/research/strategy_round2_20260911.py\n?? backtest/research/strategy_round3_20260911.py\n?? backtest/research/strategy_study_20260911.py\n?? backtest/research/write_strategy_study_report_20260911.py\n?? doc/research_results/20260911_strategy_round2/\n?? doc/research_results/20260911_strategy_study/\n?? doc/strategy_research_plan_20260911.md\n?? doc/strategy_research_plan_20260911_round2.md\n?? doc/strategy_research_plan_20260911_round3.md\n?? doc/strategy_research_prompt_20260911.md\n?? doc/strategy_research_results_20260911.md\n?? doc/strategy_research_results_20260911_round2.md\n?? tests/test_strategy_round2_20260911.py\n?? tests/test_strategy_round3_20260911.py\n?? tests/test_strategy_study_20260911.py\n",
+  "prior_evidence_sha256": {
+    "doc/research_results/20260911_strategy_round2/registration.json": "f601aa17883cb83294caa8f6e72cbda5c8d86d1b44bff4e9b43119a458f9cd21",
+    "doc/research_results/20260911_strategy_round2/implementation_revision.json": "b74b8c0a086f3103fa0fb011b021c6f2302ccb579d5dc1443609b56b203eecd1",
+    "doc/research_results/20260911_strategy_round2/artifact_manifest.json": "54f385a1cebdd067970586e72fb21e5f90794ea729e61f8cc344568c1ba26461",
+    "doc/research_results/20260911_strategy_round2/results.json": "77ea1935229603c23df85567667e26bf85f54e709178e13be5ee9d1446a3b294",
+    "doc/research_results/20260911_strategy_round2/independent_output_audit.json": "172ea85943acbec87355a65b232a84d90915f2a3b121094bcf9323d33e2ed2ca"
+  }
+}

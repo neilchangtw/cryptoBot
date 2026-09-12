@@ -1,0 +1,10 @@
+{
+  "utc": "2026-09-12T13:50:37.314097+00:00",
+  "candidate_pnl_trials": 0,
+  "bytes": 0,
+  "requests": [],
+  "source_sha256": "878396dfc8cb6ca41701de87b2c2fd336d098bff0d165487e93928576ff329aa",
+  "prereg_sha256": "9253fd3143464700a4a8a007cc92ca107a09c2946685ff4d5e3ea10fbd72e79f",
+  "status": "DATA_LIMITED",
+  "error_type": "ProxyError"
+}

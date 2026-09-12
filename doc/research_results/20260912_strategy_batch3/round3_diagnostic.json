@@ -1,0 +1,23 @@
+{
+  "utc": "2026-09-12T08:05:11.248342+00:00",
+  "round": 3,
+  "name": "O_add_mark_safenet",
+  "status": "DATA_LIMITED",
+  "counts": null,
+  "potential_hour_counts": {
+    "events": 2,
+    "clusters24h": 2,
+    "late_clusters24h": 0
+  },
+  "touch_classes": {
+    "both_touch": 2
+  },
+  "candidate_pnl_trials": 0,
+  "prefix": [
+    6000,
+    11000,
+    16000
+  ],
+  "exact_affected_event_count_known": false,
+  "protected_verified": 1008
+}

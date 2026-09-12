@@ -1,0 +1,22 @@
+{
+  "utc": "2026-09-12T08:00:53.734809+00:00",
+  "round": 2,
+  "name": "N_funding_debit_budget",
+  "status": "INSUFFICIENT_SAMPLE",
+  "additional_status": "DATA_LIMITED",
+  "counts_provisional": {
+    "events": 0,
+    "clusters24h": 0,
+    "late_clusters24h": 0
+  },
+  "candidate_pnl_trials": 0,
+  "prefix": [
+    6000,
+    11000,
+    16000
+  ],
+  "historical_account_received_ts": null,
+  "revision_status": "not archived",
+  "model_quality": "PASS under inherited settlement accounting; original-state event diagnosis only",
+  "protected_verified": 1008
+}

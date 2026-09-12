@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-12T03:15:11.983867+00:00",
+  "round": 3,
+  "main": "I_passive_5s",
+  "sha256": {
+    "doc/strategy_bounded_round3_20260912.md": "d8e43dfdc7b829dd75ec0879cbeca784cd2a46bb276c850358dd2681c763da35",
+    "backtest/research/bounded_round3_20260912.py": "c58d2eed07a75e30578920ff4f1d48e6272351c3a917ef8b145bb0ceca4a91f7",
+    "doc/research_results/20260912_bounded_strategy/round2_diagnostic.json": "a7e1c69fb9bc6584d34ce0c148802d3b86d5b8cc61360640c5e9a51867df7276"
+  },
+  "candidate_pnl_trials_before": 0
+}

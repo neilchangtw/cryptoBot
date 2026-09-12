@@ -1,0 +1,45 @@
+{
+  "utc": "2026-09-12T07:45:01.634036+00:00",
+  "tests": [
+    {
+      "file": "test_strategy_batch2_20260912.py",
+      "passed": 4,
+      "run": 4,
+      "command": "cmd /c \"call .venv\\Scripts\\activate.bat && python -B -X utf8 -m unittest discover -s tests -p test_strategy_batch2_20260912.py\""
+    },
+    {
+      "file": "test_strategy_batch2_extension_20260912.py",
+      "passed": 5,
+      "run": 5,
+      "command": "cmd /c \"call .venv\\Scripts\\activate.bat && python -B -X utf8 -m unittest discover -s tests -p test_strategy_batch2_extension_20260912.py\""
+    },
+    {
+      "file": "test_strategy_batch2_quote_20260912.py",
+      "passed": 2,
+      "run": 2,
+      "command": "cmd /c \"call .venv\\Scripts\\activate.bat && python -B -X utf8 -m unittest discover -s tests -p test_strategy_batch2_quote_20260912.py\""
+    }
+  ],
+  "unique_tests": 11,
+  "round_input_hashes_verified": [
+    6,
+    4,
+    4
+  ],
+  "old_files_hash_verified": 979,
+  "old_git_head_unchanged": true,
+  "git_diff_check": "PASS",
+  "baseline_reuse": {
+    "previous_artifacts": 40,
+    "previous_original_files": 938,
+    "no_new_baseline_replay": true,
+    "trade_equity_funding_gate_state_noop_cost_cases_reused": 3,
+    "physical_prefixes_reused": 4,
+    "previous_independent_accounting_audit_reused": "C:\\Users\\neil.chang\\workspace\\cryptoBot\\doc\\research_results\\20260912_bounded_strategy\\verification.json"
+  },
+  "J_features_prefixes": 3,
+  "K_action_prefixes": 3,
+  "candidate_full_state_return_runs": 0,
+  "network_requests": 0,
+  "download_bytes": 0
+}

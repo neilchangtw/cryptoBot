@@ -1,0 +1,35 @@
+{
+  "E_tests": {
+    "run": 3,
+    "passed": 3,
+    "command": ".\\.venv\\Scripts\\python.exe -X utf8 -m unittest discover -s tests -p test_session_ablation_20260912.py"
+  },
+  "F_tests": {
+    "run": 5,
+    "passed": 5,
+    "unique_additional_tests": 2,
+    "includes_E_tests": true,
+    "command": ".\\.venv\\Scripts\\python.exe -X utf8 -m unittest discover -s tests -p test_gk_ablation_20260912.py"
+  },
+  "integration": {
+    "no_op_cost_scenarios": 3,
+    "actual_prefix_checks": 8,
+    "real_open_position_prefixes": 2,
+    "saved_full_period_independent_ledgers": 6,
+    "empty_closed_trade_prefix_regression": "PASS"
+  },
+  "fixes": [
+    {
+      "case": "Literal regime NA parsed as CSV missing",
+      "candidate_trials_before": 0,
+      "revision": "E implementation_revision.json"
+    },
+    {
+      "case": "First-position prefix has no completed-trade columns",
+      "F_main_trials_already_computed": 1,
+      "full_cost_scenarios_already_computed": 3,
+      "revision": "E implementation_revision_02.json and F implementation_revision.json",
+      "full_saved_csv_hashes_unchanged": 31
+    }
+  ]
+}

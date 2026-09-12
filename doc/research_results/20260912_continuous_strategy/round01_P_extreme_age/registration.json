@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-12T09:16:56.515137+00:00",
+  "round": 1,
+  "id": "P_extreme_age",
+  "sha256": {
+    "backtest/research/continuous_case01_20260912.py": "85e5b3682f92a56d99edc230943d7f604efdf5b74c934ee46239055e19e86d5f",
+    "doc/continuous_round01_extreme_age_20260912.md": "f5a267c4e1656b524f6762fbf049cc32e87ec276ebfd742cc2a65b656d7c1771",
+    "tests/test_continuous_case01_20260912.py": "449d7aed4b32d90c1fabc5f0b2c539f100f912a3efc2a96bf1cb43ce0df05783"
+  },
+  "candidate_pnl_trials_before": 0
+}

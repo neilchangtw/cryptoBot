@@ -1,0 +1,38 @@
+{
+  "utc": "2026-09-12T07:39:13.948563+00:00",
+  "round": 1,
+  "name": "J_spot_futures_price_lead",
+  "status": "DATA_LIMITED",
+  "counts_provisional": {
+    "events": 123,
+    "clusters24h": 88,
+    "late_clusters24h": 34
+  },
+  "quality": {
+    "rows": 17519,
+    "hash_verified_raw_requests": 18,
+    "invalid_after_warmup": 0,
+    "invalid_original": 0,
+    "historical_received_ts": "unavailable",
+    "revision_status": "unverified; historical API snapshot",
+    "downloaded_utc": "2026-09-09 08:27:53.321141+00:00",
+    "point_in_time_gate": false,
+    "reason": "Download timestamp is a later retrieval, not event-time receipt; 55-minute assumed lag does not establish revision history."
+  },
+  "prefix": [
+    {
+      "cut": 6000,
+      "features_and_masks": "PASS"
+    },
+    {
+      "cut": 11000,
+      "features_and_masks": "PASS"
+    },
+    {
+      "cut": 16000,
+      "features_and_masks": "PASS"
+    }
+  ],
+  "candidate_pnl_trials": 0,
+  "protected_verified": 979
+}

@@ -1,0 +1,86 @@
+{
+  "tests": {
+    "commands": [
+      {
+        "command": "cmd /c \"call .venv\\Scripts\\activate.bat && python -B -X utf8 -m unittest discover -s tests -p test_bounded_strategy_20260912.py\"",
+        "run": 3,
+        "passed": 3
+      },
+      {
+        "command": "cmd /c \"call .venv\\Scripts\\activate.bat && python -B -X utf8 -m unittest discover -s tests -p test_bounded_diagnostics_20260912.py\"",
+        "run": 7,
+        "passed": 7
+      }
+    ],
+    "unique_tests": 10,
+    "baseline_current_pure_indicators": "PASS",
+    "baseline_noop_cost_cases": 3,
+    "baseline_physical_prefixes": 4,
+    "G_direct_decision_prefixes": 3,
+    "H_direct_decision_prefixes": 3,
+    "candidate_return_backtests": 0
+  },
+  "saved_baseline_independent_audit": {
+    "baseline_cost_ledgers": [
+      {
+        "slip": 0,
+        "equity_max_error": 1.8189894035458565e-12,
+        "all_metrics_rebuilt": "PASS",
+        "max_simultaneous": 2,
+        "fixed_notional_all_positions": "PASS",
+        "position_hours": 1631
+      },
+      {
+        "slip": 2,
+        "equity_max_error": 1.8189894035458565e-12,
+        "all_metrics_rebuilt": "PASS",
+        "max_simultaneous": 2,
+        "fixed_notional_all_positions": "PASS",
+        "position_hours": 1633
+      },
+      {
+        "slip": 5,
+        "equity_max_error": 1.8189894035458565e-12,
+        "all_metrics_rebuilt": "PASS",
+        "max_simultaneous": 2,
+        "fixed_notional_all_positions": "PASS",
+        "position_hours": 1632
+      }
+    ],
+    "prefix_terminal_identity": [
+      {
+        "cut": 383,
+        "open_positions": 1,
+        "terminal_identity_error": 0.0
+      },
+      {
+        "cut": 6000,
+        "open_positions": 0,
+        "terminal_identity_error": 9.094947017729282e-13
+      },
+      {
+        "cut": 11000,
+        "open_positions": 0,
+        "terminal_identity_error": 2.7284841053187847e-12
+      },
+      {
+        "cut": 16000,
+        "open_positions": 0,
+        "terminal_identity_error": 1.8189894035458565e-12
+      }
+    ]
+  },
+  "inventory_scope": {
+    "inventory": "2128 readable CSV headers / 79 distinct schemas, plus filenames in available data/data_live/logs/cache roots",
+    "inaccessible_observed": [
+      "data/strategy_round3_20260911/test_temp/tmp1kcujkog"
+    ],
+    "not_claimed": [
+      "Exhaustive inspection of inaccessible paths",
+      "Absence of usable data on the internet",
+      "True historical receive or revision proof"
+    ]
+  },
+  "protected_files_verified": 938,
+  "git_head_unchanged": true
+}

@@ -1,0 +1,40 @@
+{
+  "registered_utc": "2026-09-11T04:11:36.633233+00:00",
+  "sha256": {
+    "doc/strategy_research_plan_20260911.md": "331d21368a5b63ad53bc9041134d4d869ec254adba3272f68a7cc0e0e908f437",
+    "backtest/research/strategy_study_20260911.py": "4ceb0649346baafe2f536a389a2af4866f7d3b4f31dead25a2026936f1433cca",
+    "strategy.py": "4b379a8034eb9169af12b3a547f340602cf0c6efa84d6bc5ef9829e8dc5631a8",
+    "executor.py": "304914263b77b1db08d76f4df4edeeca1f3d5cda20c0e0f651732c4a9034c737",
+    "backtest/research/v14_export_trades.py": "222450d9d330352bd210473192fc21527036819ce542e4de5354d006a20f9669",
+    "doc/live_data_spec.md": "de9532ce208f28876478b8c67d641bb4f71bff68c6b61fb479606ea704845dec",
+    "AGENTS.md": "2d1f108fd8220556eac5ee252c8cb3df799e3b3708c84c76ad0943de82de1d03",
+    "data/maxhold_review_20260908/candles.csv": "855beafe423d3779ded175b0745d4e8bcd48ec5fa943ca3eb3782e683c548918",
+    "data/public_cost_history_20260908/funding_full.csv": "148be5e74fe66f6dff6e54fac228022707b9073b68db1b6277df216b3e6ceb77",
+    "data/public_cost_history_20260908/mark_1h_full.csv": "3f9586a44ad530cb63df07a63c749de479953ae2e9ab4f25d81c19e47f0929cb",
+    "data/new_information_20260910/download_manifest.json": "f6184c39af7d846a5cce152781a71a4585f2fecaee3148fef8c5fb8d348be1c3",
+    "backtest/research/execute_optimization_plan_20260908.py": "95b9ae1859857f157b38be335cc906d2728b55b7344250dbecc530d30ff74b61",
+    "backtest/research/new_information_20260910.py": "2af40489bae9e59408c233bff5cb1fbe2c5dd1b3313ca256d315ff8bb8e08cc1"
+  },
+  "git_head": "4a84081eef28de578d48e5783a6ade960699cde5",
+  "git_status": "?? backtest/research/strategy_study_20260911.py\n?? doc/strategy_research_plan_20260911.md\n?? doc/strategy_research_prompt_20260911.md\n?? tests/test_strategy_study_20260911.py\n",
+  "history_index_records": 101,
+  "changed_indexed_files": [
+    "doc/dynamic_tp_research_20260904.md",
+    "doc/v37_microstructure_shadow_plan.md"
+  ],
+  "additional_current_docs": [
+    "doc/backtest_history.md",
+    "doc/dual_strategy_research.md",
+    "doc/new_information_plan_20260910.md",
+    "doc/new_information_results_20260910.md",
+    "doc/strategy_research_plan_20260911.md",
+    "doc/strategy_research_prompt_20260910.md",
+    "doc/strategy_research_prompt_20260911.md",
+    "doc/trade_viewer.md",
+    "doc/v7_audit.md",
+    "doc/v7_research.md"
+  ],
+  "prior_main_trials": 6,
+  "this_round_max_main_trials": 2,
+  "historical_unseen_data": false
+}

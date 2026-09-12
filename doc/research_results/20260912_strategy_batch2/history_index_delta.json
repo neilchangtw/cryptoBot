@@ -1,0 +1,42 @@
+{
+  "parent": "doc/research_results/20260910_new_information/history_index.json",
+  "parent_sha256": "25fa3616c4ee340dc880109eab0654e8465f2b7045b45f254c196a99e5009a63",
+  "previous_batch_delta_sha256": "d95c805c9be434857d503ba7c6a943a16c08ac534701b22f4a6f219d4473cd41",
+  "new_registered_candidates": 3,
+  "new_payoff_candidates": 0,
+  "discarded_before_registration": {
+    "name": "5m variance concentration",
+    "reason": "overlap with previous kurtosis/RBV research; not counted as a research round"
+  },
+  "new_directions": [
+    {
+      "id": "J_spot_futures_price_lead",
+      "status": "DATA_LIMITED",
+      "counts": {
+        "events": 123,
+        "clusters24h": 88,
+        "late_clusters24h": 34
+      },
+      "payoff_trials": 0
+    },
+    {
+      "id": "K_net_positive_extension",
+      "status": "INSUFFICIENT_SAMPLE",
+      "counts": {
+        "events": 8,
+        "clusters24h": 8,
+        "late_clusters24h": 3
+      },
+      "payoff_trials": 0
+    },
+    {
+      "id": "L_quote_parity_deviation",
+      "status": "DATA_LIMITED",
+      "counts": null,
+      "payoff_trials": 0
+    }
+  ],
+  "reopening_requires": "J point-in-time receive/revision evidence; K new independent events; L price series with as-of evidence",
+  "historical_unseen": false,
+  "nearby_prior_payoff_trials_at_least": 8
+}

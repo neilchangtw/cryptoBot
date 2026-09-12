@@ -1,0 +1,19 @@
+[
+  {
+    "label": "probe_oldest",
+    "url": "https://www.deribit.com/api/v2/public/get_volatility_index_data",
+    "params": {
+      "currency": "ETH",
+      "resolution": "3600",
+      "start_timestamp": 1725670800000,
+      "end_timestamp": 1725757199999
+    },
+    "requested_utc": "2026-09-11T08:36:32.257596+00:00",
+    "bytes": 0,
+    "error_type": "ProxyError",
+    "received_utc": "2026-09-11T08:36:34.329672+00:00",
+    "stopped": true,
+    "winerror10061": true,
+    "retry_count": 0
+  }
+]

@@ -1,0 +1,434 @@
+{
+  "utc": "2026-09-12T14:04:30.916329+00:00",
+  "audited_cases": [
+    {
+      "id": "P_extreme_age",
+      "full_cost_ledgers": [
+        {
+          "name": "base",
+          "slip": 0,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "base",
+          "slip": 2,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "base",
+          "slip": 5,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "P_extreme_age",
+          "slip": 0,
+          "equity_error": 9.094947017729282e-13,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "P_extreme_age",
+          "slip": 2,
+          "equity_error": 1.3642420526593924e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "P_extreme_age",
+          "slip": 5,
+          "equity_error": 1.3642420526593924e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        }
+      ],
+      "prefix_open_position_identity": [
+        {
+          "name": "base",
+          "cut": 383,
+          "open_positions": 1,
+          "identity_error": 0.0
+        },
+        {
+          "name": "base",
+          "cut": 6000,
+          "open_positions": 0,
+          "identity_error": 9.094947017729282e-13
+        },
+        {
+          "name": "base",
+          "cut": 11000,
+          "open_positions": 0,
+          "identity_error": 2.7284841053187847e-12
+        },
+        {
+          "name": "base",
+          "cut": 16000,
+          "open_positions": 0,
+          "identity_error": 1.8189894035458565e-12
+        },
+        {
+          "name": "P_extreme_age",
+          "cut": 384,
+          "open_positions": 1,
+          "identity_error": 0.0
+        },
+        {
+          "name": "P_extreme_age",
+          "cut": 6000,
+          "open_positions": 0,
+          "identity_error": 0.0
+        },
+        {
+          "name": "P_extreme_age",
+          "cut": 11000,
+          "open_positions": 0,
+          "identity_error": 4.547473508864641e-13
+        },
+        {
+          "name": "P_extreme_age",
+          "cut": 16000,
+          "open_positions": 0,
+          "identity_error": 9.094947017729282e-13
+        }
+      ]
+    },
+    {
+      "id": "Q_volume_clock",
+      "full_cost_ledgers": [
+        {
+          "name": "base",
+          "slip": 0,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "base",
+          "slip": 2,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "base",
+          "slip": 5,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "Q_volume_clock",
+          "slip": 0,
+          "equity_error": 9.094947017729282e-13,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "Q_volume_clock",
+          "slip": 2,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "Q_volume_clock",
+          "slip": 5,
+          "equity_error": 1.3642420526593924e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        }
+      ],
+      "prefix_open_position_identity": [
+        {
+          "name": "base",
+          "cut": 383,
+          "open_positions": 1,
+          "identity_error": 0.0
+        },
+        {
+          "name": "base",
+          "cut": 6000,
+          "open_positions": 0,
+          "identity_error": 9.094947017729282e-13
+        },
+        {
+          "name": "base",
+          "cut": 11000,
+          "open_positions": 0,
+          "identity_error": 2.7284841053187847e-12
+        },
+        {
+          "name": "base",
+          "cut": 16000,
+          "open_positions": 0,
+          "identity_error": 1.8189894035458565e-12
+        },
+        {
+          "name": "Q_volume_clock",
+          "cut": 383,
+          "open_positions": 1,
+          "identity_error": 0.0
+        },
+        {
+          "name": "Q_volume_clock",
+          "cut": 6000,
+          "open_positions": 0,
+          "identity_error": 0.0
+        },
+        {
+          "name": "Q_volume_clock",
+          "cut": 11000,
+          "open_positions": 0,
+          "identity_error": 9.094947017729282e-13
+        },
+        {
+          "name": "Q_volume_clock",
+          "cut": 16000,
+          "open_positions": 0,
+          "identity_error": 9.094947017729282e-13
+        }
+      ]
+    },
+    {
+      "id": "R_breakout_renewal",
+      "full_cost_ledgers": [
+        {
+          "name": "base",
+          "slip": 0,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "base",
+          "slip": 2,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "base",
+          "slip": 5,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "R_breakout_renewal",
+          "slip": 0,
+          "equity_error": 9.094947017729282e-13,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "R_breakout_renewal",
+          "slip": 2,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "R_breakout_renewal",
+          "slip": 5,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        }
+      ],
+      "prefix_open_position_identity": [
+        {
+          "name": "base",
+          "cut": 383,
+          "open_positions": 1,
+          "identity_error": 0.0
+        },
+        {
+          "name": "base",
+          "cut": 6000,
+          "open_positions": 0,
+          "identity_error": 9.094947017729282e-13
+        },
+        {
+          "name": "base",
+          "cut": 11000,
+          "open_positions": 0,
+          "identity_error": 2.7284841053187847e-12
+        },
+        {
+          "name": "base",
+          "cut": 16000,
+          "open_positions": 0,
+          "identity_error": 1.8189894035458565e-12
+        },
+        {
+          "name": "R_breakout_renewal",
+          "cut": 383,
+          "open_positions": 1,
+          "identity_error": 0.0
+        },
+        {
+          "name": "R_breakout_renewal",
+          "cut": 6000,
+          "open_positions": 0,
+          "identity_error": 4.547473508864641e-13
+        },
+        {
+          "name": "R_breakout_renewal",
+          "cut": 11000,
+          "open_positions": 0,
+          "identity_error": 1.8189894035458565e-12
+        },
+        {
+          "name": "R_breakout_renewal",
+          "cut": 16000,
+          "open_positions": 0,
+          "identity_error": 1.8189894035458565e-12
+        }
+      ]
+    },
+    {
+      "id": "T_anchored_close_exit",
+      "full_cost_ledgers": [
+        {
+          "name": "base",
+          "slip": 0,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "base",
+          "slip": 2,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "base",
+          "slip": 5,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 2
+        },
+        {
+          "name": "T_anchored_close_exit",
+          "slip": 0,
+          "equity_error": 9.094947017729282e-13,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 1
+        },
+        {
+          "name": "T_anchored_close_exit",
+          "slip": 2,
+          "equity_error": 1.8189894035458565e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 1
+        },
+        {
+          "name": "T_anchored_close_exit",
+          "slip": 5,
+          "equity_error": 1.3642420526593924e-12,
+          "metrics": "PASS",
+          "fixed4000_each": "PASS",
+          "max_positions": 1
+        }
+      ],
+      "prefix_open_position_identity": [
+        {
+          "name": "base",
+          "cut": 383,
+          "open_positions": 1,
+          "identity_error": 0.0
+        },
+        {
+          "name": "base",
+          "cut": 6000,
+          "open_positions": 0,
+          "identity_error": 9.094947017729282e-13
+        },
+        {
+          "name": "base",
+          "cut": 11000,
+          "open_positions": 0,
+          "identity_error": 2.7284841053187847e-12
+        },
+        {
+          "name": "base",
+          "cut": 16000,
+          "open_positions": 0,
+          "identity_error": 1.8189894035458565e-12
+        },
+        {
+          "name": "T_anchored_close_exit",
+          "cut": 383,
+          "open_positions": 1,
+          "identity_error": 0.0
+        },
+        {
+          "name": "T_anchored_close_exit",
+          "cut": 6000,
+          "open_positions": 0,
+          "identity_error": 6.821210263296962e-13
+        },
+        {
+          "name": "T_anchored_close_exit",
+          "cut": 11000,
+          "open_positions": 0,
+          "identity_error": 1.8189894035458565e-12
+        },
+        {
+          "name": "T_anchored_close_exit",
+          "cut": 16000,
+          "open_positions": 0,
+          "identity_error": 2.7284841053187847e-12
+        }
+      ]
+    }
+  ],
+  "protected_verified": 1078,
+  "git_head_unchanged": true,
+  "git_diff_check": "PASS",
+  "actual_passed_tests_by_case": {
+    "P": 4,
+    "Q": 4,
+    "R": 4,
+    "S": 4,
+    "T": 5,
+    "U": 4,
+    "V": 4
+  },
+  "finality_probe_status": "DATA_LIMITED: historical state endpoint HTTP 403; 3 GET / 340 bytes total; no payoff test",
+  "public_sample_response_bytes": 7829,
+  "no_op_cost_runs": 12,
+  "physical_prefixes": 32,
+  "independent_cost_ledgers": 24
+}

@@ -1,0 +1,102 @@
+{
+  "full_cost_ledgers": [
+    {
+      "name": "base",
+      "slip": 0,
+      "equity_error": 1.8189894035458565e-12,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 2
+    },
+    {
+      "name": "base",
+      "slip": 2,
+      "equity_error": 1.8189894035458565e-12,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 2
+    },
+    {
+      "name": "base",
+      "slip": 5,
+      "equity_error": 1.8189894035458565e-12,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 2
+    },
+    {
+      "name": "T_anchored_close_exit",
+      "slip": 0,
+      "equity_error": 9.094947017729282e-13,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 1
+    },
+    {
+      "name": "T_anchored_close_exit",
+      "slip": 2,
+      "equity_error": 1.8189894035458565e-12,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 1
+    },
+    {
+      "name": "T_anchored_close_exit",
+      "slip": 5,
+      "equity_error": 1.3642420526593924e-12,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 1
+    }
+  ],
+  "prefix_open_position_identity": [
+    {
+      "name": "base",
+      "cut": 383,
+      "open_positions": 1,
+      "identity_error": 0.0
+    },
+    {
+      "name": "base",
+      "cut": 6000,
+      "open_positions": 0,
+      "identity_error": 9.094947017729282e-13
+    },
+    {
+      "name": "base",
+      "cut": 11000,
+      "open_positions": 0,
+      "identity_error": 2.7284841053187847e-12
+    },
+    {
+      "name": "base",
+      "cut": 16000,
+      "open_positions": 0,
+      "identity_error": 1.8189894035458565e-12
+    },
+    {
+      "name": "T_anchored_close_exit",
+      "cut": 383,
+      "open_positions": 1,
+      "identity_error": 0.0
+    },
+    {
+      "name": "T_anchored_close_exit",
+      "cut": 6000,
+      "open_positions": 0,
+      "identity_error": 6.821210263296962e-13
+    },
+    {
+      "name": "T_anchored_close_exit",
+      "cut": 11000,
+      "open_positions": 0,
+      "identity_error": 1.8189894035458565e-12
+    },
+    {
+      "name": "T_anchored_close_exit",
+      "cut": 16000,
+      "open_positions": 0,
+      "identity_error": 2.7284841053187847e-12
+    }
+  ]
+}

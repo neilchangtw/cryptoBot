@@ -1,0 +1,104 @@
+{
+  "files": [
+    {
+      "path": "backtest/research/strategy_round3_20260911.py",
+      "bytes": 14169,
+      "sha256": "1a8415b91bc0ba50fb4b8e535394334c410bd9117557a65214b58a791cf3a5ee"
+    },
+    {
+      "path": "backtest/research/write_strategy_round3_report_20260911.py",
+      "bytes": 17598,
+      "sha256": "3a18db3521af8a1b9222ae5a83194bf3cec6dadf267bdd549c78835f1c1628e3"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/diagnostic_status.json",
+      "bytes": 374,
+      "sha256": "2b49eab03a7d22b5ff0edef357fb1738da4fcece944f0f2493d07e63b09b5f0b"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/history_index_delta.json",
+      "bytes": 1994,
+      "sha256": "ebe2ffb2b24c9387c5e8b5bd7caa00d8236b58e80ceab0f187ed70b84c725da1"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/implementation_revision.json",
+      "bytes": 1346,
+      "sha256": "e44021a69568deeb2cb03f25b19164c6aff09259b34799056b05f301a7558337"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/initial_hash_audit.json",
+      "bytes": 2066,
+      "sha256": "4f0f30bb0baf57b0b14770afe29d75be928a8e2460c739966b2d57565c0f277b"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/README.md",
+      "bytes": 2512,
+      "sha256": "1bedc0641b7e5fac0444e0c282daa469c53881555ab67d7bf6e987e0d7950ec9"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/registration.json",
+      "bytes": 105971,
+      "sha256": "8b40e5b034a54bb9153ab86e3255f0d80228a62a633f95d43cb051bf97573e86"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/registration_sources/strategy_round3_20260911.py",
+      "bytes": 13918,
+      "sha256": "0ac488104b9c4f868fba63855239cd50255a94b255bc31e75110dc196ac556d4"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/registration_sources/test_strategy_round3_20260911.py",
+      "bytes": 2528,
+      "sha256": "8b8c2980d42426784e144bae94a8ba79f249350f0d7b15ccfa27d4552fcce2ba"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/results.json",
+      "bytes": 17304,
+      "sha256": "b7aa57fd0e67a2542e25e023c57c212d447ff9fe272aa56afe7cb215649c8f64"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/source_failure.json",
+      "bytes": 479,
+      "sha256": "de15252ea91aa4a9be487f2ecbbfc5192106ebc7c04daedfeb867222811c9314"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/source_requests.json",
+      "bytes": 519,
+      "sha256": "f4cf22209ac593ab3a7044d108d1ea9118808f3613a8fbde43a19a2d9f0fac78"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/source_status.json",
+      "bytes": 192,
+      "sha256": "006ca7e651a0f08344ba00647e5ca165a74239ddc37ead3cdf55e559ce66c808"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/sources.json",
+      "bytes": 2168,
+      "sha256": "96f5491f9bde995e21f750050087fdf6edce4a89f19ca2eb2beb2846c97f4e30"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/summary.csv",
+      "bytes": 1518,
+      "sha256": "2b35367eecb4da8c44d4c9e3455b66f8acb9b4e5e6a51a0489d4db418e85fdf0"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round3/test_results.json",
+      "bytes": 1292,
+      "sha256": "b75152dde4525ef2a4b5151fbf0f5f79d27023d82078f18fc2dd90a445e6ebda"
+    },
+    {
+      "path": "doc/strategy_research_plan_20260911_round3.md",
+      "bytes": 7471,
+      "sha256": "f02db28b6ee1f7b866ad7b6b8fda25ad1f1df8391db4e41c6228da0345587331"
+    },
+    {
+      "path": "doc/strategy_research_results_20260911_round3.md",
+      "bytes": 5094,
+      "sha256": "a10f786e61f9c4160c955bc516f95f16ffc4fa93b497bf4e3c59dff86726d13a"
+    },
+    {
+      "path": "tests/test_strategy_round3_20260911.py",
+      "bytes": 2549,
+      "sha256": "ea62c0a130bb90dd109e774e3d19e9645f03d08a8ffe39cf2cce206b50ba6eb0"
+    }
+  ]
+}

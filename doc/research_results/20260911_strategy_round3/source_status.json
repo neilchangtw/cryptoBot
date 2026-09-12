@@ -1,0 +1,8 @@
+{
+  "status": "DATA_CONSTRAINED",
+  "reason": "source_check_failed_no_retry",
+  "samples": [],
+  "candidate_pnl_trials": 0,
+  "common_coverage_verified": false,
+  "event_counts": null
+}

@@ -1,0 +1,61 @@
+{
+  "official_pages_checked_utc_date": "2026-09-11",
+  "urls": [
+    "https://docs.deribit.com/api-reference/market-data/public-get_volatility_index_data",
+    "https://insights.deribit.com/exchange-updates/dvol-deribit-implied-volatility-index/"
+  ],
+  "verified_documentation": {
+    "public_method": "public/get_volatility_index_data",
+    "currency": "ETH",
+    "resolution_seconds": "3600",
+    "query": [
+      "currency",
+      "resolution",
+      "start_timestamp",
+      "end_timestamp"
+    ],
+    "response": [
+      "timestamp_ms",
+      "open",
+      "high",
+      "low",
+      "close"
+    ],
+    "pagination": "continuation becomes next end_timestamp",
+    "methodology": "30-day annualised implied volatility inferred from option prices"
+  },
+  "documentation_caveats": [
+    "No guaranteed complete historical coverage or historical received timestamps.",
+    "No documented point-in-time revision/version guarantee established.",
+    "Timestamp label start/end convention still requires the planned aggregation check.",
+    "The historical API numeric example is not used to infer ETH DVOL units; the formula uses a ratio."
+  ],
+  "local_market_requests": [
+    {
+      "label": "probe_oldest",
+      "url": "https://www.deribit.com/api/v2/public/get_volatility_index_data",
+      "params": {
+        "currency": "ETH",
+        "resolution": "3600",
+        "start_timestamp": 1725670800000,
+        "end_timestamp": 1725757199999
+      },
+      "requested_utc": "2026-09-11T08:36:32.257596+00:00",
+      "bytes": 0,
+      "error_type": "ProxyError",
+      "received_utc": "2026-09-11T08:36:34.329672+00:00",
+      "stopped": true,
+      "winerror10061": true,
+      "retry_count": 0
+    }
+  ],
+  "downloaded_market_bytes": 0,
+  "rows_obtained": 0,
+  "prior_failed_Binance_endpoint_retried": false,
+  "network_bypass": false,
+  "account_keys_used": false,
+  "common_coverage_verified": false,
+  "historical_received_ts": null,
+  "historical_unseen": false,
+  "source_availability_verdict": "Official public endpoint documented; actual common coverage unverified because local probe failed."
+}

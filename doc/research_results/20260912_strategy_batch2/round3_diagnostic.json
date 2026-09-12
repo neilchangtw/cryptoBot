@@ -1,0 +1,15 @@
+{
+  "utc": "2026-09-12T07:42:38.577515+00:00",
+  "round": 3,
+  "name": "L_quote_parity_deviation",
+  "status": "DATA_LIMITED",
+  "counts": null,
+  "candidate_pnl_trials": 0,
+  "matching_sources": 0,
+  "missing": [
+    "USDCUSDT hourly prices covering frozen ETH interval",
+    "historical receive/revision evidence"
+  ],
+  "reason": "No matching quote-pair source found in readable local inventory; cannot assume p=1 or count missing data as no event",
+  "protected_verified": 979
+}

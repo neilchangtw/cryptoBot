@@ -1,0 +1,12 @@
+{
+  "recorded_utc": "2026-09-12T02:33:57.750402+00:00",
+  "status": "INSUFFICIENT_SAMPLE",
+  "quality": "PASS",
+  "counts": {
+    "events": 26,
+    "clusters24h": 21,
+    "late_clusters24h": 7
+  },
+  "candidate_pnl_trials": 0,
+  "event_definition": "Only-hour-blocked opportunities in baseline state; no candidate trades or outcomes used."
+}

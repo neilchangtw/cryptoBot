@@ -1,0 +1,39 @@
+{
+  "parent": "doc/research_results/20260910_new_information/history_index.json",
+  "parent_sha256": "25fa3616c4ee340dc880109eab0654e8465f2b7045b45f254c196a99e5009a63",
+  "mechanisms_attempted_this_request": 2,
+  "main_return_trials": 1,
+  "cost_scenarios": 3,
+  "prior_nearby_main_return_trials": 7,
+  "historical_unseen": false,
+  "scope_disclosure": "E initial plan was one direction; F separately preregistered after E pre-return sample failure under the new user instruction. No E payoff was computed. Report both.",
+  "records": [
+    {
+      "id": "E",
+      "status": "INSUFFICIENT_SAMPLE",
+      "clusters": [
+        21,
+        7
+      ],
+      "pnl_trials": 0,
+      "reopen_basis": "V24 session audit resets state across IS/OOS; lacks V25-D and current cost ledger."
+    },
+    {
+      "id": "F",
+      "status": "REJECTED",
+      "clusters": [
+        206,
+        74
+      ],
+      "pnl_trials": 1,
+      "reopen_basis": "V16/V17 pure-breakout model lacks current R/V25-D/funding/mark; V35 adds L confirmation instead of unconditional both-side GK removal."
+    }
+  ],
+  "related_files_sha256": {
+    "backtest/research/v24_session_filter_audit.py": "d468efa396eec812d1842f8502704166a627dca1006a73f0d7522099307bcbef",
+    "backtest/research/v24_engine.py": "bceeb87b60b4bf9ecef35dc7ec05c56e85a178ac10af9da775eaed6cfcf42193",
+    "backtest/research/v16_r2_skeptical_validation.py": "41c2854546654b3990b95cf80d2766c82c4833cdebc3289d233d524390b030fa",
+    "doc/v17_research.md": "92d597ab30f1fc2837d4843793f024b2053326d06b96df0ab239aaa11f585720",
+    "doc/v35_high_gk_acceleration_research.md": "029151f414ddee1443b01383e380b76076e55442026b5dcd39cf8bed21d13f5a"
+  }
+}

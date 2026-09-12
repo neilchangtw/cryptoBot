@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-12T09:20:48.383468+00:00",
+  "round": 2,
+  "id": "Q_volume_clock",
+  "sha256": {
+    "backtest/research/continuous_case02_20260912.py": "de6e4bc127e7e9696b7cbbb380933c553bd899e026e7e81519713b695fb23ab1",
+    "doc/continuous_round02_volume_clock_20260912.md": "0fee47085fe41433c8f871c02faaa9a085fdd9bd80705762027090d43fb21406",
+    "tests/test_continuous_case02_20260912.py": "da7dac95c2af784ad78a6b46b7c22a5dc78aac7c7a421f81a5c6e4653cafd5fa"
+  },
+  "candidate_pnl_trials_before": 0
+}

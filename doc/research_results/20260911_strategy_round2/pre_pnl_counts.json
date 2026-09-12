@@ -1,0 +1,9 @@
+{
+  "events": 108,
+  "clusters24h": 93,
+  "late_clusters24h": 31,
+  "invalid_fraction": 0.0,
+  "invalid_original": 0.0,
+  "counted_before_candidate_pnl": true,
+  "recorded_utc": "2026-09-11T08:14:22.637255+00:00"
+}

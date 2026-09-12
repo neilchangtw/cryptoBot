@@ -1,0 +1,14 @@
+[
+  {
+    "slip": 0,
+    "all_trade_equity_gate_state_funding_fields": "PASS"
+  },
+  {
+    "slip": 2,
+    "all_trade_equity_gate_state_funding_fields": "PASS"
+  },
+  {
+    "slip": 5,
+    "all_trade_equity_gate_state_funding_fields": "PASS"
+  }
+]

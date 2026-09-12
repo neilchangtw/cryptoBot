@@ -1,0 +1,7 @@
+# 歷史finality補查：DATA LIMITED
+
+已停止，不計候選事件或PnL。PublicNode genesis可讀，但預登記第一個歷史slot=9910498的finality_checkpoints回傳HTTP 403、空body；這只證明本次公開端點無法取得該證據，不能斷言所有供應商或所有歷史state都不存在。
+
+實際請求：sandbox初次ProxyError、0 bytes；權限放行後genesis HTTP成功保存170 bytes，串流讀完又呼叫response.json造成解析錯誤；修正後因attempt編號把response檔也計入，未重用先前genesis，而再下載170 bytes，歷史state 403立即停止。共3次對外GET、340 bytes，仍低於預登記4次／32KB。原始回應與錯誤保留；未更換來源或全期下載。已修正編號並加上既有HTTP受限不得重試的保護，修正後沒有再執行網路請求。
+
+S原規則和24h時間門檻未放寬，維持DATA LIMITED。仍缺少歷史定案checkpoint及execution block hash連結；沒有把當前canonical旗標當作當時可用證據。此補查不是新策略收益輪次。

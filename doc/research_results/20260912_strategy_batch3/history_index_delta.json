@@ -1,0 +1,30 @@
+{
+  "parent": "doc/research_results/20260910_new_information/history_index.json",
+  "parent_sha256": "25fa3616c4ee340dc880109eab0654e8465f2b7045b45f254c196a99e5009a63",
+  "prior_batch_delta_sha256": "845c315a5693bd7dae5787f3eb2ece9df0f84fc1147ca9491251ceca4116fe4c",
+  "new_main_candidates": 3,
+  "new_main_payoff_trials": 1,
+  "nearby_historical_payoff_trials_at_least": 9,
+  "historical_unseen": false,
+  "directions": [
+    {
+      "id": "M_ny_day_clock",
+      "status": "REJECTED",
+      "clusters": "60/21",
+      "payoff_trials": 1
+    },
+    {
+      "id": "N_funding_debit_budget",
+      "status": "INSUFFICIENT_SAMPLE + DATA_LIMITED",
+      "provisional_clusters": "0/0",
+      "payoff_trials": 0
+    },
+    {
+      "id": "O_add_mark_safenet",
+      "status": "DATA_LIMITED",
+      "potential_hours": "2/0",
+      "payoff_trials": 0
+    }
+  ],
+  "reopen_only_with": "M new independent mechanism or experiment flaw; N new events and receipt evidence; O synchronized point-in-time mark/contract/fill data. No threshold rescue."
+}

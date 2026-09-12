@@ -1,0 +1,12 @@
+{
+  "utc": "2026-09-12T07:40:55.860557+00:00",
+  "round": 2,
+  "main": "K_net_positive_extension",
+  "sha256": {
+    "backtest/research/strategy_batch2_round2_20260912.py": "ebbb9fa76110d967d9f757e594f4a28e4ad7617f175f4ed38c376c6368ce9c0b",
+    "doc/strategy_batch2_round2_20260912.md": "3b79b4c9e46b2b63b4de7d09bd165bae5442a548a3bbb369cbf4d9d781af0308",
+    "tests/test_strategy_batch2_extension_20260912.py": "a3e4e4f72266c4e00cbae0567b0e92fbd5327e7fc995043e6ad9a5c23a44b324",
+    "doc/research_results/20260912_strategy_batch2/round1_diagnostic.json": "79dd61e85f059ea16f4e9871a068dc44c90d670f11d5871339f731f4c9481510"
+  },
+  "candidate_pnl_trials_before": 0
+}

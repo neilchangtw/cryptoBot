@@ -1,0 +1,20 @@
+{
+  "utc": "2026-09-12T03:15:22.612463+00:00",
+  "round": 3,
+  "name": "I_passive_5s",
+  "status": "DATA_LIMITED",
+  "candidate_pnl_trials": 0,
+  "counts": null,
+  "csv_files_checked": 2128,
+  "schemas_checked": 79,
+  "plausible_execution_sources": [],
+  "missing": [
+    "historical received timestamps with continuous bid/ask depth sequence",
+    "initial queue and subsequent trade/queue depletion",
+    "signal/order/ack/cancel/fill chronology and partial-fill reconciliation"
+  ],
+  "reason": "Available kline, funding, market metrics and research ledgers cannot establish passive queue fill or historical latency.",
+  "network_requests": 0,
+  "download_bytes": 0,
+  "protected_verified": 938
+}

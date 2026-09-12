@@ -1,0 +1,70 @@
+{
+  "parent": "doc/research_results/20260910_new_information/history_index.json",
+  "rounds": [
+    {
+      "id": "P_extreme_age",
+      "status": "REJECTED",
+      "counts": {
+        "events": 117,
+        "clusters24h": 106,
+        "late_clusters24h": 39
+      },
+      "candidate_pnl_trials": 1
+    },
+    {
+      "id": "Q_volume_clock",
+      "status": "REJECTED",
+      "counts": {
+        "events": 128,
+        "clusters24h": 106,
+        "late_clusters24h": 37
+      },
+      "candidate_pnl_trials": 1
+    },
+    {
+      "id": "R_breakout_renewal",
+      "status": "REJECTED",
+      "counts": {
+        "events": 93,
+        "clusters24h": 83,
+        "late_clusters24h": 32
+      },
+      "candidate_pnl_trials": 1
+    },
+    {
+      "id": "S_onchain_basefee",
+      "status": "DATA_LIMITED",
+      "counts": null,
+      "candidate_pnl_trials": 0
+    },
+    {
+      "id": "T_anchored_close_exit",
+      "status": "REJECTED",
+      "counts": {
+        "events": 123,
+        "clusters24h": 103,
+        "late_clusters24h": 38
+      },
+      "candidate_pnl_trials": 1
+    },
+    {
+      "id": "U_regime_invalidation",
+      "status": "INSUFFICIENT_SAMPLE",
+      "counts": {
+        "events": 4,
+        "clusters24h": 4,
+        "late_clusters24h": 1
+      },
+      "candidate_pnl_trials": 0
+    },
+    {
+      "id": "V_entropy_repair",
+      "status": "DATA_LIMITED",
+      "counts": null,
+      "candidate_pnl_trials": 0
+    }
+  ],
+  "nearby_historical_payoff_trials_at_least": 13,
+  "historical_unseen": false,
+  "continue_rule": "New mechanism/data only; never rescue a failed direction by parameter tuning."
+}

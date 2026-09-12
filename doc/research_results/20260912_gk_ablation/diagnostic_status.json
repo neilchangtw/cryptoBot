@@ -1,0 +1,11 @@
+{
+  "recorded_utc": "2026-09-12T02:39:13.054620+00:00",
+  "status": "READY",
+  "quality": "PASS",
+  "counts": {
+    "events": 872,
+    "clusters24h": 206,
+    "late_clusters24h": 74
+  },
+  "candidate_pnl_trials": 0
+}

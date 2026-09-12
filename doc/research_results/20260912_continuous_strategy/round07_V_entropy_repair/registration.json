@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-12T14:03:13.575750+00:00",
+  "round": 7,
+  "id": "V_entropy_repair",
+  "sha256": {
+    "backtest/research/continuous_case07_20260912.py": "4d3264e18a04ace1c09fe09ae03b6be9edfe8b212ea6f32406f6d2efc05914de",
+    "doc/continuous_round07_entropy_repair_20260912.md": "62e809c45f3dff46e0abd8a99bd55c61af906696448cd6242dfe09aea888409f",
+    "tests/test_continuous_case07_20260912.py": "3d16198ed286463b40b4754d488e52bc35257ec1b6a31b6d4f67f8fe17435ad9"
+  },
+  "candidate_pnl_trials_before": 0
+}

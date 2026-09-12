@@ -1,0 +1,18 @@
+{
+  "utc": "2026-09-12T13:59:27.668520+00:00",
+  "id": "U_regime_invalidation",
+  "status": "INSUFFICIENT_SAMPLE",
+  "counts": {
+    "events": 4,
+    "clusters24h": 4,
+    "late_clusters24h": 1
+  },
+  "candidate_pnl_trials": 0,
+  "quality": "PASS inherited completed futures K; slope matches original engine at every bar",
+  "feature_action_prefixes": [
+    6000,
+    11000,
+    16000
+  ],
+  "protected_verified": 1078
+}

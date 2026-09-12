@@ -1,0 +1,28 @@
+{
+  "utc": "2026-09-12T13:51:41.513845+00:00",
+  "candidate_pnl_trials": 0,
+  "bytes": 170,
+  "requests": [
+    {
+      "url": "https://ethereum-beacon-api.publicnode.com/eth/v1/beacon/genesis",
+      "status": 200,
+      "bytes": 170,
+      "received_utc": "2026-09-12T13:51:41.803682+00:00",
+      "file": "doc\\research_results\\20260912_continuous_strategy\\finality_probe\\attempt_3_response_1.json",
+      "sha256": "55ffb0cee289551f91ce003dcee739e310b65cbadf9421c3057b29d312eabd18"
+    },
+    {
+      "url": "https://ethereum-beacon-api.publicnode.com/eth/v1/beacon/states/9910498/finality_checkpoints",
+      "status": 403,
+      "bytes": 0,
+      "received_utc": "2026-09-12T13:51:42.096909+00:00",
+      "file": "doc\\research_results\\20260912_continuous_strategy\\finality_probe\\attempt_3_response_2.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_sha256": "9c85bf11573c4621de1717f2811fb949d500eb362b2c16f084c68080dabd4196",
+  "prereg_sha256": "9253fd3143464700a4a8a007cc92ca107a09c2946685ff4d5e3ea10fbd72e79f",
+  "genesis_time": 1606824023,
+  "status": "DATA_LIMITED",
+  "error_type": "HTTPError"
+}

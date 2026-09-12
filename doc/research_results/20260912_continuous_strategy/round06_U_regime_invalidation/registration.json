@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-12T13:59:18.663517+00:00",
+  "round": 6,
+  "id": "U_regime_invalidation",
+  "sha256": {
+    "backtest/research/continuous_case06_20260912.py": "9a2acff4dd98bad1741d59a63b1fd0909f39bb98dff7f95b9060b0c6e7d54f00",
+    "doc/continuous_round06_regime_exit_20260912.md": "b7182faf18df2600485a5e65d6eedc5c05804d5c70db20134b2ca365cfebe2ab",
+    "tests/test_continuous_case06_20260912.py": "dc919d920501e5b7e8c38a4ba36b23f8706d3a5f6ed66767ebeb182e3fddd7ca"
+  },
+  "candidate_pnl_trials_before": 0
+}

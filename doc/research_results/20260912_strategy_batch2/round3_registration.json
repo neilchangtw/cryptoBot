@@ -1,0 +1,12 @@
+{
+  "utc": "2026-09-12T07:42:38.374306+00:00",
+  "round": 3,
+  "main": "L_quote_parity_deviation",
+  "sha256": {
+    "backtest/research/strategy_batch2_round3_20260912.py": "2b2e1554c3a9fe708ceffb27b599d1c36f541f42951283c3bc9ab55dcf890af5",
+    "doc/strategy_batch2_round3_20260912.md": "8e97068be0039a61304fb6da07ff857f131fa30781c59c917a247cf98b8e097d",
+    "tests/test_strategy_batch2_quote_20260912.py": "ba2884206a495a5d1c0bd167644d0cbf9316f7a0e669ed0f467e7fa7410f284c",
+    "doc/research_results/20260912_strategy_batch2/round2_diagnostic.json": "7e6250863c1ba653e5d39ef8fe5c75c8c8eb4d9c6c92f37e7f44a9d88bd44e4a"
+  },
+  "candidate_pnl_trials_before": 0
+}

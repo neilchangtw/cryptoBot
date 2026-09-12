@@ -1,0 +1,414 @@
+{
+  "files": [
+    {
+      "path": "backtest/research/gk_ablation_20260912.py",
+      "bytes": 8223,
+      "sha256": "4c481cf43d4f2ce260fa73f2e87d597859a7f2b6964fe811e6742e2bd39bf69b"
+    },
+    {
+      "path": "backtest/research/report_session_ablation_20260912.py",
+      "bytes": 18430,
+      "sha256": "f5eaf60a7e3717b0a245ecc8e2e4067294c67365a09760b32caa248f023269b3"
+    },
+    {
+      "path": "backtest/research/session_ablation_20260912.py",
+      "bytes": 13389,
+      "sha256": "f4f33a27833763614659938ceb60ec12ee2aa3c6e07b1d40f46f7d3cd98a26c4"
+    },
+    {
+      "path": "data/gk_ablation_20260912/added_trade_attribution_0bp.csv",
+      "bytes": 60292,
+      "sha256": "4191b8d20e1d4c0ce4e33d6045a890bb6b039d610507511cb7781b1e99308f35"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_0bp_equity.csv",
+      "bytes": 1705614,
+      "sha256": "c8f4c86676df5dd043d12022df9f267803c5e6dedde670b57340a52ecbb434cb"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_0bp_funding.csv",
+      "bytes": 24414,
+      "sha256": "dd992a427e2b1a393038dd11cd80494dc7d0a2d052105ed22a1be39737f1e0c1"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_0bp_gates.csv",
+      "bytes": 9022,
+      "sha256": "90d039ba57741d0ac09bdee543df49fa2bebb4e881394b07e67aa5ed20582533"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_0bp_states.csv",
+      "bytes": 5186255,
+      "sha256": "4778346e24780852fcb6514abbc465b2744e795f9984c3f80bdab5b37a0fe9f9"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_0bp_trades.csv",
+      "bytes": 56513,
+      "sha256": "bec3af5c5383711fb918c66dfa47c164b09d8ba4ac883934c014f85280cc293b"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_2bp_equity.csv",
+      "bytes": 1688285,
+      "sha256": "781644bf707984fea01cff9e6be17b9924c0c0fe99515cdca5c330e776343bbb"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_2bp_funding.csv",
+      "bytes": 24573,
+      "sha256": "ea1d28a96cfc50f53f5c044cd6a4d3d42f282feb5f2f46d9f20f4996ee97b016"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_2bp_gates.csv",
+      "bytes": 9022,
+      "sha256": "90d039ba57741d0ac09bdee543df49fa2bebb4e881394b07e67aa5ed20582533"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_2bp_states.csv",
+      "bytes": 5375020,
+      "sha256": "6c526dc0d45ac233699a85501d09a8bcc6a230f8a0539f63824ae39e6ff3e091"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_2bp_trades.csv",
+      "bytes": 58131,
+      "sha256": "19f3f2085f434e63e18c7274b291ccc412a0eaf76fc5960e3ad0086567f27852"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_5bp_equity.csv",
+      "bytes": 1701704,
+      "sha256": "82c1f98840046b0644a1b5e505db49965d53f98b5d4f9081a7712f904c21c155"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_5bp_funding.csv",
+      "bytes": 24471,
+      "sha256": "6abb02252d73ec55e4a140830c521217849dc8f0fc231434054f058e8a1f1703"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_5bp_gates.csv",
+      "bytes": 8956,
+      "sha256": "9c752f87fddabc44e6ac6aa9b202b56386d0dcca69325530e8801e8b95354828"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_5bp_states.csv",
+      "bytes": 5386329,
+      "sha256": "a677eb1e614ed7fd3b1e41a2c9d8c7ecf5aec106521ffa850229834127da9c17"
+    },
+    {
+      "path": "data/gk_ablation_20260912/base_5bp_trades.csv",
+      "bytes": 57974,
+      "sha256": "48f1514bf1347fe8f4fe3bb3b4cb2b2bf3282efdeb063a346ba51c62fff4ee4f"
+    },
+    {
+      "path": "data/gk_ablation_20260912/direct_opportunities_pre_pnl.csv",
+      "bytes": 40274,
+      "sha256": "0298444a0005e87c2f9f64d1b8bfc45fa6bf631db4f3c8221c881f27e424cccc"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_0bp_equity.csv",
+      "bytes": 1693368,
+      "sha256": "d4d0ee8e5fcd9d7aa7c47d58b62e772802ed3dc1ab28c8faa3d7ece27fecf825"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_0bp_funding.csv",
+      "bytes": 38751,
+      "sha256": "d4b30e209ae30211be18ecde5991463e4dad3bd2b71ff4e7b11d4f0f0a29e181"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_0bp_gates.csv",
+      "bytes": 14138,
+      "sha256": "456a5dfeb87c334d70b006893716d5e6667b9a4b90243e4ca854769f64a429ae"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_0bp_paired.csv",
+      "bytes": 159735,
+      "sha256": "d87b777bde66281c022c5422dc3a16be473116bd441a482d9b54a403679ccfe8"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_0bp_states.csv",
+      "bytes": 5242802,
+      "sha256": "fe51f7dbb9b62622238822640e9e49fdaaf20635a83fb72aa024cd990b37f4dd"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_0bp_trades.csv",
+      "bytes": 89055,
+      "sha256": "28478aef4850d9a5b1751a19484242f7ce6b698516bad0d90126e2378f78dc2f"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_2bp_equity.csv",
+      "bytes": 1740460,
+      "sha256": "d099132c3c59aae8b1452cb392b14bb58df9780bb92ef3315c64369a707554a2"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_2bp_funding.csv",
+      "bytes": 38457,
+      "sha256": "da4c8b6f32d01d01f5f0613ed3a7dfcedf37e50006ab1e2d668264786f468902"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_2bp_gates.csv",
+      "bytes": 13900,
+      "sha256": "70fe1040b7816171530bf0aeec363adcc5c8a69ef7093ba331b68ed8e0f044d8"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_2bp_paired.csv",
+      "bytes": 162286,
+      "sha256": "d02b587b3403f28a87c93b63cdb93fd0f790c4e243b08b3a4e58db0bf1a44b47"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_2bp_states.csv",
+      "bytes": 5433332,
+      "sha256": "389bcd0727d1122fce9cc69325026d20467619e701390157a26d1a00d27afc8d"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_2bp_trades.csv",
+      "bytes": 90166,
+      "sha256": "989313cc1c8133bfaa7cd015a68b0b234c40b491e3e7858cf1225804afc2ce6e"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_5bp_equity.csv",
+      "bytes": 1719268,
+      "sha256": "7798590c236a8e1b25f5a53a2da3b09a8b7b803b8e703f494709317ee79bf8d4"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_5bp_funding.csv",
+      "bytes": 38051,
+      "sha256": "107b525154802bbf642b1f5ee7df7752a0f0a182e55556b3192d42a85f773d31"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_5bp_gates.csv",
+      "bytes": 13766,
+      "sha256": "e8e94182e1f3b965f7b6c3def28b8dcda9d40ed4e46320a1972e1d879d65cec6"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_5bp_paired.csv",
+      "bytes": 161508,
+      "sha256": "7b41889b9fdac7e2d50df5204c78c26d06fd25fe4745584584b6796d7e9d1d21"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_5bp_states.csv",
+      "bytes": 5454688,
+      "sha256": "2bd0af1878d5056bde9d9acfe0e990fbf3d86bf5055e4e2e26cab03c362b75ad"
+    },
+    {
+      "path": "data/gk_ablation_20260912/no_gk_5bp_trades.csv",
+      "bytes": 89607,
+      "sha256": "c29c86c8fc4c8a279d85698689317b0e1a4129b7cf7ed72e3172fd42951a9a2f"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_0bp_equity.csv",
+      "bytes": 1705614,
+      "sha256": "c8f4c86676df5dd043d12022df9f267803c5e6dedde670b57340a52ecbb434cb"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_0bp_funding.csv",
+      "bytes": 24414,
+      "sha256": "dd992a427e2b1a393038dd11cd80494dc7d0a2d052105ed22a1be39737f1e0c1"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_0bp_gates.csv",
+      "bytes": 9022,
+      "sha256": "90d039ba57741d0ac09bdee543df49fa2bebb4e881394b07e67aa5ed20582533"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_0bp_states.csv",
+      "bytes": 5186255,
+      "sha256": "4778346e24780852fcb6514abbc465b2744e795f9984c3f80bdab5b37a0fe9f9"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_0bp_trades.csv",
+      "bytes": 56513,
+      "sha256": "bec3af5c5383711fb918c66dfa47c164b09d8ba4ac883934c014f85280cc293b"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_2bp_equity.csv",
+      "bytes": 1688285,
+      "sha256": "781644bf707984fea01cff9e6be17b9924c0c0fe99515cdca5c330e776343bbb"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_2bp_funding.csv",
+      "bytes": 24573,
+      "sha256": "ea1d28a96cfc50f53f5c044cd6a4d3d42f282feb5f2f46d9f20f4996ee97b016"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_2bp_gates.csv",
+      "bytes": 9022,
+      "sha256": "90d039ba57741d0ac09bdee543df49fa2bebb4e881394b07e67aa5ed20582533"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_2bp_states.csv",
+      "bytes": 5375020,
+      "sha256": "6c526dc0d45ac233699a85501d09a8bcc6a230f8a0539f63824ae39e6ff3e091"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_2bp_trades.csv",
+      "bytes": 58131,
+      "sha256": "19f3f2085f434e63e18c7274b291ccc412a0eaf76fc5960e3ad0086567f27852"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_5bp_equity.csv",
+      "bytes": 1701704,
+      "sha256": "82c1f98840046b0644a1b5e505db49965d53f98b5d4f9081a7712f904c21c155"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_5bp_funding.csv",
+      "bytes": 24471,
+      "sha256": "6abb02252d73ec55e4a140830c521217849dc8f0fc231434054f058e8a1f1703"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_5bp_gates.csv",
+      "bytes": 8956,
+      "sha256": "9c752f87fddabc44e6ac6aa9b202b56386d0dcca69325530e8801e8b95354828"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_5bp_states.csv",
+      "bytes": 5386329,
+      "sha256": "a677eb1e614ed7fd3b1e41a2c9d8c7ecf5aec106521ffa850229834127da9c17"
+    },
+    {
+      "path": "data/session_ablation_20260912/base_5bp_trades.csv",
+      "bytes": 57974,
+      "sha256": "48f1514bf1347fe8f4fe3bb3b4cb2b2bf3282efdeb063a346ba51c62fff4ee4f"
+    },
+    {
+      "path": "data/session_ablation_20260912/direct_opportunities_pre_pnl.csv",
+      "bytes": 840,
+      "sha256": "4ad78b5a5a15992f3ae6d4e785833ae06121858b3e4e508051b71b69aca59ecc"
+    },
+    {
+      "path": "doc/gk_ablation_plan_20260912.md",
+      "bytes": 4842,
+      "sha256": "89b04c7ae77a0773ff9627a3584217b26701830e2c72d6516708f15c760d29ba"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/diagnostic_status.json",
+      "bytes": 226,
+      "sha256": "b7555dd86c692d397d86503a8f1c2a7b319dd37547099186baa5efae49c07afe"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/evaluation_started.json",
+      "bytes": 110,
+      "sha256": "424f61ca34babac9c73218c2e70d8a0beffb44f90278f28286b1eed299e3c2f8"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/full_outputs_before_prefix_fix.json",
+      "bytes": 3922,
+      "sha256": "3838c52ba7171a40bd16d3e135274e6ca59f387538936bcba52b5c3e55f9c80a"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/history_index_delta.json",
+      "bytes": 1717,
+      "sha256": "9d5a2191e2b75335dcbee3255396b1447be85106bec54d702d463b2c35ff09ca"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/implementation_revision.json",
+      "bytes": 113060,
+      "sha256": "dfdb52a2b96f1dc7ad7ea6c75df0a1630fbcb71e186fe2b0322ebeef0d381607"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/independent_output_audit.json",
+      "bytes": 2543,
+      "sha256": "15794a4e063509bd435dad3df1736496012a2656861530749fa9c9e6833ae561"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/new_trade_diagnostics.json",
+      "bytes": 277,
+      "sha256": "5d91f89b60a4e8d707a342bbc95d9446b47306df3e5cf1aaa80c1617c583fed1"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/noop.json",
+      "bytes": 276,
+      "sha256": "09ad5d762165a42a9587d721b76f55639303424d0d41d15d00bacd70af022932"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/README.md",
+      "bytes": 2522,
+      "sha256": "01703012411844ae0dcbb0c1795f658decfc3f9cb496687dc6ee954965cbe279"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/registration.json",
+      "bytes": 112503,
+      "sha256": "ba036692a70c42a8b8fad759e3f85dd1640cf70ebc4df6367eda57998800617a"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/registration_sources/gk_ablation_20260912.py",
+      "bytes": 8031,
+      "sha256": "8eeab9675b82266eed9339337298249bba76e7b00249270441a07ec03ba579b5"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/registration_sources/session_ablation_20260912.py",
+      "bytes": 13100,
+      "sha256": "7972597e7927db96ab686ddad4ac154e9df39f0744d7ff833c326e5648047fcb"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/results.json",
+      "bytes": 33770,
+      "sha256": "f76b1d9d19f8870f034f05e1d1317ff222bb38286b934c9b5e7f99300aadd49b"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/summary.csv",
+      "bytes": 2214,
+      "sha256": "2832d0054f7ce59e25f947034e753dda387c21c77cd371f2759addd1833388d6"
+    },
+    {
+      "path": "doc/research_results/20260912_gk_ablation/verification.json",
+      "bytes": 1147,
+      "sha256": "b0536844726fff5975f7a499e162c1e4eb85af6ba52b4ca22adba82907b401ac"
+    },
+    {
+      "path": "doc/research_results/20260912_session_ablation/diagnostic_status.json",
+      "bytes": 352,
+      "sha256": "af0711ac50ce8483e940e0d6d5ea5bb40eac09dd3b23e84ee210c9f896b88578"
+    },
+    {
+      "path": "doc/research_results/20260912_session_ablation/implementation_revision.json",
+      "bytes": 1400,
+      "sha256": "274000c254221788a710f7e07315c1039c79050f34389cb04efecb6534898248"
+    },
+    {
+      "path": "doc/research_results/20260912_session_ablation/implementation_revision_02.json",
+      "bytes": 1513,
+      "sha256": "24c73a3a98a6b17b800461cbc455886860899472ad0e7c30fa13ab474ac15280"
+    },
+    {
+      "path": "doc/research_results/20260912_session_ablation/noop.json",
+      "bytes": 258,
+      "sha256": "1e253581299538bb0fbf5512f937cce9857c3f0c16b854b7656ebdee5ac823b4"
+    },
+    {
+      "path": "doc/research_results/20260912_session_ablation/README.md",
+      "bytes": 273,
+      "sha256": "f063c51543e482c8576226be92a17a773b3ccf45d0e3f9143831dad212a5308e"
+    },
+    {
+      "path": "doc/research_results/20260912_session_ablation/registration.json",
+      "bytes": 110662,
+      "sha256": "dd42a7b76c28ec1a9d7c25791bb1a6eb3c762926286720066ea21619535ce628"
+    },
+    {
+      "path": "doc/research_results/20260912_session_ablation/registration_sources/session_ablation_20260912.py",
+      "bytes": 12858,
+      "sha256": "6c9f6c5020b20f99db65dede5fd2e107b9bff021b53e6c4cc54d4fdb7ab8f9ec"
+    },
+    {
+      "path": "doc/research_results/20260912_session_ablation/results.json",
+      "bytes": 15022,
+      "sha256": "a43c21651dc6654a02f90f720fe5cef026d025140d70c7d1b87e2559f5f4558f"
+    },
+    {
+      "path": "doc/strategy_research_plan_20260912.md",
+      "bytes": 6457,
+      "sha256": "e401f5184c8990c8a126148bd0165d1d8a582dc9e0cc6451642cbb24de83454f"
+    },
+    {
+      "path": "doc/strategy_research_results_20260912.md",
+      "bytes": 5375,
+      "sha256": "e099782da83c9b96ee63ceae1d1d1d546b35b16e847ff21ac965131e58d18a9d"
+    },
+    {
+      "path": "tests/test_gk_ablation_20260912.py",
+      "bytes": 1117,
+      "sha256": "0ca4cded8d5763b6c046b1ecf6bb8096d359421687be333e6bc5a162e7605a13"
+    },
+    {
+      "path": "tests/test_session_ablation_20260912.py",
+      "bytes": 2306,
+      "sha256": "289d010f7b9daeb61088185d062f14c62301f8ce3bc91b3ade33c11c3cf0dc8d"
+    }
+  ]
+}

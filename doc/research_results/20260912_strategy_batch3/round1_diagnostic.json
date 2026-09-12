@@ -1,0 +1,21 @@
+{
+  "utc": "2026-09-12T07:56:29.311715+00:00",
+  "round": 1,
+  "name": "M_ny_day_clock",
+  "status": "READY",
+  "counts": {
+    "events": 65,
+    "clusters24h": 60,
+    "late_clusters24h": 21
+  },
+  "candidate_pnl_trials": 0,
+  "quality": "PASS: pure ex-ante calendar clock; no new external received/revision requirement",
+  "timezone_version": "2026.2",
+  "feature_prefixes": [
+    6000,
+    11000,
+    16000
+  ],
+  "inherited_limit": "Historical closed-kline/mark/funding assumptions and hourly proxy fills retained",
+  "protected_verified": 1008
+}

@@ -1,0 +1,14 @@
+{
+  "raw_defined": 15301,
+  "raw_finite": 4492,
+  "raw_infinite": 10809,
+  "raw_undefined": 2218,
+  "valid_complete_rank_bars": 443,
+  "invalid_original_gates": 260,
+  "base_eligible_gates": 269,
+  "prefixes": [
+    6000,
+    11000,
+    16000
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-12T13:56:05.418738+00:00",
+  "round": 5,
+  "id": "T_anchored_close_exit",
+  "sha256": {
+    "backtest/research/continuous_case05_20260912.py": "12d2b7798044319b383e600cc5f43d00b069dd622b55c7c6388148cd7238b935",
+    "doc/continuous_round05_anchored_close_20260912.md": "c8b8796e2a3fbd887d8687b2f09e342b25cb071e5ed10921309bc6260d34ef63",
+    "tests/test_continuous_case05_20260912.py": "0ef74cf6d6b28f98f50ed20a234d3f6400a15d25685a362a5adf9b5eef631688"
+  },
+  "candidate_pnl_trials_before": 0
+}

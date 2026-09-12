@@ -1,0 +1,309 @@
+{
+  "files": [
+    {
+      "path": "doc/strategy_research_plan_20260911_round2.md",
+      "bytes": 6830,
+      "sha256": "eff56c42ea1487cafd673d46e75c4503eb0a3024cbabf3e864a5b9749eb61dd6"
+    },
+    {
+      "path": "backtest/research/strategy_round2_20260911.py",
+      "bytes": 20277,
+      "sha256": "a5beadcb13b407881a69c409b3b7dc6fa8fa598c3d8410ea60b43de800b4dfc1"
+    },
+    {
+      "path": "backtest/research/audit_report_strategy_round2_20260911.py",
+      "bytes": 15556,
+      "sha256": "537ccb249e00810153e536d9e4ac86b69c92324042c0ac2e19bbd0940e49e470"
+    },
+    {
+      "path": "tests/test_strategy_round2_20260911.py",
+      "bytes": 3140,
+      "sha256": "a8917ed977723be703b083f612d6a1293074ea8b0e92d12fcc7693f93eb487e0"
+    },
+    {
+      "path": "doc/strategy_research_results_20260911_round2.md",
+      "bytes": 6599,
+      "sha256": "5fbf870af008db8c22487bbcb49f777768babff3dca3c7b77d852b67d2717096"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round2/diagnostic_status.json",
+      "bytes": 278,
+      "sha256": "04434408c8ae7f0f13b16f372cbb707ffff3313f11e0cba7a6810579f8f6c655"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round2/implementation_revision.json",
+      "bytes": 2361,
+      "sha256": "b74b8c0a086f3103fa0fb011b021c6f2302ccb579d5dc1443609b56b203eecd1"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round2/independent_output_audit.json",
+      "bytes": 3095,
+      "sha256": "172ea85943acbec87355a65b232a84d90915f2a3b121094bcf9323d33e2ed2ca"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round2/initial_hash_audit.json",
+      "bytes": 3848,
+      "sha256": "e7bff88825245218b2866cda602ab57854aea1e2211f19c2b36112f19f079d45"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round2/pre_pnl_counts.json",
+      "bytes": 222,
+      "sha256": "35f8318edfe75eb9b182e6cce9f90df2bd6abb90475ecc9148abb73c4097b1cc"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round2/README.md",
+      "bytes": 2571,
+      "sha256": "a5eb13020ce3f389b5e3cdc8145a9531e614f6286b55b75d6be68a617a63b3b2"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round2/registration.json",
+      "bytes": 99571,
+      "sha256": "f601aa17883cb83294caa8f6e72cbda5c8d86d1b44bff4e9b43119a458f9cd21"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round2/results.json",
+      "bytes": 46863,
+      "sha256": "77ea1935229603c23df85567667e26bf85f54e709178e13be5ee9d1446a3b294"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round2/sources.json",
+      "bytes": 3087,
+      "sha256": "80a6d8afc059c929466c3fe0ee3c6af2fe30739c520afb3f9f5f23b1e7b0216e"
+    },
+    {
+      "path": "doc/research_results/20260911_strategy_round2/summary.csv",
+      "bytes": 2910,
+      "sha256": "eb06a9bff00e54a5bde5f2e7b83b4c342312695d8ef0daaae8a5a017c7fb6932"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_0bp_equity.csv",
+      "bytes": 1705614,
+      "sha256": "c8f4c86676df5dd043d12022df9f267803c5e6dedde670b57340a52ecbb434cb"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_0bp_funding.csv",
+      "bytes": 24414,
+      "sha256": "dd992a427e2b1a393038dd11cd80494dc7d0a2d052105ed22a1be39737f1e0c1"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_0bp_gates.csv",
+      "bytes": 9022,
+      "sha256": "90d039ba57741d0ac09bdee543df49fa2bebb4e881394b07e67aa5ed20582533"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_0bp_states.csv",
+      "bytes": 5186255,
+      "sha256": "4778346e24780852fcb6514abbc465b2744e795f9984c3f80bdab5b37a0fe9f9"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_0bp_trades.csv",
+      "bytes": 56513,
+      "sha256": "bec3af5c5383711fb918c66dfa47c164b09d8ba4ac883934c014f85280cc293b"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_2bp_equity.csv",
+      "bytes": 1688285,
+      "sha256": "781644bf707984fea01cff9e6be17b9924c0c0fe99515cdca5c330e776343bbb"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_2bp_funding.csv",
+      "bytes": 24573,
+      "sha256": "ea1d28a96cfc50f53f5c044cd6a4d3d42f282feb5f2f46d9f20f4996ee97b016"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_2bp_gates.csv",
+      "bytes": 9022,
+      "sha256": "90d039ba57741d0ac09bdee543df49fa2bebb4e881394b07e67aa5ed20582533"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_2bp_states.csv",
+      "bytes": 5375020,
+      "sha256": "6c526dc0d45ac233699a85501d09a8bcc6a230f8a0539f63824ae39e6ff3e091"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_2bp_trades.csv",
+      "bytes": 58131,
+      "sha256": "19f3f2085f434e63e18c7274b291ccc412a0eaf76fc5960e3ad0086567f27852"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_5bp_equity.csv",
+      "bytes": 1701704,
+      "sha256": "82c1f98840046b0644a1b5e505db49965d53f98b5d4f9081a7712f904c21c155"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_5bp_funding.csv",
+      "bytes": 24471,
+      "sha256": "6abb02252d73ec55e4a140830c521217849dc8f0fc231434054f058e8a1f1703"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_5bp_gates.csv",
+      "bytes": 8956,
+      "sha256": "9c752f87fddabc44e6ac6aa9b202b56386d0dcca69325530e8801e8b95354828"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_5bp_states.csv",
+      "bytes": 5386329,
+      "sha256": "a677eb1e614ed7fd3b1e41a2c9d8c7ecf5aec106521ffa850229834127da9c17"
+    },
+    {
+      "path": "data/strategy_round2_20260911/base_5bp_trades.csv",
+      "bytes": 57974,
+      "sha256": "48f1514bf1347fe8f4fe3bb3b4cb2b2bf3282efdeb063a346ba51c62fff4ee4f"
+    },
+    {
+      "path": "data/strategy_round2_20260911/direct_events.csv",
+      "bytes": 6432,
+      "sha256": "3d6aa2cd4954d2919696bbc8e889b0f6c1f3f63374f4623f4f9ebb8a0fbf18b9"
+    },
+    {
+      "path": "data/strategy_round2_20260911/features.csv",
+      "bytes": 1866807,
+      "sha256": "6047772ca23ffc789fad2687c8cd2e5d5625dbd9e5e9dec905952a62290e4cac"
+    },
+    {
+      "path": "data/strategy_round2_20260911/futures_control_0bp_equity.csv",
+      "bytes": 1666537,
+      "sha256": "3f9a56c412fb6981ffc91c0ed561bb23aed8cba958f13b076a209bd8bd69cb8d"
+    },
+    {
+      "path": "data/strategy_round2_20260911/futures_control_0bp_funding.csv",
+      "bytes": 17945,
+      "sha256": "a0e0433341a193441d5e0c05e40dd73c14d06a45c43f7058e6740d19a28f94b6"
+    },
+    {
+      "path": "data/strategy_round2_20260911/futures_control_0bp_gates.csv",
+      "bytes": 11099,
+      "sha256": "57c308f4c06cae51ebe2f21d4d82497ec2d08282c25b564a56221f57cac0b929"
+    },
+    {
+      "path": "data/strategy_round2_20260911/futures_control_0bp_states.csv",
+      "bytes": 5151092,
+      "sha256": "03b249636f661a7551c50714f664ada6e87c4437d563461bb089af1fcb0fec34"
+    },
+    {
+      "path": "data/strategy_round2_20260911/futures_control_0bp_trades.csv",
+      "bytes": 40621,
+      "sha256": "d5f3d66c794b30762bb0478c1685b193449da8181ffdef9a28af132cacc770c1"
+    },
+    {
+      "path": "data/strategy_round2_20260911/original_event_diagnostics.csv",
+      "bytes": 16103,
+      "sha256": "b8e6dddf2dd164e0e25c9a3da7e537f6131f79c6403172e9ea45b4d738a3a95d"
+    },
+    {
+      "path": "data/strategy_round2_20260911/quality_0bp_equity.csv",
+      "bytes": 1705614,
+      "sha256": "c8f4c86676df5dd043d12022df9f267803c5e6dedde670b57340a52ecbb434cb"
+    },
+    {
+      "path": "data/strategy_round2_20260911/quality_0bp_funding.csv",
+      "bytes": 24414,
+      "sha256": "dd992a427e2b1a393038dd11cd80494dc7d0a2d052105ed22a1be39737f1e0c1"
+    },
+    {
+      "path": "data/strategy_round2_20260911/quality_0bp_gates.csv",
+      "bytes": 9022,
+      "sha256": "90d039ba57741d0ac09bdee543df49fa2bebb4e881394b07e67aa5ed20582533"
+    },
+    {
+      "path": "data/strategy_round2_20260911/quality_0bp_states.csv",
+      "bytes": 5186255,
+      "sha256": "4778346e24780852fcb6514abbc465b2744e795f9984c3f80bdab5b37a0fe9f9"
+    },
+    {
+      "path": "data/strategy_round2_20260911/quality_0bp_trades.csv",
+      "bytes": 56513,
+      "sha256": "bec3af5c5383711fb918c66dfa47c164b09d8ba4ac883934c014f85280cc293b"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_0bp_equity.csv",
+      "bytes": 1706982,
+      "sha256": "26cb79ef6c5d75af9f6426fa02e8bd4957e887b4cd3c34bc182cdf9fdc3aefca"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_0bp_funding.csv",
+      "bytes": 18631,
+      "sha256": "96bd6e32f667bee4300b3acaa456805043c920555c548349a382614bbf89b8cb"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_0bp_gates.csv",
+      "bytes": 11296,
+      "sha256": "473f10e0b99de9a88c0072f9074a04049b26e4e7bb9343e9458a1b466192d616"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_0bp_paired.csv",
+      "bytes": 104431,
+      "sha256": "f61445a17cbc9a0d3f8845bd234140de07ec77c34820ebc6eb441427523f71c6"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_0bp_states.csv",
+      "bytes": 5130408,
+      "sha256": "a9f614837c0153c5d851e8b1d3c6e5a1f39062fb4e9d8d6fb712b32918f5a60b"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_0bp_trades.csv",
+      "bytes": 42414,
+      "sha256": "f1e27133f3862dd3ecaf986eb5cced6db5536d0dccdfc93a816cfa9b51248d1b"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_2bp_equity.csv",
+      "bytes": 1708189,
+      "sha256": "5b11f928ed07869556047718bbae9b8cce33ca308758c0b247b795dad17574c7"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_2bp_funding.csv",
+      "bytes": 18271,
+      "sha256": "f54f828c25570fdcc8f4dd4c87c4dfbf757415392ad1cab46991545c002cc060"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_2bp_gates.csv",
+      "bytes": 11028,
+      "sha256": "2711a54c6cb6a76bbd36cf94fa4cd5aac9f99907fe2002104cbdfad6cacd79e3"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_2bp_paired.csv",
+      "bytes": 106356,
+      "sha256": "3ede47d092ee21999e2657cb44423d604073506c75edb05a84c94458991af798"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_2bp_states.csv",
+      "bytes": 5317567,
+      "sha256": "f5f0e3fe4bdefd69f0cb40bbad04793ad07549eaca8a157d94ae10ed082b6441"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_2bp_trades.csv",
+      "bytes": 42707,
+      "sha256": "a6fb2c505fb2af220f62a8325466ace3925194404fa3a1b5897ea3a4bc72f793"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_5bp_equity.csv",
+      "bytes": 1725306,
+      "sha256": "02e93038f2df8a84bf10f790c39061249dcc9f139b844ea2958d142dece6e795"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_5bp_funding.csv",
+      "bytes": 18365,
+      "sha256": "a6b095c05419771fb36db49941d602398e16b2077cae851e7c03d53106fd8b19"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_5bp_gates.csv",
+      "bytes": 11060,
+      "sha256": "ce8af41911d4412a368d3219b9841d2c3bd6a52337fb9a7f061041ace329b49d"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_5bp_paired.csv",
+      "bytes": 106445,
+      "sha256": "659eb405fe6e97e0e6e758ed4d5ecd3f3290e0e6708de7b5e78063d5548fb240"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_5bp_states.csv",
+      "bytes": 5316017,
+      "sha256": "3d217b1b7f810a4f345b808097148caaf251abfdac4e865999dd0b0a17954339"
+    },
+    {
+      "path": "data/strategy_round2_20260911/spot_prior_5bp_trades.csv",
+      "bytes": 42992,
+      "sha256": "1d702b7d06d4e8b6cd9a10a15b0a2be9a54a30872490df1ba5913bed39708f0a"
+    }
+  ]
+}

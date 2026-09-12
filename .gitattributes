@@ -1,0 +1,6 @@
+# 保留九月十一、十二日凍結研究檔的原始位元組，避免換行轉換破壞 SHA256 證據。
+# 原始檔混用 LF / CRLF；檢查空白時接受 CRLF，但仍檢查多餘空白。
+backtest/research/*_2026091[12].py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+tests/test_*_2026091[12].py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+doc/*2026091[12]*.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+doc/research_results/2026091[12]_*/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

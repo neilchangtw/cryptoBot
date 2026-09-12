@@ -1,0 +1,19 @@
+{
+  "utc": "2026-09-12T09:20:56.938376+00:00",
+  "id": "Q_volume_clock",
+  "status": "READY",
+  "counts": {
+    "events": 128,
+    "clusters24h": 106,
+    "late_clusters24h": 37
+  },
+  "candidate_pnl_trials": 0,
+  "quality": "PASS under inherited closed futures K model",
+  "feature_action_prefixes": [
+    6000,
+    11000,
+    16000
+  ],
+  "event_definition": "first original-root close/extension action difference only",
+  "protected_verified": 1078
+}

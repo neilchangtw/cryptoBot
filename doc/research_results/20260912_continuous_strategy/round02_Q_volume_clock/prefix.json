@@ -1,0 +1,84 @@
+{
+  "utc": "2026-09-12T09:21:15.174703+00:00",
+  "checks": [
+    {
+      "name": "base",
+      "cut": 383,
+      "status": "PASS",
+      "terminal_positions": [
+        {
+          "side": "S",
+          "entry_bar": 381,
+          "entry_dt": "2024-09-24 09:00:00",
+          "entry_exact": 2627.03,
+          "qty_exact": 1.5226320217127325,
+          "entry_fee": 2.0,
+          "funding": 0.0,
+          "unrealized_mark": -0.07613160108522117
+        }
+      ],
+      "equity_max_error": 0.0
+    },
+    {
+      "name": "base",
+      "cut": 6000,
+      "status": "PASS",
+      "terminal_positions": [],
+      "equity_max_error": 0.0
+    },
+    {
+      "name": "base",
+      "cut": 11000,
+      "status": "PASS",
+      "terminal_positions": [],
+      "equity_max_error": 0.0
+    },
+    {
+      "name": "base",
+      "cut": 16000,
+      "status": "PASS",
+      "terminal_positions": [],
+      "equity_max_error": 0.0
+    },
+    {
+      "name": "Q_volume_clock",
+      "cut": 383,
+      "status": "PASS",
+      "terminal_positions": [
+        {
+          "side": "S",
+          "entry_bar": 381,
+          "entry_dt": "2024-09-24 09:00:00",
+          "entry_exact": 2627.03,
+          "qty_exact": 1.5226320217127325,
+          "entry_fee": 2.0,
+          "funding": 0.0,
+          "unrealized_mark": -0.07613160108522117
+        }
+      ],
+      "equity_max_error": 0.0
+    },
+    {
+      "name": "Q_volume_clock",
+      "cut": 6000,
+      "status": "PASS",
+      "terminal_positions": [],
+      "equity_max_error": 0.0
+    },
+    {
+      "name": "Q_volume_clock",
+      "cut": 11000,
+      "status": "PASS",
+      "terminal_positions": [],
+      "equity_max_error": 0.0
+    },
+    {
+      "name": "Q_volume_clock",
+      "cut": 16000,
+      "status": "PASS",
+      "terminal_positions": [],
+      "equity_max_error": 0.0
+    }
+  ],
+  "candidate_summary_evaluated": false
+}

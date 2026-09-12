@@ -1,0 +1,125 @@
+{
+  "created_utc": "2026-09-11T04:15:53.550747+00:00",
+  "files": {
+    "doc/research_results/20260911_strategy_study/independent_audit.json": {
+      "sha256": "79927c39bbdc960a8668268f6f9d7b4d9ffd4f2fca7c828587c9d18b391ae64d",
+      "bytes": 816
+    },
+    "doc/research_results/20260911_strategy_study/pre_pnl_counts.json": {
+      "sha256": "695de42afd1d82765344958ebd23c2ae142bebed95ed9ff1d280b30f1284f3a8",
+      "bytes": 353
+    },
+    "doc/research_results/20260911_strategy_study/README.md": {
+      "sha256": "4f4c3882b5f6338d2d54da460e00eb9b04c0757729776b3916f832c4c621fff2",
+      "bytes": 1965
+    },
+    "doc/research_results/20260911_strategy_study/registration.json": {
+      "sha256": "52152e681fe7a50ebb91383f7b2157d14f5c4ab549e8bf9cb5bb7447345fa2ea",
+      "bytes": 2485
+    },
+    "doc/research_results/20260911_strategy_study/results.json": {
+      "sha256": "6ca394f6f5c7bc3b8eead51659a6ad49228d33dc7284d703629368747ce6d933",
+      "bytes": 12626
+    },
+    "doc/research_results/20260911_strategy_study/sources.json": {
+      "sha256": "c89700a315d04fdc4123db265e1a6a67ddad6dccf7e379d63db59f30fa63abdf",
+      "bytes": 673
+    },
+    "doc/research_results/20260911_strategy_study/summary.csv": {
+      "sha256": "59adac51a06b4f16595959986612a0a697789dab0aa28f03451704265c8621df",
+      "bytes": 1205
+    },
+    "data/strategy_study_20260911/base_0bp_equity.csv": {
+      "sha256": "c8f4c86676df5dd043d12022df9f267803c5e6dedde670b57340a52ecbb434cb",
+      "bytes": 1705614
+    },
+    "data/strategy_study_20260911/base_0bp_events.csv": {
+      "sha256": "63e8c7162763a742fff04ae420c3a11a59dab9cdc724e090e6d3bb7ae0738012",
+      "bytes": 22408
+    },
+    "data/strategy_study_20260911/base_0bp_funding.csv": {
+      "sha256": "dd992a427e2b1a393038dd11cd80494dc7d0a2d052105ed22a1be39737f1e0c1",
+      "bytes": 24414
+    },
+    "data/strategy_study_20260911/base_0bp_gates.csv": {
+      "sha256": "016e802d0c466c43221ad3adf8b8922a38dd2ac92b70d726650110ab78110777",
+      "bytes": 3630
+    },
+    "data/strategy_study_20260911/base_0bp_trades.csv": {
+      "sha256": "bec3af5c5383711fb918c66dfa47c164b09d8ba4ac883934c014f85280cc293b",
+      "bytes": 56513
+    },
+    "data/strategy_study_20260911/base_2bp_equity.csv": {
+      "sha256": "781644bf707984fea01cff9e6be17b9924c0c0fe99515cdca5c330e776343bbb",
+      "bytes": 1688285
+    },
+    "data/strategy_study_20260911/base_2bp_events.csv": {
+      "sha256": "745b35497efe1ce491d65c5f4e49e20b2d0d492c21b9c49d1300ab7607f00ba0",
+      "bytes": 22425
+    },
+    "data/strategy_study_20260911/base_2bp_funding.csv": {
+      "sha256": "ea1d28a96cfc50f53f5c044cd6a4d3d42f282feb5f2f46d9f20f4996ee97b016",
+      "bytes": 24573
+    },
+    "data/strategy_study_20260911/base_2bp_gates.csv": {
+      "sha256": "016e802d0c466c43221ad3adf8b8922a38dd2ac92b70d726650110ab78110777",
+      "bytes": 3630
+    },
+    "data/strategy_study_20260911/base_2bp_trades.csv": {
+      "sha256": "19f3f2085f434e63e18c7274b291ccc412a0eaf76fc5960e3ad0086567f27852",
+      "bytes": 58131
+    },
+    "data/strategy_study_20260911/base_5bp_equity.csv": {
+      "sha256": "82c1f98840046b0644a1b5e505db49965d53f98b5d4f9081a7712f904c21c155",
+      "bytes": 1701704
+    },
+    "data/strategy_study_20260911/base_5bp_events.csv": {
+      "sha256": "9c6ffdeff98660f8337a82d0c98ff86c4bb0a3e88ad77f36e465016b6ce03d52",
+      "bytes": 22201
+    },
+    "data/strategy_study_20260911/base_5bp_funding.csv": {
+      "sha256": "6abb02252d73ec55e4a140830c521217849dc8f0fc231434054f058e8a1f1703",
+      "bytes": 24471
+    },
+    "data/strategy_study_20260911/base_5bp_gates.csv": {
+      "sha256": "6406309c5f244d01c57dcdf8779598786fb93fc3d54dc62cc14d2231af8b8f63",
+      "bytes": 3604
+    },
+    "data/strategy_study_20260911/base_5bp_trades.csv": {
+      "sha256": "48f1514bf1347fe8f4fe3bb3b4cb2b2bf3282efdeb063a346ba51c62fff4ee4f",
+      "bytes": 57974
+    },
+    "data/strategy_study_20260911/features.csv": {
+      "sha256": "91c51afb27b439ec31b2a7b3cadf918b1ef97095aa41b984de93f482191dad4f",
+      "bytes": 3924375
+    },
+    "data/strategy_study_20260911/oi_exit_original_events.csv": {
+      "sha256": "e0a647ccface318aa58f238018e831b0e84bf07c65027fa865ba5979069d0838",
+      "bytes": 5027
+    },
+    "doc/strategy_research_results_20260911.md": {
+      "sha256": "8e06cfd204bcecfa0f74cef32c743de1400015ef3991efe374ce9a4dbe5e0b52",
+      "bytes": 6063
+    },
+    "doc/strategy_research_plan_20260911.md": {
+      "sha256": "331d21368a5b63ad53bc9041134d4d869ec254adba3272f68a7cc0e0e908f437",
+      "bytes": 6432
+    },
+    "backtest/research/write_strategy_study_report_20260911.py": {
+      "sha256": "c0c8bd32c3c36b68532a36db68891db32de4ba0f5f2f1de9de68740371ec4210",
+      "bytes": 10314
+    },
+    "backtest/research/strategy_study_20260911.py": {
+      "sha256": "4ceb0649346baafe2f536a389a2af4866f7d3b4f31dead25a2026936f1433cca",
+      "bytes": 18891
+    },
+    "backtest/research/audit_strategy_study_20260911.py": {
+      "sha256": "bf4d470a78d12c314230701eb2c12ddd94a8e9f887b78872bb6c9be34b8e42d0",
+      "bytes": 4771
+    },
+    "tests/test_strategy_study_20260911.py": {
+      "sha256": "314e7dd9db63b914f2dab688e65dfaab3f1b3d5cb3a9eb066b0c2ac3f39543bf",
+      "bytes": 2714
+    }
+  }
+}

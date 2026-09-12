@@ -1,0 +1,37 @@
+{
+  "parent": "doc/research_results/20260910_new_information/history_index.json",
+  "parent_sha256": "25fa3616c4ee340dc880109eab0654e8465f2b7045b45f254c196a99e5009a63",
+  "rounds": [
+    {
+      "id": "G_tp_close",
+      "status": "INSUFFICIENT_SAMPLE",
+      "counts": {
+        "events": 46,
+        "clusters24h": 44,
+        "late_clusters24h": 14
+      },
+      "pnl_trials": 0
+    },
+    {
+      "id": "H_no_opposite_overlap",
+      "status": "INSUFFICIENT_SAMPLE",
+      "counts": {
+        "events": 6,
+        "clusters24h": 6,
+        "late_clusters24h": 3
+      },
+      "pnl_trials": 0
+    },
+    {
+      "id": "I_passive_5s",
+      "status": "DATA_LIMITED",
+      "counts": null,
+      "pnl_trials": 0
+    }
+  ],
+  "nearby_prior_payoff_candidates_at_least": 8,
+  "new_registered_main_hypotheses": 3,
+  "new_main_payoff_trials": 0,
+  "historical_unseen": false,
+  "do_not_reopen": "G requires >=15 late direct clusters on fresh coverage; H >=30/15; I needs received/queue/fill evidence. No threshold relaxation."
+}

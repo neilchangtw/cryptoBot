@@ -1,0 +1,102 @@
+{
+  "full_cost_ledgers": [
+    {
+      "name": "base",
+      "slip": 0,
+      "equity_error": 1.8189894035458565e-12,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 2
+    },
+    {
+      "name": "base",
+      "slip": 2,
+      "equity_error": 1.8189894035458565e-12,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 2
+    },
+    {
+      "name": "base",
+      "slip": 5,
+      "equity_error": 1.8189894035458565e-12,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 2
+    },
+    {
+      "name": "R_breakout_renewal",
+      "slip": 0,
+      "equity_error": 9.094947017729282e-13,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 2
+    },
+    {
+      "name": "R_breakout_renewal",
+      "slip": 2,
+      "equity_error": 1.8189894035458565e-12,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 2
+    },
+    {
+      "name": "R_breakout_renewal",
+      "slip": 5,
+      "equity_error": 1.8189894035458565e-12,
+      "metrics": "PASS",
+      "fixed4000_each": "PASS",
+      "max_positions": 2
+    }
+  ],
+  "prefix_open_position_identity": [
+    {
+      "name": "base",
+      "cut": 383,
+      "open_positions": 1,
+      "identity_error": 0.0
+    },
+    {
+      "name": "base",
+      "cut": 6000,
+      "open_positions": 0,
+      "identity_error": 9.094947017729282e-13
+    },
+    {
+      "name": "base",
+      "cut": 11000,
+      "open_positions": 0,
+      "identity_error": 2.7284841053187847e-12
+    },
+    {
+      "name": "base",
+      "cut": 16000,
+      "open_positions": 0,
+      "identity_error": 1.8189894035458565e-12
+    },
+    {
+      "name": "R_breakout_renewal",
+      "cut": 383,
+      "open_positions": 1,
+      "identity_error": 0.0
+    },
+    {
+      "name": "R_breakout_renewal",
+      "cut": 6000,
+      "open_positions": 0,
+      "identity_error": 4.547473508864641e-13
+    },
+    {
+      "name": "R_breakout_renewal",
+      "cut": 11000,
+      "open_positions": 0,
+      "identity_error": 1.8189894035458565e-12
+    },
+    {
+      "name": "R_breakout_renewal",
+      "cut": 16000,
+      "open_positions": 0,
+      "identity_error": 1.8189894035458565e-12
+    }
+  ]
+}

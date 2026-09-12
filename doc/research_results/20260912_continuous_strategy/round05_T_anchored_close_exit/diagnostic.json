@@ -1,0 +1,18 @@
+{
+  "utc": "2026-09-12T13:56:14.117330+00:00",
+  "id": "T_anchored_close_exit",
+  "status": "READY",
+  "counts": {
+    "events": 123,
+    "clusters24h": 103,
+    "late_clusters24h": 38
+  },
+  "candidate_pnl_trials": 0,
+  "quality": "PASS inherited completed futures K/close proxy; weighted close is not actual VWAP",
+  "feature_action_prefixes": [
+    6000,
+    11000,
+    16000
+  ],
+  "protected_verified": 1078
+}

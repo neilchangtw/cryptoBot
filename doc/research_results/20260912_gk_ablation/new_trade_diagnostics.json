@@ -1,0 +1,13 @@
+{
+  "by_baseline_direct_event": {
+    "False": {
+      "n": 18,
+      "net": -45.72443527259225
+    },
+    "True": {
+      "n": 259,
+      "net": -2058.8730707758323
+    }
+  },
+  "sample_counting": "All added/cascade trades excluded from independent-event count."
+}

@@ -1,0 +1,57 @@
+{
+  "parent_index": "doc/research_results/20260910_new_information/history_index.json",
+  "parent_index_sha256": "25fa3616c4ee340dc880109eab0654e8465f2b7045b45f254c196a99e5009a63",
+  "new_mechanisms_considered": 1,
+  "selected": "D_dvol_shock",
+  "main_pnl_trials_added": 0,
+  "records": [
+    {
+      "path": "doc/v19_research.md",
+      "lines": [
+        27,
+        185
+      ],
+      "status": "OPTIONS_SKIPPED_NO_DATA",
+      "sha256": "8a7076c9ed485fba565210f352c9e4fc95d9795e9baad0f63bd4916985f86e3a"
+    },
+    {
+      "path": "doc/v36_multitrack_research.md",
+      "lines": [
+        62,
+        73
+      ],
+      "status": "OPTIONS_PROSPECTIVE_ONLY",
+      "sha256": "a76838ed125fc568007f9bb81c967b5fc609593fc7742cf7f5aa2367cd5d0585"
+    },
+    {
+      "path": "doc/new_information_plan_20260910.md",
+      "lines": [
+        43,
+        43
+      ],
+      "status": "OPTIONS_COVERAGE_NOT_VERIFIED",
+      "sha256": "32e01f00763c4bd79cd38ea7e7f938c2142f1fbac6f51414326d4fc931fc965d"
+    },
+    {
+      "path": "doc/backtest_history.md",
+      "lines": [
+        2426,
+        2470
+      ],
+      "status": "TRADE_COUNT_AND_AVERAGE_SIZE_ALREADY_STUDIED",
+      "sha256": "90bd86cf5495e42124d9687d4570f48713dd0776fa1d5a1b818047ef759fc4bf"
+    },
+    {
+      "path": "doc/strategy_research_results_20260911_round2.md",
+      "status": "C_REJECTED_AB_NOT_REOPENED",
+      "sha256": "5fbf870af008db8c22487bbcb49f777768babff3dca3c7b77d852b67d2717096"
+    },
+    {
+      "path": "doc/strategy_research_results_20260911_round3.md",
+      "status": "D_DATA_CONSTRAINED_NO_PNL"
+    }
+  ],
+  "reopening_basis": "Official ETH hourly DVOL endpoint now identified; earlier options work had no candidate PnL. Actual data still unavailable in this run.",
+  "distinction": "Option-implied forward volatility shock; no directional taker flow, OI net position change, realised-volume or leverage overlay.",
+  "not_an_exhaustiveness_claim": true
+}

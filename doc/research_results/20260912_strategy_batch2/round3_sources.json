@@ -1,0 +1,14 @@
+{
+  "utc": "2026-09-12T07:42:38.572217+00:00",
+  "prior_inventory_sha256": "d26b5a60431074ca8aead7af9930ade68dcb1c8c8405330e1c76e82f1a38878e",
+  "prior_readable_csv_files": 2128,
+  "prior_schemas": 79,
+  "prior_schema_or_path_matches": [],
+  "fresh_filename_count": 3997,
+  "fresh_named_candidates": [],
+  "scan_return_code": 2,
+  "scan_stderr": "rg: data\\strategy_round3_20260911\\test_temp\\tmp1kcujkog: 存取被拒。 (os error 5)",
+  "scope": "Known readable source inventory and fresh data filenames; inaccessible prior test temp is not claimed inspected",
+  "network_requests": 0,
+  "download_bytes": 0
+}

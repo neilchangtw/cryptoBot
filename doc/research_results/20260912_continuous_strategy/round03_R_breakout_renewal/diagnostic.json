@@ -1,0 +1,18 @@
+{
+  "utc": "2026-09-12T09:25:30.558055+00:00",
+  "id": "R_breakout_renewal",
+  "status": "READY",
+  "counts": {
+    "events": 93,
+    "clusters24h": 83,
+    "late_clusters24h": 32
+  },
+  "candidate_pnl_trials": 0,
+  "quality": "PASS under inherited completed K-bar/close-proxy assumption",
+  "feature_action_prefixes": [
+    6000,
+    11000,
+    16000
+  ],
+  "protected_verified": 1078
+}

@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-12T08:04:14.839990+00:00",
+  "round": 3,
+  "name": "O_add_mark_safenet",
+  "sha256": {
+    "backtest/research/strategy_batch3_round3_20260912.py": "53ae64c8f79bb54b8fa004e428cce12c209b875cf39ad35ba77b08979c3777b0",
+    "doc/strategy_batch3_round3_20260912.md": "e22708695ea8c3accd0789cb987aca5b94cd64bcfc1842c4472854204d51d9d0",
+    "tests/test_strategy_batch3_mark_20260912.py": "7d6f2f43ecf33e087e10a7ce4fe61bc5f3890aec401682ff9955189e30d33d28"
+  },
+  "candidate_pnl_trials_before": 0
+}

@@ -1,0 +1,16 @@
+{
+  "registered_utc": "2026-09-11T08:36:22.381946+00:00",
+  "sha256": {
+    "doc/strategy_research_plan_20260911_round3.md": "f02db28b6ee1f7b866ad7b6b8fda25ad1f1df8391db4e41c6228da0345587331",
+    "backtest/research/strategy_round3_20260911.py": "1a8415b91bc0ba50fb4b8e535394334c410bd9117557a65214b58a791cf3a5ee",
+    "tests/test_strategy_round3_20260911.py": "ea62c0a130bb90dd109e774e3d19e9645f03d08a8ffe39cf2cce206b50ba6eb0",
+    "doc/research_results/20260910_new_information/history_index.json": "25fa3616c4ee340dc880109eab0654e8465f2b7045b45f254c196a99e5009a63"
+  },
+  "original_sources_sha256": {
+    "doc/research_results/20260911_strategy_round3/registration_sources/strategy_round3_20260911.py": "0ac488104b9c4f868fba63855239cd50255a94b255bc31e75110dc196ac556d4",
+    "doc/research_results/20260911_strategy_round3/registration_sources/test_strategy_round3_20260911.py": "8b8c2980d42426784e144bae94a8ba79f249350f0d7b15ccfa27d4552fcce2ba"
+  },
+  "candidate_pnl_trials_before_change": 0,
+  "source_requests_before_change": 0,
+  "reason": "Windows Python TemporaryDirectory ACL denies test fixture access even within workspace. Replace filesystem-dependent guard fixture with mocked recorded-failure condition; permit and audit explicit revision hashes. No formula, data, threshold, split, sample or economic gate changed."
+}

@@ -1,0 +1,14 @@
+{
+  "utc": "2026-09-12T07:39:13.606537+00:00",
+  "round": 1,
+  "main": "J_spot_futures_price_lead",
+  "sha256": {
+    "backtest/research/strategy_batch2_20260912.py": "7f2fee6245274ec6bfd93158cd7bd341887600d22d94efc89001ff8519c60904",
+    "doc/strategy_batch2_round1_20260912.md": "6459ccbc5cfa9fa46b29d40be8a46a3f5fd0a0fcb261071921b78c360f6ac462",
+    "tests/test_strategy_batch2_20260912.py": "3aa9157447080a907f4af21e4b87e0902ae2ddfc58ffc3f3a5598314cac85f60",
+    "data/spot_futures_sync_20260909/manifest.json": "f4d8171c4b24f3ae87ae92caa3e44772770d98fe6e4d44d099ab82c612961866",
+    "data/spot_futures_sync_20260909/spot_1h.csv": "96464a57c52d70a62ae8a91f02c2464778e65c63b2c4d6ca91c75d63fb97a27b",
+    "doc/research_results/20260911_strategy_round2/sources.json": "80a6d8afc059c929466c3fe0ee3c6af2fe30739c520afb3f9f5f23b1e7b0216e"
+  },
+  "candidate_pnl_trials_before": 0
+}

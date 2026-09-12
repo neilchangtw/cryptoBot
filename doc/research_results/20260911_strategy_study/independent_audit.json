@@ -1,0 +1,33 @@
+{
+  "decimal_feature_checks": 52557,
+  "decimal_result": "PASS",
+  "production_indicator_columns": [
+    "gk_pctile",
+    "gk_pctile_s",
+    "breakout_long",
+    "breakout_short",
+    "sma_slope",
+    "regime_block_l",
+    "regime_block_s"
+  ],
+  "production_indicators": "PASS",
+  "production_constant_pairs": {
+    "L_GK_THRESH": "L_GK_TH",
+    "S_GK_THRESH": "S_GK_TH",
+    "L_MAX_HOLD": "L_MH",
+    "S_MAX_HOLD": "S_MH",
+    "L_EXIT_CD": "L_CD",
+    "S_EXIT_CD": "S_CD",
+    "L_TP_BY_REGIME": "_L_TP_BR",
+    "L_MH_BY_REGIME": "_L_MH_BR",
+    "S_MH_BY_REGIME": "_S_MH_BR"
+  },
+  "constant_parity": "PASS",
+  "bar2_eligible_after_native_exits": "PASS",
+  "B_count_recheck": {
+    "events": 50,
+    "clusters24h": 47,
+    "late_clusters24h": 14
+  },
+  "no_candidates_scored": true
+}

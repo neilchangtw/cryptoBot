@@ -1,0 +1,17 @@
+{
+  "utc": "2026-09-12T08:05:10.036439+00:00",
+  "reason": "Initial diagnostic stopped before events: pandas milliseconds versus microseconds dtype only; normalize resolution while comparing every instant exactly.",
+  "candidate_pnl_trials_before": 0,
+  "events_computed_before": false,
+  "original_source_sha256": "53ae64c8f79bb54b8fa004e428cce12c209b875cf39ad35ba77b08979c3777b0",
+  "sha256": {
+    "backtest/research/strategy_batch3_mark_compat_20260912.py": "82b58931cf6935989dd037bf0c7fd3a45aa546a45fa1334d64444633f9fceeae",
+    "tests/test_strategy_batch3_mark_compat_20260912.py": "b85d3be205c3f0f893f654adfe3014b47819bfae5e0031acb2420bb5b3433963"
+  },
+  "only_runtime_change": {
+    "before": "pd.testing.assert_series_equal(times,d.datetime,check_names=False)",
+    "after": "assert_same_instants(times,d.datetime)"
+  },
+  "original_registration_preserved": true,
+  "formulas_thresholds_data_unchanged": true
+}

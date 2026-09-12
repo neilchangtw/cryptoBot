@@ -1,0 +1,14 @@
+{
+  "status": "DATA_CONSTRAINED",
+  "source_status": {
+    "status": "DATA_CONSTRAINED",
+    "reason": "source_check_failed_no_retry",
+    "samples": [],
+    "candidate_pnl_trials": 0,
+    "common_coverage_verified": false,
+    "event_counts": null
+  },
+  "candidate_pnl_trials": 0,
+  "event_counts": null,
+  "recorded_utc": "2026-09-11T08:37:00.933463+00:00"
+}

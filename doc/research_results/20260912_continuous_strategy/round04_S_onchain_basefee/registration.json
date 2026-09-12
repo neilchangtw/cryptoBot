@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-12T09:33:32.807914+00:00",
+  "round": 4,
+  "id": "S_onchain_basefee",
+  "sha256": {
+    "backtest/research/continuous_case04_20260912.py": "3ac70c71bb0d7a9b4c9f87c1a93554baab1c637e85f7fd527ee36f3f3987cc08",
+    "doc/continuous_round04_onchain_20260912.md": "d3d4c69d21582d96282bf52a463a1e4fbeb7e9acb972866903c566f8e8d63822",
+    "tests/test_continuous_case04_20260912.py": "c3e5b17fdd460e86ae28cd1195c61d98815581c427c07af8aca6175004fe14af"
+  },
+  "candidate_pnl_trials_before": 0
+}

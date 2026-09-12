@@ -1,0 +1,9 @@
+{
+  "utc": "2026-09-12T09:33:32.811644+00:00",
+  "attempt": 1,
+  "requests": [],
+  "total_response_bytes": 0,
+  "candidate_pnl_trials": 0,
+  "error_type": "ProxyError",
+  "status": "NETWORK_OR_HTTP_LIMITED"
+}
