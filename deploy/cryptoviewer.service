@@ -1,0 +1,26 @@
+[Unit]
+Description=CryptoBot read-only trading viewer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cryptobot
+WorkingDirectory=/home/cryptobot/cryptoBot
+Environment=VIEWER_INSTANCE_DIR=/home/cryptobot/cryptoBot
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/cryptobot/cryptoBot/.venv/bin/python -u /home/cryptobot/cryptoBot/vps_viewer.py --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+# 程式碼與 data_live 位於 /home/cryptobot；允許讀取但禁止寫入。
+ProtectHome=read-only
+PrivateDevices=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=256M
+CPUQuota=25%
+
+[Install]
+WantedBy=multi-user.target

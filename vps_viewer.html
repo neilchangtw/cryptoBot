@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CryptoBot 唯讀交易視覺化</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1220; --panel:#111c2e; --line:#243653; --text:#e8eef8; --muted:#91a4bf; --green:#39d98a; --red:#ff6b7a; --blue:#67a7ff; --orange:#ffb454; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    header { padding:18px 20px 12px; border-bottom:1px solid var(--line); position:sticky; top:0; background:rgba(11,18,32,.96); z-index:3; }
+    h1 { margin:0 0 4px; font-size:20px; } h2 { margin:0 0 10px; font-size:16px; }
+    .sub, .muted { color:var(--muted); } .sub { font-size:12px; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; align-items:center; }
+    button, select { background:#172640; border:1px solid #315078; color:var(--text); border-radius:7px; padding:7px 10px; cursor:pointer; }
+    button:hover { border-color:var(--blue); } button.active { background:#24518c; border-color:var(--blue); }
+    main { max-width:1500px; margin:auto; padding:16px; }
+    .grid { display:grid; grid-template-columns:minmax(0, 1fr) 320px; gap:14px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; min-width:0; }
+    .chart-panel { padding-bottom:8px; } .chart-wrap { position:relative; width:100%; height:min(58vh,620px); min-height:310px; }
+    canvas { width:100%; height:100%; display:block; background:#0d1728; border-radius:7px; }
+    #tooltip { position:fixed; display:none; pointer-events:none; z-index:4; background:#07101d; border:1px solid #41628e; padding:8px 10px; border-radius:7px; max-width:280px; box-shadow:0 8px 24px #0008; }
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
+    .stat { background:#0d1728; padding:9px; border-radius:7px; } .stat b { display:block; font-size:18px; }
+    .status-ok { color:var(--green); } .status-warn { color:var(--orange); } .status-error, .loss { color:var(--red); } .profit { color:var(--green); }
+    .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:13px; } .kv dt { color:var(--muted); } .kv dd { margin:0; text-align:right; overflow-wrap:anywhere; }
+    table { width:100%; border-collapse:collapse; font-size:12px; } th,td { padding:7px 6px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; } th { color:var(--muted); font-weight:500; }
+    .table-wrap { overflow:auto; max-height:330px; } tr.clickable { cursor:pointer; } tr.clickable:hover { background:#192b45; }
+    .legend { display:flex; flex-wrap:wrap; gap:12px; color:var(--muted); font-size:12px; margin-top:7px; } .legend span::before { content:""; display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; background:var(--blue); } .legend .l::before { background:var(--green); } .legend .s::before { background:var(--orange); } .legend .exit::before { background:var(--red); }
+    .error { color:var(--red); padding:8px 0; } .empty { color:var(--muted); padding:10px 0; }
+    @media (max-width:900px) { .grid { grid-template-columns:1fr; } .chart-wrap { height:52vh; } }
+    @media (max-width:600px) { header { padding:14px; } main { padding:10px; } h1 { font-size:18px; } .stats { grid-template-columns:repeat(2,1fr); } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } button,select { padding:6px 8px; font-size:12px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ETHUSDT 1h 唯讀交易視覺化</h1>
+    <div class="sub">VPS 本機資料／Binance 公開 K 線 · 不提供下單或持倉修改功能 · 顯示時區 Asia/Taipei</div>
+    <div class="toolbar">
+      <button data-days="7">7 天</button><button data-days="30" class="active">30 天</button><button data-days="90">90 天</button><button data-days="365">1 年</button>
+      <select id="side"><option value="ALL">全部方向</option><option value="L">Long</option><option value="S">Short</option></select>
+      <button id="refresh">重新整理</button><span id="updated" class="muted"></span>
+    </div>
+  </header>
+  <main>
+    <div id="error" class="error"></div>
+    <div class="stats">
+      <div class="stat"><span class="muted">已平倉筆數</span><b id="tradeCount">-</b></div>
+      <div class="stat"><span class="muted">勝率</span><b id="winRate">-</b></div>
+      <div class="stat"><span class="muted">區間淨損益</span><b id="pnl">-</b></div>
+      <div class="stat"><span class="muted">目前持倉</span><b id="positionCount">-</b></div>
+    </div>
+    <div class="grid">
+      <section class="panel chart-panel">
+        <h2>K 線與交易標記</h2>
+        <div class="chart-wrap"><canvas id="chart"></canvas></div>
+        <div class="legend"><span class="l">L 開倉</span><span class="s">S 開倉</span><span class="exit">平倉</span><span>虛線：未收盤 K 線</span></div>
+      </section>
+      <aside class="panel">
+        <h2>服務與資料狀態</h2>
+        <dl id="health" class="kv"><dt>讀取中</dt><dd>...</dd></dl>
+        <hr style="border-color:var(--line);border-width:1px 0 0;margin:14px 0">
+        <h2>目前持倉</h2>
+        <div id="positions" class="empty">讀取中...</div>
+      </aside>
+    </div>
+    <section class="panel" style="margin-top:14px">
+      <h2>最近交易</h2>
+      <div class="table-wrap"><table><thead><tr><th>編號</th><th>方向</th><th>進場</th><th>出場</th><th>原因</th><th>PnL</th><th>持倉</th><th>Regime</th></tr></thead><tbody id="trades"></tbody></table></div>
+      <div class="sub" style="margin-top:8px">點擊交易列可在圖表中查看該筆交易。時間欄位為實際成交時間；原始訊號 K 棒時間保留在圖表提示內。</div>
+    </section>
+  </main>
+  <div id="tooltip"></div>
+  <script>
+    const state = { days:30, side:'ALL', data:null, hits:[] };
+    const $ = id => document.getElementById(id);
+    const money = value => value == null || Number.isNaN(Number(value)) ? '-' : `${Number(value)>=0?'+':''}$${Number(value).toFixed(2)}`;
+    const esc = value => String(value ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const shortTime = value => value ? String(value).replace('T',' ').replace(/:\d{2}(?:\+00:00)?$/,'') : '-';
+    function setError(text='') { $('error').textContent = text; }
+    function draw() {
+      const canvas = $('chart'), rect = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, rect.width*dpr); canvas.height = Math.max(1, rect.height*dpr);
+      const ctx = canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,rect.width,rect.height);
+      const candles = state.data?.candles || []; if (!candles.length) { ctx.fillStyle='#91a4bf'; ctx.fillText('沒有 K 線資料',20,30); return; }
+      const pad = {l:48,r:12,t:18,b:28}, w=rect.width-pad.l-pad.r, h=rect.height-pad.t-pad.b;
+      const highs=candles.map(c=>Number(c.high)||Number(c.close)), lows=candles.map(c=>Number(c.low)||Number(c.close)); let hi=Math.max(...highs), lo=Math.min(...lows), span=hi-lo || 1; hi+=span*.05; lo-=span*.05; span=hi-lo;
+      const x = ms => pad.l + ((ms-candles[0].time_ms)/(candles[candles.length-1].time_ms-candles[0].time_ms || 1))*w;
+      const y = price => pad.t + (hi-price)/span*h;
+      ctx.strokeStyle='#243653'; ctx.fillStyle='#91a4bf'; ctx.font='11px system-ui'; ctx.lineWidth=1;
+      for(let i=0;i<5;i++){ const yy=pad.t+h*i/4, val=hi-span*i/4; ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(pad.l+w,yy); ctx.stroke(); ctx.fillText(val.toFixed(2),4,yy+4); }
+      const candleW=Math.max(2,Math.min(14,w/Math.max(candles.length,1)*.72));
+      candles.forEach(c=>{ const xx=x(c.time_ms), open=Number(c.open), close=Number(c.close), high=Number(c.high), low=Number(c.low), up=close>=open; ctx.strokeStyle=up?'#39d98a':'#ff6b7a'; ctx.fillStyle=ctx.strokeStyle; ctx.beginPath(); ctx.moveTo(xx,y(high)); ctx.lineTo(xx,y(low)); ctx.stroke(); ctx.fillRect(xx-candleW/2,y(Math.max(open,close)),candleW,Math.max(1,Math.abs(y(open)-y(close)))); if(!c.closed){ctx.setLineDash([3,3]);ctx.strokeStyle='#ffb454';ctx.beginPath();ctx.moveTo(xx,pad.t);ctx.lineTo(xx,pad.t+h);ctx.stroke();ctx.setLineDash([]);} });
+      state.hits=[]; const map=new Map(candles.map(c=>[c.time_ms,c]));
+      (state.data.trades||[]).forEach(tr=>{ const ent=Date.parse(tr.entry_time_utc||''); const ext=Date.parse(tr.exit_time_utc||''); const ec=ent&&map.get(Math.round(ent/3600000)*3600000); const xc=ext&&map.get(Math.round(ext/3600000)*3600000); const ex=ec?x(ec.time_ms):null, xx=xc?x(xc.time_ms):null; if(ex!=null){const yy=y(Number(tr.entry_price));ctx.fillStyle=tr.side==='L'?'#39d98a':'#ffb454';ctx.beginPath(); if(tr.side==='L'){ctx.moveTo(ex,yy-8);ctx.lineTo(ex-6,yy+4);ctx.lineTo(ex+6,yy+4);}else{ctx.moveTo(ex,yy+8);ctx.lineTo(ex-6,yy-4);ctx.lineTo(ex+6,yy-4);}ctx.closePath();ctx.fill();state.hits.push({x:ex,y:yy,r:12,tr});} if(xx!=null){const yy=y(Number(tr.exit_price));ctx.fillStyle=Number(tr.pnl)>=0?'#67a7ff':'#ff6b7a';ctx.beginPath();ctx.arc(xx,yy,5,0,Math.PI*2);ctx.fill();state.hits.push({x:xx,y:yy,r:12,tr});} if(ex!=null&&xx!=null){ctx.strokeStyle=Number(tr.pnl)>=0?'#67a7ff55':'#ff6b7a55';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(ex,y(Number(tr.entry_price)));ctx.lineTo(xx,y(Number(tr.exit_price)));ctx.stroke();ctx.setLineDash([]);} });
+      ctx.fillStyle='#91a4bf';ctx.fillText(`${candles[0].time_display} → ${candles[candles.length-1].time_display} Asia/Taipei`,pad.l,rect.height-7);
+    }
+    function tradeHtml(tr){ const pnl=tr.pnl==null?'<span class="muted">進行中</span>':`<span class="${Number(tr.pnl)>=0?'profit':'loss'}">${esc(money(tr.pnl))}</span>`; return `<tr class="clickable" data-trade="${esc(tr.id)}"><td>${esc(tr.number)}</td><td>${tr.side==='L'?'Long':'Short'}</td><td>${esc(tr.entry_time_display)}</td><td>${esc(tr.exit_time_display||'-')}</td><td>${esc(tr.exit_reason)}</td><td>${pnl}</td><td>${esc(tr.hold_hours!=null?`${tr.hold_hours}h`:tr.hold_bars!=null?`${tr.hold_bars} bars`:'-')}</td><td>${esc(tr.regime)}</td></tr>`; }
+    function render(){ const d=state.data, s=d.stats||{}; $('tradeCount').textContent=s.trades??'-'; $('winRate').textContent=s.trades?`${(s.wins/s.trades*100).toFixed(1)}%`:'-'; $('pnl').textContent=money(s.pnl); $('pnl').className=Number(s.pnl)>=0?'profit':'loss'; $('positionCount').textContent=(d.positions||[]).length; $('trades').innerHTML=(d.trades||[]).slice().reverse().map(tradeHtml).join('')||'<tr><td colspan="8" class="empty">目前沒有符合條件的交易</td></tr>'; [...document.querySelectorAll('[data-trade]')].forEach(row=>row.addEventListener('click',()=>{ const tr=(d.trades||[]).find(x=>x.id===row.dataset.trade); if(tr) showTrade(tr); })); const st=d.state||{}; $('positions').innerHTML=(d.positions||[]).map(p=>`<div class="panel" style="padding:9px;margin-bottom:7px"><b class="${p.side==='L'?'profit':'status-warn'}">${p.direction}</b><dl class="kv"><dt>Trade ID</dt><dd>${esc(p.id)}</dd><dt>進場時間</dt><dd>${esc(p.entry_time_display)}</dd><dt>價格</dt><dd>${esc(p.entry_price)}</dd><dt>Regime</dt><dd>${esc(p.entry_regime)}</dd><dt>持倉 bars</dt><dd>${esc(p.hold_bars)}</dd></dl></div>`).join('')||'<div class="empty">目前沒有持倉</div>'; $('updated').textContent=`更新 ${shortTime(d.server_time_display)} Asia/Taipei`; draw(); renderHealth(st,d); }
+    function renderHealth(st,d){ const k=d.stats?.last_closed_candle, f=d.stats?.forming_candle; $('health').innerHTML=`<dt>服務</dt><dd class="status-ok">唯讀正常</dd><dt>最後已收盤</dt><dd>${esc(k?.time_display||'-')}</dd><dt>形成中 K 線</dt><dd>${esc(f?.time_display||'無')}</dd><dt>交易資料</dt><dd>${st.available?'已讀取':'尚未找到'}</dd><dt>狀態更新</dt><dd>${esc(st.updated_at?shortTime(st.updated_at):'-')}</dd><dt>資料來源</dt><dd>公開 K 線／VPS CSV</dd>`; }
+    function showTrade(tr){ const text=`${tr.direction} #${tr.number}\n進場：${tr.entry_time_display} @ ${tr.entry_price}\n出場：${tr.exit_time_display||'進行中'} @ ${tr.exit_price??'-'}\n原因：${tr.exit_reason}\nPnL：${money(tr.pnl)}\n持倉：${tr.hold_hours!=null?tr.hold_hours+' 小時':tr.hold_bars!=null?tr.hold_bars+' bars':'-'}\nRegime：${tr.regime}\n訊號 K 棒：${tr.entry_signal_time_display||'-'}`; const tip=$('tooltip');tip.textContent=text;tip.style.display='block';tip.style.left='20px';tip.style.bottom='20px';setTimeout(()=>tip.style.display='none',7000); }
+    async function load(){ setError(''); try{ const res=await fetch(`/api/data?days=${state.days}&side=${state.side}`,{cache:'no-store'}); const payload=await res.json(); if(!res.ok) throw new Error(payload.error||`HTTP ${res.status}`); state.data=payload; render(); }catch(err){ setError(`資料讀取失敗：${err.message}`); } }
+    document.querySelectorAll('[data-days]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-days]').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.days=Number(b.dataset.days);load();})); $('side').addEventListener('change',e=>{state.side=e.target.value;load();}); $('refresh').addEventListener('click',load); window.addEventListener('resize',()=>state.data&&draw()); $('chart').addEventListener('click',e=>{const r=$('chart').getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let best=null,dist=1e9;state.hits.forEach(h=>{const d=Math.hypot(h.x-x,h.y-y);if(d<h.r&&d<dist){best=h;dist=d;}});if(best)showTrade(best.tr);}); load(); setInterval(load,60000);
+  </script>
+</body>
+</html>
