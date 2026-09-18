@@ -11,8 +11,26 @@
 - 目前 `eth_state_live.json` 內的策略持倉
 - 最近交易與服務／資料 freshness
 - Asia/Taipei 顯示，API 同時提供 UTC 時間
+- 實戰／回測資料模式切換
+- K 線縮放、拖曳平移與全覽復原（桌面滑鼠及手機觸控）
 
-K 線優先讀取 Binance Futures 公開端點；網路失敗時退回 `cache/ETHUSDT_1h.csv` 或 `data/ETHUSDT_1h_latest730d.csv`。公開 K 線不需要 API key。
+實戰模式優先讀取 Binance Futures 公開端點；網路失敗時退回本機快取。回測模式優先讀取
+`data/ETHUSDT_1h_latest730d.csv`，讓圖表可與回測使用的 K 線期間對齊。公開 K 線不需要 API key。
+
+## 回測資料快照
+
+Viewer 不會自行執行回測，也不會修改策略或實盤資料。要讓頁面出現可切換的「回測」來源，
+在 VPS 以 `cryptobot` 使用者執行：
+
+```bash
+cd ~/cryptoBot
+mkdir -p data
+.venv/bin/python run_backtest.py -t > data/backtest_trades.txt
+```
+
+Viewer 預設讀取 `data/backtest_trades.txt`；也可以在 `cryptoviewer.service` 設定
+`VIEWER_BACKTEST_PATH` 指向其他唯讀回測明細檔。若檔案不存在，頁面會把「回測」標為不可用，
+不會把實戰資料冒充成回測。回測模式沒有目前持倉資料。
 
 ## VPS 單實例啟用
 
@@ -50,7 +68,9 @@ Viewer 只需要讀取該目錄的 `data_live/`、`logs/` 與 `eth_state_live.js
 
 ```bash
 curl -fsS http://127.0.0.1:8765/api/health
-curl -fsS 'http://127.0.0.1:8765/api/data?days=30&side=ALL' | head -c 500
+curl -fsS http://127.0.0.1:8765/api/meta
+curl -fsS 'http://127.0.0.1:8765/api/data?source=live&days=30&side=ALL' | head -c 500
+curl -fsS 'http://127.0.0.1:8765/api/data?source=backtest&days=30&side=ALL' | head -c 500
 curl -i -X POST http://127.0.0.1:8765/api/data
 systemctl is-active cryptobot
 ```

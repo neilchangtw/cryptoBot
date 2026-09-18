@@ -2,11 +2,15 @@
 
 此服務與交易機器人完全分離，只讀取：
   - INSTANCE_DIR/data_live/trades.csv
+  - data/backtest_trades.txt（由 run_backtest.py -t 輸出的回測快照）
   - INSTANCE_DIR/eth_state_live.json
   - INSTANCE_DIR/logs/
   - Binance Futures 公開 ETHUSDT 1h K 線（不需要 API key）
 
 不載入 .env、不匯入 strategy/executor/binance_trade、不提供任何寫入或下單 API。
+
+資料模式：實戰使用即時公開 K 線與 data_live/trades.csv；回測使用本機 730 天 K 線快取
+與 data/backtest_trades.txt。回測沒有即時持倉狀態。
 """
 
 from __future__ import annotations
@@ -37,6 +41,7 @@ LOG_DIR = INSTANCE_DIR / "logs"
 HTML_PATH = ROOT / "vps_viewer.html"
 LOCAL_KLINE_PATH = ROOT / "data" / "ETHUSDT_1h_latest730d.csv"
 SHARED_KLINE_PATH = ROOT / "cache" / "ETHUSDT_1h.csv"
+DEFAULT_BACKTEST_PATH = ROOT / "data" / "backtest_trades.txt"
 BINANCE_KLINES_URL = "https://fapi.binance.com/fapi/v1/klines"
 KLINE_TTL_SECONDS = 55
 MAX_KLINES = 1000
@@ -171,6 +176,55 @@ def _trade_row(raw: dict, index: int) -> dict | None:
     }
 
 
+def _backtest_text_rows(path: Path) -> list[dict]:
+    """讀取 run_backtest.py -t 的文字明細，不載入策略或交易模組。"""
+    try:
+        from trade_viewer import load_trades
+    except ImportError as exc:
+        raise OSError(f"回測明細解析器不存在：{exc}") from exc
+
+    try:
+        parsed_rows = load_trades(path)
+    except (OSError, ValueError) as exc:
+        raise OSError(f"回測明細讀取失敗：{exc}") from exc
+
+    rows = []
+    for index, raw in enumerate(parsed_rows, start=1):
+        entry_time = _parse_datetime(raw.get("entry_time"))
+        exit_time = _parse_datetime(raw.get("exit_time"))
+        if entry_time is None:
+            continue
+        # 回測 -t 已輸出實際成交時間；同時還原訊號 K 棒開盤時間供對照。
+        entry_signal = entry_time - timedelta(hours=1)
+        exit_signal = exit_time - timedelta(hours=1) if exit_time else None
+        side = _side(raw.get("side"))
+        trade_id = str(raw.get("id") or f"backtest-{index}")
+        rows.append({
+            "id": trade_id,
+            "number": raw.get("number") or index,
+            "side": side,
+            "direction": "Long" if side == "L" else "Short" if side == "S" else side,
+            "entry_signal_time_utc": _iso(entry_signal),
+            "entry_signal_time_display": _display_time(entry_signal),
+            "exit_signal_time_utc": _iso(exit_signal),
+            "exit_signal_time_display": _display_time(exit_signal),
+            "entry_time_utc": _iso(entry_time),
+            "entry_time_display": _display_time(entry_time),
+            "exit_time_utc": _iso(exit_time),
+            "exit_time_display": _display_time(exit_time),
+            "entry_price": _number(raw.get("entry_price")),
+            "exit_price": _number(raw.get("exit_price")),
+            "exit_reason": str(raw.get("exit_reason") or "進行中").strip(),
+            "hold_bars": _int(raw.get("hold"), None),
+            "hold_hours": _number(raw.get("hold"), None),
+            "pnl": _number(raw.get("pnl"), None),
+            "pnl_pct": None,
+            "regime": str(raw.get("regime") or "NA").strip(),
+            "closed": exit_time is not None and raw.get("pnl") is not None,
+        })
+    return rows
+
+
 def _parse_binance_klines(data):
     rows = []
     now = datetime.now(timezone.utc)
@@ -223,33 +277,59 @@ class DataStore:
     def __init__(self, allow_network=True):
         self.allow_network = allow_network
         self._lock = threading.RLock()
-        self._trades_cache = (None, [])
-        self._klines_cache = (0.0, [])
+        self._trades_cache = {}
+        self._klines_cache = {}
         self._last_kline_error = None
 
     @property
-    def trades_path(self):
-        return LIVE_DIR / "trades.csv"
+    def backtest_path(self):
+        configured = os.environ.get("VIEWER_BACKTEST_PATH")
+        if configured:
+            return Path(configured).expanduser().resolve()
+        for candidate in (
+            DEFAULT_BACKTEST_PATH,
+            ROOT / "data" / "backtest_trades.csv",
+            ROOT / "backtest_trades.txt",
+            ROOT / "backtest_trades.csv",
+        ):
+            if candidate.is_file():
+                return candidate
+        return DEFAULT_BACKTEST_PATH
 
-    def trades(self):
-        path = self.trades_path
+    def source_path(self, source):
+        if source == "live":
+            return LIVE_DIR / "trades.csv"
+        if source == "backtest":
+            return self.backtest_path
+        raise ValueError("資料來源只能是 live 或 backtest")
+
+    @staticmethod
+    def source_label(source):
+        return {"live": "實戰", "backtest": "回測"}.get(source, source)
+
+    def trades(self, source="live"):
+        path = self.source_path(source)
         mtime = _mtime(path)
         with self._lock:
-            if mtime is not None and mtime == self._trades_cache[0]:
-                return self._trades_cache[1]
+            cached = self._trades_cache.get(source)
+            if cached and mtime is not None and mtime == cached[0]:
+                return cached[1]
         if mtime is None:
             return []
-        raw_rows, error = _read_csv(path)
-        if error:
-            raise OSError(f"交易紀錄讀取失敗：{error}")
-        rows = []
-        for index, raw in enumerate(raw_rows, start=1):
-            parsed = _trade_row(raw, index)
-            if parsed:
-                rows.append(parsed)
+        if source == "live" or path.suffix.lower() == ".csv":
+            raw_rows, error = _read_csv(path)
+            if error:
+                raise OSError(f"交易紀錄讀取失敗：{error}")
+            rows = []
+            for index, raw in enumerate(raw_rows, start=1):
+                parsed = _trade_row(raw, index)
+                if parsed:
+                    rows.append(parsed)
+        else:
+            rows = _backtest_text_rows(path)
         rows.sort(key=lambda row: row["entry_time_utc"] or "")
         with self._lock:
-            self._trades_cache = (mtime, rows)
+            self._trades_cache[source] = (mtime, rows)
         return rows
 
     def _fetch_public_klines(self):
@@ -265,22 +345,39 @@ class DataStore:
             raise OSError("Binance 公開 K 線資料不足")
         return rows
 
-    def klines(self):
+    def klines(self, source="live"):
         now = time.time()
         with self._lock:
-            if self._klines_cache[1] and now - self._klines_cache[0] < KLINE_TTL_SECONDS:
-                return self._klines_cache[1]
+            cached = self._klines_cache.get(source)
+            if cached and now - cached[0] < KLINE_TTL_SECONDS:
+                return cached[1]
 
         rows = None
         errors = []
-        if self.allow_network:
+        local_paths = (
+            (LOCAL_KLINE_PATH, SHARED_KLINE_PATH)
+            if source == "backtest"
+            else (SHARED_KLINE_PATH, LOCAL_KLINE_PATH)
+        )
+        if source == "backtest":
+            for path in local_paths:
+                if not path.is_file():
+                    continue
+                try:
+                    rows = _parse_local_klines(path)[-MAX_KLINES:]
+                    if rows:
+                        break
+                except OSError as exc:
+                    errors.append(str(exc))
+
+        if not rows and self.allow_network:
             try:
                 rows = self._fetch_public_klines()
             except (OSError, URLError, TimeoutError, ValueError) as exc:
                 errors.append(f"公開 K 線：{exc}")
 
-        if not rows:
-            for path in (SHARED_KLINE_PATH, LOCAL_KLINE_PATH):
+        if not rows and source == "live":
+            for path in local_paths:
                 if not path.is_file():
                     continue
                 try:
@@ -294,7 +391,7 @@ class DataStore:
             raise OSError("；".join(errors) or "找不到 K 線資料")
 
         with self._lock:
-            self._klines_cache = (time.time(), rows)
+            self._klines_cache[source] = (time.time(), rows)
             self._last_kline_error = errors[-1] if errors else None
         return rows
 
@@ -333,8 +430,32 @@ class DataStore:
             "positions": positions,
         }
 
-    def data(self, days=30, side="ALL"):
-        candles = self.klines()
+    def meta(self):
+        sources = []
+        for source in ("live", "backtest"):
+            path = self.source_path(source)
+            available = path.is_file()
+            rows = []
+            error = None
+            if available:
+                try:
+                    rows = self.trades(source)
+                except OSError as exc:
+                    error = str(exc)
+            sources.append({
+                "id": source,
+                "label": self.source_label(source),
+                "available": available and error is None and bool(rows),
+                "path": str(path),
+                "count": len(rows),
+                "first": rows[0]["entry_time_display"] if rows else None,
+                "last": rows[-1]["exit_time_display"] if rows else None,
+                "error": error or (None if available else "尚未找到資料檔"),
+            })
+        return {"sources": sources, "timezone": "Asia/Taipei"}
+
+    def data(self, source="live", days=30, side="ALL"):
+        candles = self.klines(source)
         if not candles:
             raise OSError("沒有 K 線資料")
         days = max(1, min(int(days), 730))
@@ -345,7 +466,7 @@ class DataStore:
             if datetime.fromtimestamp(row["time_ms"] / 1000, timezone.utc) >= start
         ]
 
-        trades = self.trades()
+        trades = self.trades(source)
         selected_trades = []
         for row in trades:
             if side != "ALL" and row["side"] != side:
@@ -358,11 +479,18 @@ class DataStore:
         closed = [row for row in selected_trades if row["closed"]]
         pnl_values = [row["pnl"] for row in closed if row["pnl"] is not None]
         wins = sum(value > 0 for value in pnl_values)
-        state = self.state()
+        state = self.state() if source == "live" else {
+            "available": False,
+            "error": "回測資料沒有即時持倉狀態",
+            "updated_at": None,
+            "positions": [],
+        }
         return {
             "server_time_utc": _iso(datetime.now(timezone.utc)),
             "server_time_display": _display_time(datetime.now(timezone.utc)),
             "timezone": "Asia/Taipei",
+            "source": source,
+            "source_label": self.source_label(source),
             "candles": selected_candles,
             "trades": selected_trades,
             "positions": state["positions"],
@@ -380,31 +508,38 @@ class DataStore:
                 ),
             },
             "sources": {
-                "trades": str(self.trades_path),
+                "trades": str(self.source_path(source)),
                 "state": str(STATE_PATH),
-                "kline": "Binance Futures public API or local fallback cache",
+                "kline": "本機 730 天快取（回測）或 Binance Futures 公開 API（實戰）",
             },
         }
 
-    def health(self):
+    def health(self, source="live"):
         try:
-            candles = self.klines()
+            candles = self.klines(source)
             kline_status = "ok"
             latest = candles[-1] if candles else None
         except OSError as exc:
             kline_status = "error"
             latest = None
             self._last_kline_error = str(exc)
-        state = self.state()
+        state = self.state() if source == "live" else {
+            "available": False,
+            "error": "回測資料沒有即時持倉狀態",
+            "updated_at": None,
+            "positions": [],
+        }
         return {
             "status": "ok" if kline_status == "ok" else "degraded",
             "service": "cryptoviewer",
             "readonly": True,
+            "source": source,
+            "source_label": self.source_label(source),
             "server_time_utc": _iso(datetime.now(timezone.utc)),
             "kline_status": kline_status,
             "kline_error": self._last_kline_error,
             "latest_kline": latest,
-            "trades_exists": self.trades_path.is_file(),
+            "trades_exists": self.source_path(source).is_file(),
             "state": state,
             "instance_dir": str(INSTANCE_DIR),
         }
@@ -437,15 +572,25 @@ def make_handler(store: DataStore):
                     self._html()
                     return
                 if parsed.path == "/api/health":
-                    self._json(store.health())
+                    query = parse_qs(parsed.query)
+                    source = query.get("source", ["live"])[0].lower()
+                    if source not in {"live", "backtest"}:
+                        raise ValueError("資料來源只能是 live 或 backtest")
+                    self._json(store.health(source))
+                    return
+                if parsed.path == "/api/meta":
+                    self._json(store.meta())
                     return
                 if parsed.path == "/api/data":
                     query = parse_qs(parsed.query)
+                    source = query.get("source", ["live"])[0].lower()
+                    if source not in {"live", "backtest"}:
+                        raise ValueError("資料來源只能是 live 或 backtest")
                     days = query.get("days", ["30"])[0]
                     side = query.get("side", ["ALL"])[0].upper()
                     if side not in {"ALL", "L", "S"}:
                         raise ValueError("方向只能是 ALL、L 或 S")
-                    self._json(store.data(days=days, side=side))
+                    self._json(store.data(source=source, days=days, side=side))
                     return
                 self.send_error(404)
             except (OSError, ValueError, KeyError, TypeError) as exc:

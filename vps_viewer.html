@@ -18,7 +18,8 @@
     .grid { display:grid; grid-template-columns:minmax(0, 1fr) 320px; gap:14px; }
     .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; min-width:0; }
     .chart-panel { padding-bottom:8px; } .chart-wrap { position:relative; width:100%; height:min(58vh,620px); min-height:310px; }
-    canvas { width:100%; height:100%; display:block; background:#0d1728; border-radius:7px; }
+    canvas { width:100%; height:100%; display:block; background:#0d1728; border-radius:7px; touch-action:none; cursor:grab; }
+    canvas:active { cursor:grabbing; }
     #tooltip { position:fixed; display:none; pointer-events:none; z-index:4; background:#07101d; border:1px solid #41628e; padding:8px 10px; border-radius:7px; max-width:280px; box-shadow:0 8px 24px #0008; }
     .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
     .stat { background:#0d1728; padding:9px; border-radius:7px; } .stat b { display:block; font-size:18px; }
@@ -35,10 +36,12 @@
 <body>
   <header>
     <h1>ETHUSDT 1h 唯讀交易視覺化</h1>
-    <div class="sub">VPS 本機資料／Binance 公開 K 線 · 不提供下單或持倉修改功能 · 顯示時區 Asia/Taipei</div>
+    <div class="sub">VPS 唯讀資料／Binance 公開 K 線 · 不提供下單或持倉修改功能 · 顯示時區 Asia/Taipei</div>
     <div class="toolbar">
+      <select id="source" aria-label="資料來源"><option value="live">實戰</option><option value="backtest">回測</option></select>
       <button data-days="7">7 天</button><button data-days="30" class="active">30 天</button><button data-days="90">90 天</button><button data-days="365">1 年</button>
       <select id="side"><option value="ALL">全部方向</option><option value="L">Long</option><option value="S">Short</option></select>
+      <button id="zoomIn" title="放大 K 線">＋ 放大</button><button id="zoomOut" title="縮小 K 線">－ 縮小</button><button id="resetZoom" title="顯示全部 K 線">全覽</button>
       <button id="refresh">重新整理</button><span id="updated" class="muted"></span>
     </div>
   </header>
@@ -55,6 +58,7 @@
         <h2>K 線與交易標記</h2>
         <div class="chart-wrap"><canvas id="chart"></canvas></div>
         <div class="legend"><span class="l">L 開倉</span><span class="s">S 開倉</span><span class="exit">平倉</span><span>標記：實際成交時間</span><span>虛線：未收盤 K 線</span></div>
+        <div class="sub" style="margin-top:7px">操作：滑鼠滾輪／按鈕縮放、拖曳平移、雙擊全覽；手機可拖曳或雙指縮放。<span id="zoomInfo"></span></div>
       </section>
       <aside class="panel">
         <h2>服務與資料狀態</h2>
@@ -72,38 +76,99 @@
   </main>
   <div id="tooltip"></div>
   <script>
-    const state = { days:30, side:'ALL', data:null, hits:[] };
+    const state = { source:'live', days:30, side:'ALL', data:null, hits:[], view:null, gesture:null, dragged:false };
     const $ = id => document.getElementById(id);
     const money = value => value == null || Number.isNaN(Number(value)) ? '-' : `${Number(value)>=0?'+':''}$${Number(value).toFixed(2)}`;
     const esc = value => String(value ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const shortTime = value => value ? String(value).replace('T',' ').replace(/:\d{2}(?:\+00:00)?$/,'') : '-';
     function setError(text='') { $('error').textContent = text; }
+    function viewRange() {
+      const count = state.data?.candles?.length || 0;
+      if (!count) return {left:0, right:0};
+      if (!state.view) return {left:0, right:count};
+      const span = Math.max(1, Math.min(count, state.view.right - state.view.left));
+      const left = Math.max(0, Math.min(count - span, Math.floor(state.view.left)));
+      return {left, right:left + span};
+    }
+    function minViewSpan(count) { return Math.min(count, Math.max(12, Math.ceil(count * 0.02))); }
+    function setView(left, right) {
+      const count = state.data?.candles?.length || 0;
+      if (!count) return;
+      const minSpan = minViewSpan(count);
+      let span = Math.max(minSpan, Math.min(count, right - left));
+      left = Math.max(0, Math.min(count - span, left));
+      right = left + span;
+      state.view = left <= 0 && right >= count ? null : {left, right};
+      draw();
+    }
+    function resetView() { state.view = null; draw(); }
+    function zoomAt(factor, ratio=0.5) {
+      const count = state.data?.candles?.length || 0;
+      if (!count) return;
+      const range = viewRange(), span = range.right - range.left;
+      const center = range.left + span * Math.max(0, Math.min(1, ratio));
+      const nextSpan = Math.max(minViewSpan(count), Math.min(count, span * factor));
+      setView(center - nextSpan * ratio, center + nextSpan * (1 - ratio));
+    }
+    function canvasPoint(event) {
+      const rect = $('chart').getBoundingClientRect();
+      return {x:event.clientX - rect.left, y:event.clientY - rect.top, width:rect.width, height:rect.height};
+    }
     function draw() {
       const canvas = $('chart'), rect = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
       canvas.width = Math.max(1, rect.width*dpr); canvas.height = Math.max(1, rect.height*dpr);
       const ctx = canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,rect.width,rect.height);
-      const candles = state.data?.candles || []; if (!candles.length) { ctx.fillStyle='#91a4bf'; ctx.fillText('沒有 K 線資料',20,30); return; }
+      const allCandles = state.data?.candles || []; if (!allCandles.length) { ctx.fillStyle='#91a4bf'; ctx.fillText('沒有 K 線資料',20,30); $('zoomInfo').textContent=''; return; }
+      const range = viewRange(), candles = allCandles.slice(range.left, range.right);
       const pad = {l:48,r:12,t:18,b:28}, w=rect.width-pad.l-pad.r, h=rect.height-pad.t-pad.b, HOUR_MS=3600000;
-      const highs=candles.map(c=>Number(c.high)||Number(c.close)), lows=candles.map(c=>Number(c.low)||Number(c.close)); let hi=Math.max(...highs), lo=Math.min(...lows), span=hi-lo || 1; hi+=span*.05; lo-=span*.05; span=hi-lo;
-      // K 線 timestamp 是開盤時間；以每根 1h K 線的中心繪圖，讓實際成交時間落在該根 K 線收盤邊界。
       const chartStart=candles[0].time_ms, chartEnd=candles[candles.length-1].time_ms+HOUR_MS;
+      const visibleTrades=(state.data.trades||[]).filter(tr=>{
+        const ent=Date.parse(tr.entry_time_utc||''), ext=Date.parse(tr.exit_time_utc||'');
+        return (Number.isFinite(ent)&&ent>=chartStart&&ent<=chartEnd)||(Number.isFinite(ext)&&ext>=chartStart&&ext<=chartEnd);
+      });
+      const prices=candles.flatMap(c=>[Number(c.high)||Number(c.close),Number(c.low)||Number(c.close)]);
+      visibleTrades.forEach(tr=>{ if(Number.isFinite(Number(tr.entry_price))) prices.push(Number(tr.entry_price)); if(Number.isFinite(Number(tr.exit_price))) prices.push(Number(tr.exit_price)); });
+      let hi=Math.max(...prices), lo=Math.min(...prices), span=hi-lo || 1; hi+=span*.05; lo-=span*.05; span=hi-lo;
+      // K 線 timestamp 是開盤時間；以每根 1h K 線的中心繪圖，讓實際成交時間落在該根 K 線收盤邊界。
       const x = ms => pad.l + ((ms-chartStart)/(chartEnd-chartStart || 1))*w;
       const candleX = candle => x(candle.time_ms+HOUR_MS/2);
       const y = price => pad.t + (hi-price)/span*h;
+      state.chart={pad,w,h,chartStart,chartEnd};
+      $('zoomInfo').textContent=`（顯示 ${candles.length}/${allCandles.length} 根）`;
       ctx.strokeStyle='#243653'; ctx.fillStyle='#91a4bf'; ctx.font='11px system-ui'; ctx.lineWidth=1;
       for(let i=0;i<5;i++){ const yy=pad.t+h*i/4, val=hi-span*i/4; ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(pad.l+w,yy); ctx.stroke(); ctx.fillText(val.toFixed(2),4,yy+4); }
       const candleW=Math.max(2,Math.min(14,w/Math.max(candles.length,1)*.72));
       candles.forEach(c=>{ const xx=candleX(c), open=Number(c.open), close=Number(c.close), high=Number(c.high), low=Number(c.low), up=close>=open; ctx.strokeStyle=up?'#39d98a':'#ff6b7a'; ctx.fillStyle=ctx.strokeStyle; ctx.beginPath(); ctx.moveTo(xx,y(high)); ctx.lineTo(xx,y(low)); ctx.stroke(); ctx.fillRect(xx-candleW/2,y(Math.max(open,close)),candleW,Math.max(1,Math.abs(y(open)-y(close)))); if(!c.closed){ctx.setLineDash([3,3]);ctx.strokeStyle='#ffb454';ctx.beginPath();ctx.moveTo(xx,pad.t);ctx.lineTo(xx,pad.t+h);ctx.stroke();ctx.setLineDash([]);} });
       state.hits=[];
-      (state.data.trades||[]).forEach(tr=>{ const ent=Date.parse(tr.entry_time_utc||''); const ext=Date.parse(tr.exit_time_utc||''); const ex=Number.isFinite(ent)?x(ent):null, xx=Number.isFinite(ext)?x(ext):null; if(ex!=null){const yy=y(Number(tr.entry_price));ctx.fillStyle=tr.side==='L'?'#39d98a':'#ffb454';ctx.beginPath(); if(tr.side==='L'){ctx.moveTo(ex,yy-8);ctx.lineTo(ex-6,yy+4);ctx.lineTo(ex+6,yy+4);}else{ctx.moveTo(ex,yy+8);ctx.lineTo(ex-6,yy-4);ctx.lineTo(ex+6,yy-4);}ctx.closePath();ctx.fill();state.hits.push({x:ex,y:yy,r:12,tr});} if(xx!=null){const yy=y(Number(tr.exit_price));ctx.fillStyle=Number(tr.pnl)>=0?'#67a7ff':'#ff6b7a';ctx.beginPath();ctx.arc(xx,yy,5,0,Math.PI*2);ctx.fill();state.hits.push({x:xx,y:yy,r:12,tr});} if(ex!=null&&xx!=null){ctx.strokeStyle=Number(tr.pnl)>=0?'#67a7ff55':'#ff6b7a55';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(ex,y(Number(tr.entry_price)));ctx.lineTo(xx,y(Number(tr.exit_price)));ctx.stroke();ctx.setLineDash([]);} });
+      visibleTrades.forEach(tr=>{ const ent=Date.parse(tr.entry_time_utc||''), ext=Date.parse(tr.exit_time_utc||''); const ex=Number.isFinite(ent)&&ent>=chartStart&&ent<=chartEnd?x(ent):null, xx=Number.isFinite(ext)&&ext>=chartStart&&ext<=chartEnd?x(ext):null; if(ex!=null){const yy=y(Number(tr.entry_price));ctx.fillStyle=tr.side==='L'?'#39d98a':'#ffb454';ctx.beginPath(); if(tr.side==='L'){ctx.moveTo(ex,yy-8);ctx.lineTo(ex-6,yy+4);ctx.lineTo(ex+6,yy+4);}else{ctx.moveTo(ex,yy+8);ctx.lineTo(ex-6,yy-4);ctx.lineTo(ex+6,yy-4);}ctx.closePath();ctx.fill();state.hits.push({x:ex,y:yy,r:12,tr});} if(xx!=null){const yy=y(Number(tr.exit_price));ctx.fillStyle=Number(tr.pnl)>=0?'#67a7ff':'#ff6b7a';ctx.beginPath();ctx.arc(xx,yy,5,0,Math.PI*2);ctx.fill();state.hits.push({x:xx,y:yy,r:12,tr});} if(ex!=null&&xx!=null){ctx.strokeStyle=Number(tr.pnl)>=0?'#67a7ff55':'#ff6b7a55';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(ex,y(Number(tr.entry_price)));ctx.lineTo(xx,y(Number(tr.exit_price)));ctx.stroke();ctx.setLineDash([]);} });
       ctx.fillStyle='#91a4bf';ctx.fillText(`${candles[0].time_display} → ${candles[candles.length-1].time_display} Asia/Taipei`,pad.l,rect.height-7);
     }
     function tradeHtml(tr){ const pnl=tr.pnl==null?'<span class="muted">進行中</span>':`<span class="${Number(tr.pnl)>=0?'profit':'loss'}">${esc(money(tr.pnl))}</span>`; return `<tr class="clickable" data-trade="${esc(tr.id)}"><td>${esc(tr.number)}</td><td>${tr.side==='L'?'Long':'Short'}</td><td>${esc(tr.entry_time_display)}</td><td>${esc(tr.exit_time_display||'-')}</td><td>${esc(tr.exit_reason)}</td><td>${pnl}</td><td>${esc(tr.hold_hours!=null?`${tr.hold_hours}h`:tr.hold_bars!=null?`${tr.hold_bars} bars`:'-')}</td><td>${esc(tr.regime)}</td></tr>`; }
     function render(){ const d=state.data, s=d.stats||{}; $('tradeCount').textContent=s.trades??'-'; $('winRate').textContent=s.trades?`${(s.wins/s.trades*100).toFixed(1)}%`:'-'; $('pnl').textContent=money(s.pnl); $('pnl').className=Number(s.pnl)>=0?'profit':'loss'; $('positionCount').textContent=(d.positions||[]).length; $('trades').innerHTML=(d.trades||[]).slice().reverse().map(tradeHtml).join('')||'<tr><td colspan="8" class="empty">目前沒有符合條件的交易</td></tr>'; [...document.querySelectorAll('[data-trade]')].forEach(row=>row.addEventListener('click',()=>{ const tr=(d.trades||[]).find(x=>x.id===row.dataset.trade); if(tr) showTrade(tr); })); const st=d.state||{}; $('positions').innerHTML=(d.positions||[]).map(p=>`<div class="panel" style="padding:9px;margin-bottom:7px"><b class="${p.side==='L'?'profit':'status-warn'}">${p.direction}</b><dl class="kv"><dt>Trade ID</dt><dd>${esc(p.id)}</dd><dt>進場時間</dt><dd>${esc(p.entry_time_display)}</dd><dt>價格</dt><dd>${esc(p.entry_price)}</dd><dt>Regime</dt><dd>${esc(p.entry_regime)}</dd><dt>持倉 bars</dt><dd>${esc(p.hold_bars)}</dd></dl></div>`).join('')||'<div class="empty">目前沒有持倉</div>'; $('updated').textContent=`更新 ${shortTime(d.server_time_display)} Asia/Taipei`; draw(); renderHealth(st,d); }
-    function renderHealth(st,d){ const k=d.stats?.last_closed_candle, f=d.stats?.forming_candle; $('health').innerHTML=`<dt>服務</dt><dd class="status-ok">唯讀正常</dd><dt>最後已收盤</dt><dd>${esc(k?.time_display||'-')}</dd><dt>形成中 K 線</dt><dd>${esc(f?.time_display||'無')}</dd><dt>交易資料</dt><dd>${st.available?'已讀取':'尚未找到'}</dd><dt>狀態更新</dt><dd>${esc(st.updated_at?shortTime(st.updated_at):'-')}</dd><dt>資料來源</dt><dd>公開 K 線／VPS CSV</dd>`; }
+    function renderHealth(st,d){ const k=d.stats?.last_closed_candle, f=d.stats?.forming_candle; $('health').innerHTML=`<dt>服務</dt><dd class="status-ok">唯讀正常</dd><dt>資料模式</dt><dd>${esc(d.source_label||state.source)}</dd><dt>最後已收盤</dt><dd>${esc(k?.time_display||'-')}</dd><dt>形成中 K 線</dt><dd>${esc(f?.time_display||'無')}</dd><dt>交易資料</dt><dd>${st.available?'已讀取':d.source==='backtest'?'回測無即時持倉':'尚未找到'}</dd><dt>狀態更新</dt><dd>${esc(st.updated_at?shortTime(st.updated_at):'-')}</dd><dt>資料來源</dt><dd>${d.source==='backtest'?'本機 730 天 K 線／回測檔':'公開 K 線／實戰 CSV'}</dd>`; }
     function showTrade(tr){ const text=`${tr.direction} #${tr.number}\n進場成交：${tr.entry_time_display} @ ${tr.entry_price}\n進場訊號 K 棒：${tr.entry_signal_time_display||'-'}\n平倉成交：${tr.exit_time_display||'進行中'} @ ${tr.exit_price??'-'}\n平倉訊號 K 棒：${tr.exit_signal_time_display||'-'}\n原因：${tr.exit_reason}\nPnL：${money(tr.pnl)}\n持倉：${tr.hold_hours!=null?tr.hold_hours+' 小時':tr.hold_bars!=null?tr.hold_bars+' bars':'-'}\nRegime：${tr.regime}`; const tip=$('tooltip');tip.textContent=text;tip.style.display='block';tip.style.left='20px';tip.style.bottom='20px';setTimeout(()=>tip.style.display='none',7000); }
-    async function load(){ setError(''); try{ const res=await fetch(`/api/data?days=${state.days}&side=${state.side}`,{cache:'no-store'}); const payload=await res.json(); if(!res.ok) throw new Error(payload.error||`HTTP ${res.status}`); state.data=payload; render(); }catch(err){ setError(`資料讀取失敗：${err.message}`); } }
-    document.querySelectorAll('[data-days]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-days]').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.days=Number(b.dataset.days);load();})); $('side').addEventListener('change',e=>{state.side=e.target.value;load();}); $('refresh').addEventListener('click',load); window.addEventListener('resize',()=>state.data&&draw()); $('chart').addEventListener('click',e=>{const r=$('chart').getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let best=null,dist=1e9;state.hits.forEach(h=>{const d=Math.hypot(h.x-x,h.y-y);if(d<h.r&&d<dist){best=h;dist=d;}});if(best)showTrade(best.tr);}); load(); setInterval(load,60000);
+    async function load(resetView=false){ setError(''); try{ const res=await fetch(`/api/data?source=${encodeURIComponent(state.source)}&days=${state.days}&side=${state.side}`,{cache:'no-store'}); const payload=await res.json(); if(!res.ok) throw new Error(payload.error||`HTTP ${res.status}`); if(resetView) state.view=null; state.data=payload; render(); }catch(err){ setError(`資料讀取失敗：${err.message}`); } }
+    async function loadMeta(){
+      const res=await fetch('/api/meta',{cache:'no-store'}), meta=await res.json();
+      if(!res.ok) throw new Error(meta.error||`HTTP ${res.status}`);
+      const select=$('source'); select.replaceChildren();
+      meta.sources.forEach(item=>{ const option=document.createElement('option'); option.value=item.id; option.textContent=item.available?`${item.label}（${item.count}筆）`:`${item.label}（不可用）`; option.disabled=!item.available; option.title=item.error||item.path; select.appendChild(option); });
+      const preferred=meta.sources.find(item=>item.id==='live'&&item.available)||meta.sources.find(item=>item.available);
+      if(!preferred) throw new Error('找不到可用的實戰或回測交易資料');
+      state.source=preferred.id; select.value=state.source;
+    }
+    document.querySelectorAll('[data-days]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-days]').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.days=Number(b.dataset.days);load(true);}));
+    $('source').addEventListener('change',e=>{state.source=e.target.value;load(true);});
+    $('side').addEventListener('change',e=>{state.side=e.target.value;load(true);});
+    $('refresh').addEventListener('click',()=>load(false)); $('zoomIn').addEventListener('click',()=>zoomAt(.7)); $('zoomOut').addEventListener('click',()=>zoomAt(1.4)); $('resetZoom').addEventListener('click',resetView);
+    window.addEventListener('resize',()=>state.data&&draw());
+    const canvas=$('chart'), pointers=new Map();
+    canvas.addEventListener('wheel',event=>{event.preventDefault(); const point=canvasPoint(event), chart=state.chart; if(!chart||point.x<chart.pad.l||point.x>chart.pad.l+chart.w)return; zoomAt(event.deltaY<0?.8:1.25,(point.x-chart.pad.l)/chart.w);},{passive:false});
+    canvas.addEventListener('pointerdown',event=>{canvas.setPointerCapture(event.pointerId);pointers.set(event.pointerId,{x:event.clientX,y:event.clientY}); if(pointers.size===1){const point=canvasPoint(event), chart=state.chart, range=viewRange(); state.gesture={type:'pan',startX:event.clientX,baseLeft:range.left,baseRight:range.right,chartWidth:chart?.w||1,moved:false};}else if(pointers.size===2){const values=[...pointers.values()];const midX=(values[0].x+values[1].x)/2;const point=canvasPoint({clientX:midX,clientY:(values[0].y+values[1].y)/2}),chart=state.chart,range=viewRange();state.gesture={type:'pinch',startDistance:Math.hypot(values[0].x-values[1].x,values[0].y-values[1].y),centerRatio:chart?Math.max(0,Math.min(1,(point.x-chart.pad.l)/chart.w)):.5,baseLeft:range.left,baseRight:range.right};}});
+    canvas.addEventListener('pointermove',event=>{if(!pointers.has(event.pointerId))return;pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});const gesture=state.gesture;if(!gesture)return;if(pointers.size>=2&&gesture.type==='pinch'){const values=[...pointers.values()],distance=Math.max(1,Math.hypot(values[0].x-values[1].x,values[0].y-values[1].y)),factor=gesture.startDistance/distance,span=gesture.baseRight-gesture.baseLeft,center=gesture.baseLeft+span*gesture.centerRatio,nextSpan=span*factor;gesture.moved=Math.abs(factor-1)>.02;setView(center-nextSpan*gesture.centerRatio,center+nextSpan*(1-gesture.centerRatio));return;}if(gesture.type==='pan'){const dx=event.clientX-gesture.startX;if(Math.abs(dx)>4)gesture.moved=true;const delta=-dx/gesture.chartWidth*(gesture.baseRight-gesture.baseLeft);setView(gesture.baseLeft+delta,gesture.baseRight+delta);}});
+    canvas.addEventListener('pointerup',event=>{pointers.delete(event.pointerId);if(state.gesture?.moved)state.dragged=true;if(pointers.size===0)state.gesture=null;}); canvas.addEventListener('pointercancel',event=>{pointers.delete(event.pointerId);if(pointers.size===0)state.gesture=null;});
+    canvas.addEventListener('dblclick',resetView); canvas.addEventListener('click',e=>{if(state.dragged){state.dragged=false;return;}const point=canvasPoint(e);let best=null,dist=1e9;state.hits.forEach(h=>{const d=Math.hypot(h.x-point.x,h.y-point.y);if(d<h.r&&d<dist){best=h;dist=d;}});if(best)showTrade(best.tr);});
+    (async()=>{try{await loadMeta();await load(true);}catch(err){setError(`資料讀取失敗：${err.message}`);}})(); setInterval(()=>load(false),60000);
   </script>
 </body>
 </html>
