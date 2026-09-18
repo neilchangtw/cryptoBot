@@ -36,11 +36,17 @@
     .analysis-card canvas { height:220px; background:transparent; }
     .analysis-card.wide canvas { height:390px; }
     .chart-summary { color:var(--muted); font-size:12px; line-height:1.7; margin-top:4px; min-height:20px; }
+    .metric-guide { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:8px; }
+    .metric-guide > div { background:#101e33; border-left:3px solid var(--line); border-radius:4px; padding:7px 9px; min-width:0; }
+    .metric-guide .guide-mfe { border-left-color:var(--green); }
+    .metric-guide .guide-mae { border-left-color:var(--red); }
+    .metric-guide b { display:block; font-size:12px; font-weight:500; margin-bottom:2px; }
+    .metric-guide span { color:var(--muted); font-size:12px; line-height:1.6; }
     .gk-legend { display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
     .gk-legend .gk-l { color:var(--green); } .gk-legend .gk-s { color:var(--orange); }
     .analysis-note { margin-top:8px; color:var(--muted); font-size:12px; }
     @media (max-width:900px) { .grid { grid-template-columns:1fr; } .chart-wrap { height:52vh; } .analysis-card.wide canvas { height:380px; } }
-    @media (max-width:600px) { header { padding:14px; } main { padding:10px; } h1 { font-size:18px; } .stats { grid-template-columns:repeat(2,1fr); } .analysis-grid { grid-template-columns:1fr; } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary { font-size:11px; line-height:1.6; } button,select { padding:6px 8px; font-size:12px; } }
+    @media (max-width:600px) { header { padding:14px; } main { padding:10px; } h1 { font-size:18px; } .stats { grid-template-columns:repeat(2,1fr); } .analysis-grid { grid-template-columns:1fr; } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary { font-size:11px; line-height:1.6; } .metric-guide { grid-template-columns:1fr; } .metric-guide span { font-size:11px; } button,select { padding:6px 8px; font-size:12px; } }
   </style>
 </head>
 <body>
@@ -69,7 +75,7 @@
       <h2>績效與策略分析</h2>
       <div id="analysisNote" class="analysis-note">讀取中...</div>
       <div class="analysis-grid" style="margin-top:10px">
-        <div class="analysis-card wide"><h3>累積 PnL × 交易風險 × 進場 GK</h3><canvas id="riskPnlChart" role="img" aria-label="累積損益、每筆交易 MAE MFE 與進場 GK 百分位對照圖"></canvas><div id="equitySummary" class="chart-summary"></div><div class="chart-summary">判讀順序：累積 PnL 看結果、MAE／MFE 看持倉過程、GK 點越低代表壓縮越強。虛線是 L 25%／S 35% 進場門檻；點擊線柱或圓點可查看該筆交易。</div></div>
+        <div class="analysis-card wide"><h3>累積 PnL × 交易風險 × 進場 GK</h3><canvas id="riskPnlChart" role="img" aria-label="累積損益、每筆交易 MAE MFE 與進場 GK 百分位對照圖"></canvas><div id="equitySummary" class="chart-summary"></div><div class="chart-summary">判讀順序：累積 PnL 看結果、MAE／MFE 看持倉過程、GK 點越低代表壓縮越強。虛線是 L 25%／S 35% 進場門檻；點擊線柱或圓點可查看該筆交易。</div><div class="metric-guide" aria-label="MAE與MFE說明"><div class="guide-mfe"><b class="profit">MFE ↑ 有利波動</b><span>持倉期間價格最有利曾走到的幅度。越高，代表曾有更多獲利空間。</span></div><div class="guide-mae"><b class="loss">MAE ↓ 不利波動</b><span>持倉期間價格最不利曾走到的幅度。越深，代表曾承受更大逆風。</span></div><div><b>交易員判讀</b><span>MFE 高但實現 PnL 低，常見於獲利回吐；MAE 深但最後獲利，表示曾承受逆風。兩者是價格波動百分比，最終 PnL 另受出場價格、手續費與滑價影響。</span></div></div></div>
         <div class="analysis-card"><h3>月度 PnL（按平倉月份）</h3><canvas id="monthlyChart" role="img" aria-label="按平倉月份的月度損益圖"></canvas><div id="monthlySummary" class="chart-summary"></div></div>
         <div class="analysis-card"><h3>方向勝率</h3><canvas id="sideChart" role="img" aria-label="Long與Short勝率"></canvas></div>
         <div class="analysis-card"><h3>出場原因 PnL</h3><canvas id="reasonChart" role="img" aria-label="各出場原因損益"></canvas></div>
