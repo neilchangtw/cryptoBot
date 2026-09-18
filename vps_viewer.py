@@ -42,6 +42,8 @@ HTML_PATH = ROOT / "vps_viewer.html"
 LOCAL_KLINE_PATH = ROOT / "data" / "ETHUSDT_1h_latest730d.csv"
 SHARED_KLINE_PATH = ROOT / "cache" / "ETHUSDT_1h.csv"
 DEFAULT_BACKTEST_PATH = ROOT / "data" / "backtest_trades.txt"
+DEFAULT_BACKTEST_SNAPSHOT_PATH = ROOT / "data" / "backtest_bar_snapshots.csv"
+DEFAULT_BACKTEST_LIFECYCLE_PATH = ROOT / "data" / "backtest_position_lifecycle.csv"
 BINANCE_KLINES_URL = "https://fapi.binance.com/fapi/v1/klines"
 KLINE_TTL_SECONDS = 55
 MAX_KLINES = 1000
@@ -55,6 +57,14 @@ def _number(value, default=None):
         return float(str(value).replace(",", "").strip())
     except (TypeError, ValueError):
         return default
+
+
+def _first_number(row: dict, *names):
+    for name in names:
+        value = _number(row.get(name), None)
+        if value is not None:
+            return value
+    return None
 
 
 def _int(value, default=None):
@@ -171,6 +181,12 @@ def _trade_row(raw: dict, index: int) -> dict | None:
         "hold_hours": _number(raw.get("hold_hours"), None),
         "pnl": pnl,
         "pnl_pct": _number(raw.get("net_pnl_pct"), None),
+        "mae_pct": _first_number(raw, "max_adverse_excursion_pct", "mae_pct"),
+        "mfe_pct": _first_number(raw, "max_favorable_excursion_pct", "mfe_pct"),
+        "gk_pctile": _first_number(raw, "gk_pctile_at_entry", "gk_pctile"),
+        "gk_pctile_s": _first_number(raw, "gk_pctile_s_at_entry"),
+        "gk_ratio": _first_number(raw, "gk_ratio_at_entry", "gk_ratio"),
+        "breakout_strength_pct": _first_number(raw, "breakout_strength_pct"),
         "regime": str(raw.get("entry_regime") or "NA").strip(),
         "closed": exit_time is not None and pnl is not None,
     }
@@ -219,6 +235,12 @@ def _backtest_text_rows(path: Path) -> list[dict]:
             "hold_hours": _number(raw.get("hold"), None),
             "pnl": _number(raw.get("pnl"), None),
             "pnl_pct": None,
+            "mae_pct": None,
+            "mfe_pct": None,
+            "gk_pctile": None,
+            "gk_pctile_s": None,
+            "gk_ratio": None,
+            "breakout_strength_pct": None,
             "regime": str(raw.get("regime") or "NA").strip(),
             "closed": exit_time is not None and raw.get("pnl") is not None,
         })
@@ -306,6 +328,31 @@ class DataStore:
     @staticmethod
     def source_label(source):
         return {"live": "實戰", "backtest": "回測"}.get(source, source)
+
+    def artifact_path(self, source, artifact):
+        if source == "live":
+            return LIVE_DIR / artifact
+        if source != "backtest":
+            raise ValueError("資料來源只能是 live 或 backtest")
+        configured = os.environ.get({
+            "bar_snapshots.csv": "VIEWER_BACKTEST_SNAPSHOTS_PATH",
+            "position_lifecycle.csv": "VIEWER_BACKTEST_LIFECYCLE_PATH",
+        }.get(artifact, ""))
+        if configured:
+            return Path(configured).expanduser().resolve()
+        return {
+            "bar_snapshots.csv": DEFAULT_BACKTEST_SNAPSHOT_PATH,
+            "position_lifecycle.csv": DEFAULT_BACKTEST_LIFECYCLE_PATH,
+        }.get(artifact, ROOT / "data" / artifact)
+
+    def read_artifact(self, source, artifact):
+        path = self.artifact_path(source, artifact)
+        if not path.is_file():
+            return [], None
+        rows, error = _read_csv(path)
+        if error:
+            return [], str(error)
+        return rows, None
 
     def trades(self, source="live"):
         path = self.source_path(source)
@@ -395,6 +442,29 @@ class DataStore:
             self._last_kline_error = errors[-1] if errors else None
         return rows
 
+    def selection(self, source="live", days=30, side="ALL"):
+        candles = self.klines(source)
+        if not candles:
+            raise OSError("沒有 K 線資料")
+        days = max(1, min(int(days), 730))
+        latest = datetime.fromtimestamp(candles[-1]["time_ms"] / 1000, timezone.utc)
+        start = latest - timedelta(days=days)
+        selected_candles = [
+            row for row in candles
+            if datetime.fromtimestamp(row["time_ms"] / 1000, timezone.utc) >= start
+        ]
+
+        trades = self.trades(source)
+        selected_trades = []
+        for row in trades:
+            if side != "ALL" and row["side"] != side:
+                continue
+            entry_ms = _parse_datetime(row["entry_time_utc"])
+            exit_ms = _parse_datetime(row["exit_time_utc"])
+            if (entry_ms and entry_ms >= start) or (exit_ms and exit_ms >= start):
+                selected_trades.append(row)
+        return selected_candles, selected_trades, start
+
     def state(self):
         payload, error = _read_json(STATE_PATH)
         if error:
@@ -455,26 +525,7 @@ class DataStore:
         return {"sources": sources, "timezone": "Asia/Taipei"}
 
     def data(self, source="live", days=30, side="ALL"):
-        candles = self.klines(source)
-        if not candles:
-            raise OSError("沒有 K 線資料")
-        days = max(1, min(int(days), 730))
-        latest = datetime.fromtimestamp(candles[-1]["time_ms"] / 1000, timezone.utc)
-        start = latest - timedelta(days=days)
-        selected_candles = [
-            row for row in candles
-            if datetime.fromtimestamp(row["time_ms"] / 1000, timezone.utc) >= start
-        ]
-
-        trades = self.trades(source)
-        selected_trades = []
-        for row in trades:
-            if side != "ALL" and row["side"] != side:
-                continue
-            entry_ms = _parse_datetime(row["entry_time_utc"])
-            exit_ms = _parse_datetime(row["exit_time_utc"])
-            if (entry_ms and entry_ms >= start) or (exit_ms and exit_ms >= start):
-                selected_trades.append(row)
+        selected_candles, selected_trades, _ = self.selection(source, days, side)
 
         closed = [row for row in selected_trades if row["closed"]]
         pnl_values = [row["pnl"] for row in closed if row["pnl"] is not None]
@@ -511,6 +562,209 @@ class DataStore:
                 "trades": str(self.source_path(source)),
                 "state": str(STATE_PATH),
                 "kline": "本機 730 天快取（回測）或 Binance Futures 公開 API（實戰）",
+            },
+        }
+
+    def analysis(self, source="live", days=30, side="ALL"):
+        _, selected_trades, start = self.selection(source, days, side)
+        closed = [row for row in selected_trades if row["closed"] and row["pnl"] is not None]
+        ordered = sorted(
+            closed,
+            key=lambda row: row.get("exit_time_utc") or row.get("entry_time_utc") or "",
+        )
+        pnls = [float(row["pnl"]) for row in closed]
+        wins = [value for value in pnls if value > 0]
+        losses = [value for value in pnls if value < 0]
+        gross_profit = sum(wins)
+        gross_loss = abs(sum(losses))
+        cumulative = 0.0
+        peak = 0.0
+        max_drawdown = 0.0
+        equity = []
+        for row in ordered:
+            cumulative += float(row["pnl"])
+            peak = max(peak, cumulative)
+            max_drawdown = max(max_drawdown, peak - cumulative)
+            equity.append({
+                "time_utc": row.get("exit_time_utc") or row.get("entry_time_utc"),
+                "time_display": row.get("exit_time_display") or row.get("entry_time_display"),
+                "number": row.get("number"),
+                "pnl": float(row["pnl"]),
+                "cumulative_pnl": round(cumulative, 6),
+            })
+
+        def summary(rows):
+            values = [float(row["pnl"]) for row in rows if row.get("pnl") is not None]
+            positive = [value for value in values if value > 0]
+            negative = [value for value in values if value < 0]
+            return {
+                "trades": len(values),
+                "wins": len(positive),
+                "losses": len(negative),
+                "breakeven": len(values) - len(positive) - len(negative),
+                "win_rate": len(positive) / len(values) * 100 if values else 0.0,
+                "pnl": round(sum(values), 6),
+                "avg_pnl": round(sum(values) / len(values), 6) if values else 0.0,
+                "avg_win": round(sum(positive) / len(positive), 6) if positive else 0.0,
+                "avg_loss": round(sum(negative) / len(negative), 6) if negative else 0.0,
+            }
+
+        def grouped(rows, key_fn):
+            groups = {}
+            for row in rows:
+                key = str(key_fn(row) or "NA").strip() or "NA"
+                groups.setdefault(key, []).append(row)
+            result = []
+            for key, group_rows in groups.items():
+                item = summary(group_rows)
+                item["key"] = key
+                item["label"] = key
+                result.append(item)
+            return sorted(result, key=lambda item: item["pnl"], reverse=True)
+
+        monthly_groups = {}
+        for row in ordered:
+            stamp = row.get("exit_time_display") or row.get("entry_time_display") or "NA"
+            monthly_groups.setdefault(str(stamp)[:7], []).append(row)
+        monthly = []
+        for period, rows in sorted(monthly_groups.items()):
+            item = summary(rows)
+            item["period"] = period
+            monthly.append(item)
+
+        hold_bins = (("0-3h", 0, 3), ("4-7h", 4, 7), ("8-11h", 8, 11), ("12h+", 12, None))
+        hold_distribution = []
+        for label, lower, upper in hold_bins:
+            group_rows = []
+            for row in closed:
+                hold = row.get("hold_hours")
+                if hold is None:
+                    hold = row.get("hold_bars")
+                if hold is None:
+                    continue
+                if float(hold) >= lower and (upper is None or float(hold) <= upper):
+                    group_rows.append(row)
+            item = summary(group_rows)
+            item.update({"key": label, "label": label})
+            hold_distribution.append(item)
+
+        max_win_streak = max_loss_streak = current_streak = 0
+        current_kind = None
+        running = 0
+        for row in ordered:
+            kind = "W" if float(row["pnl"]) > 0 else "L" if float(row["pnl"]) < 0 else "B"
+            if kind == current_kind:
+                running += 1
+            else:
+                current_kind, running = kind, 1
+            if kind == "W":
+                max_win_streak = max(max_win_streak, running)
+            if kind == "L":
+                max_loss_streak = max(max_loss_streak, running)
+        if current_kind == "B":
+            current_streak = 0
+        else:
+            current_streak = running if ordered else 0
+
+        snapshot_rows, snapshot_error = self.read_artifact(source, "bar_snapshots.csv")
+        lifecycle_rows, lifecycle_error = self.read_artifact(source, "position_lifecycle.csv")
+        snapshot_selected = []
+        for raw in snapshot_rows:
+            stamp = _parse_datetime(raw.get("bar_time_utc8"))
+            if stamp and stamp >= start:
+                snapshot_selected.append(raw)
+        snapshot_selected.sort(key=lambda row: row.get("bar_time_utc8") or "")
+        gk_series = []
+        breakout_counts = {"Long": 0, "Short": 0}
+        for raw in snapshot_selected:
+            gk_l = _number(raw.get("gk_pctile"), None)
+            gk_s = _number(raw.get("gk_pctile_s"), None)
+            if gk_l is not None or gk_s is not None:
+                gk_series.append({
+                    "time_display": _display_time(_parse_datetime(raw.get("bar_time_utc8"))),
+                    "long": gk_l,
+                    "short": gk_s,
+                })
+            if str(raw.get("breakout_long", "")).lower() in {"true", "1", "yes"}:
+                breakout_counts["Long"] += 1
+            if str(raw.get("breakout_short", "")).lower() in {"true", "1", "yes"}:
+                breakout_counts["Short"] += 1
+        if len(gk_series) > 1000:
+            step = max(1, len(gk_series) // 1000)
+            gk_series = gk_series[::step]
+
+        selected_ids = {str(row.get("id")) for row in selected_trades}
+        lifecycle_by_bar = {}
+        for raw in lifecycle_rows:
+            if selected_ids and str(raw.get("trade_id")) not in selected_ids:
+                continue
+            stamp = _parse_datetime(raw.get("bar_time_utc8"))
+            if stamp is None or stamp < start:
+                continue
+            bar = _int(raw.get("lifecycle_bar"), None)
+            pnl_pct = _number(raw.get("unrealized_pnl_pct"), None)
+            if bar is None or pnl_pct is None:
+                continue
+            lifecycle_by_bar.setdefault(bar, []).append(pnl_pct)
+        lifecycle_series = [
+            {"bar": bar, "avg_unrealized_pnl_pct": round(sum(values) / len(values), 6), "observations": len(values)}
+            for bar, values in sorted(lifecycle_by_bar.items())
+        ]
+
+        mae_mfe = [
+            {
+                "number": row.get("number"),
+                "side": row.get("side"),
+                "mae_pct": row.get("mae_pct"),
+                "mfe_pct": row.get("mfe_pct"),
+                "pnl": row.get("pnl"),
+            }
+            for row in closed
+            if row.get("mae_pct") is not None and row.get("mfe_pct") is not None
+        ]
+
+        return {
+            "source": source,
+            "source_label": self.source_label(source),
+            "summary": {
+                **summary(closed),
+                "profit_factor": round(gross_profit / gross_loss, 6) if gross_loss else (999.0 if gross_profit else 0.0),
+                "max_drawdown": round(max_drawdown, 6),
+                "best_trade": max(pnls) if pnls else 0.0,
+                "worst_trade": min(pnls) if pnls else 0.0,
+                "avg_hold_hours": round(sum(float(row.get("hold_hours") or 0) for row in closed) / len(closed), 6) if closed else 0.0,
+            },
+            "equity": equity,
+            "monthly": monthly,
+            "by_side": grouped(closed, lambda row: "Long" if row.get("side") == "L" else "Short"),
+            "by_exit_reason": grouped(closed, lambda row: row.get("exit_reason")),
+            "by_regime": grouped(closed, lambda row: row.get("regime")),
+            "hold_distribution": hold_distribution,
+            "streaks": {
+                "max_win": max_win_streak,
+                "max_loss": max_loss_streak,
+                "current_kind": current_kind,
+                "current_length": current_streak,
+            },
+            "mae_mfe": mae_mfe,
+            "evidence": {
+                "bar_snapshots": {
+                    "available": bool(snapshot_rows) and snapshot_error is None,
+                    "rows": len(snapshot_rows),
+                    "error": snapshot_error,
+                    "gk_series": gk_series,
+                    "breakout_counts": breakout_counts,
+                },
+                "position_lifecycle": {
+                    "available": bool(lifecycle_rows) and lifecycle_error is None,
+                    "rows": len(lifecycle_rows),
+                    "error": lifecycle_error,
+                    "series": lifecycle_series,
+                },
+                "tp_safenet_maxhold_lines": {
+                    "available": False,
+                    "reason": "目前紀錄沒有逐根保存可驗證的 TP／SafeNet／MaxHold 價格線",
+                },
             },
         }
 
@@ -591,6 +845,17 @@ def make_handler(store: DataStore):
                     if side not in {"ALL", "L", "S"}:
                         raise ValueError("方向只能是 ALL、L 或 S")
                     self._json(store.data(source=source, days=days, side=side))
+                    return
+                if parsed.path == "/api/analysis":
+                    query = parse_qs(parsed.query)
+                    source = query.get("source", ["live"])[0].lower()
+                    if source not in {"live", "backtest"}:
+                        raise ValueError("資料來源只能是 live 或 backtest")
+                    days = query.get("days", ["30"])[0]
+                    side = query.get("side", ["ALL"])[0].upper()
+                    if side not in {"ALL", "L", "S"}:
+                        raise ValueError("方向只能是 ALL、L 或 S")
+                    self._json(store.analysis(source=source, days=days, side=side))
                     return
                 self.send_error(404)
             except (OSError, ValueError, KeyError, TypeError) as exc:
