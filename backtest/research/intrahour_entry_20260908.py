@@ -37,7 +37,10 @@ def simulator(engine):
         nonlocal src
         assert src.count(a)==1,a
         src=src.replace(a,b)
-    patch('realistic=False, slip_bps=0.0, margin_schedule=None):','realistic=False, slip_bps=0.0, margin_schedule=None, gate=None):')
+    patch('realistic=False, slip_bps=0.0, margin_schedule=None,\n'
+          '                          extra_cost=0.0):',
+          'realistic=False, slip_bps=0.0, margin_schedule=None,\n'
+          '                          extra_cost=0.0, gate=None):')
     patch('and brk_up[i]):',"and brk_up[i] and (gate is None or gate(i,'L'))):")
     patch('and brk_dn[i]):',"and brk_dn[i] and (gate is None or gate(i,'S'))):")
     for pos in ['lp','sp']:

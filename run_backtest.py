@@ -11,6 +11,7 @@
     .venv/bin/python run_backtest.py --end 2026-05-31         # 對齊某個結算日
     .venv/bin/python run_backtest.py --refresh                # 先抓最新 K 線再跑
     .venv/bin/python run_backtest.py --symbol ETHUSDT
+    .venv/bin/python run_backtest.py --extra-cost 0           # 還原未加執行成本緩衝的版本
     .venv/bin/python run_backtest.py --live-replay 實戰ALL.txt \
         --compare-backtest 回測ALL.txt -t                    # 實戰風控重播與明細比對
 """
@@ -174,6 +175,8 @@ def main():
                     help="每次市價成交逆向滑價 bp（1bp=0.01%%），預設 0；高波動可設 2~5 壓測")
     ap.add_argument("--flat", action="store_true",
                     help="忽略保證金歷史，全程 200U/$4,000（= 歷史研究基準數字）")
+    ap.add_argument("--extra-cost", type=float, default=5.0, metavar="USD",
+                    help="每筆額外執行成本（已納入日/月虧與連虧風控）；預設 5，設 0 還原原始回測")
     ap.add_argument("--live-replay", metavar="PATH",
                     help="重播實戰 CSV/TXT，重建日/月風控與連虧冷卻")
     ap.add_argument("--compare-backtest", metavar="PATH",
@@ -181,6 +184,8 @@ def main():
     args = ap.parse_args()
     if args.compare_backtest and not args.live_replay:
         ap.error("--compare-backtest 必須搭配 --live-replay")
+    if args.extra_cost < 0:
+        ap.error("--extra-cost 不可為負數")
     if args.live_replay:
         return _run_live_replay(args)
     realistic = not args.ideal
@@ -262,7 +267,8 @@ def main():
         return
     trades = eng.simulate_v14_detailed(ind, datetimes, start_bar=start_bar,
                                        realistic=realistic, slip_bps=args.slip,
-                                       margin_schedule=schedule)
+                                       margin_schedule=schedule,
+                                       extra_cost=args.extra_cost)
     if args.end:
         trades = [t for t in trades if str(t["entry_dt"]) <= args.end + " 23:59:59"]
 
@@ -282,6 +288,7 @@ def main():
     heading = [
         f" 回測 {args.symbol}  V14+R + V25-D（策略邏輯 = 線上實盤）",
         f" 成交假設：{mode_str}",
+        f" 額外成本：每筆 -${args.extra_cost:.2f}（已納入日/月虧與連虧風控）",
         f" 保證金　：{sched_str}",
         f" 指定範圍：{dr_start[:16]} ~ {dr_end[:16]}",
         f" 實際資料：{effective_start:%Y-%m-%d %H:%M} ~ {effective_end:%Y-%m-%d %H:%M}"

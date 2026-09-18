@@ -269,7 +269,7 @@ cryptoBot/
 - **舊 Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗（**已封存，改用終端機 + Telegram**）
 - **顯示慣例**：所有終端機/Telegram 輸出的出場原因、進場趨勢、方向一律「中文 (英文)」格式，統一由 `labels.py` 產生（如 `止盈 (TP)`、`偏多 (MILD_UP)`）；交易列表時間顯示為**實際成交時刻**（K 棒收盤 = 開盤+1h，對齊幣安後台）
 - **每小時心跳**：標題顯示累計運轉天數；有持倉時額外顯示該倉的出場條件（止盈/安全網價位、最長持倉剩餘、浮盈回吐狀態）；固定顯示「💚 策略健康度 xx%」（V29 Edge 衰退警報，出場時更新，黃/紅燈轉換另發告警）；自檢正常時收斂一行「✅ 正常（無告警・資料新鮮・倉位同步・停損掛單在）」，異常才逐項展開（LIVE 每小時各一次唯讀 API 驗證倉位同步與 SafeNet 掛單存在）
-- **回測成交假設**：`run_backtest.py` 預設「貼近實盤」（TP/BE 用市價收盤成交，非理論價；SafeNet 維持真實 stop），`--ideal` 可切回理論價對照、`--slip` 加滑價壓測；引擎 `simulate_v14_detailed(realistic=,slip_bps=)`，研究腳本預設仍理想化
+- **回測成交假設**：`run_backtest.py` 預設「貼近實盤」（TP/BE 用市價收盤成交，非理論價；SafeNet 維持真實 stop），並在既有 FEE 外每筆額外扣 **$5 執行成本緩衝**；該成本會納入日虧、月虧與連虧冷卻。`--extra-cost 0` 可還原原始回測，`--ideal` 可切回理論價對照、`--slip` 加滑價壓測；引擎 `simulate_v14_detailed(realistic=,slip_bps=,extra_cost=)`，研究腳本預設仍為 0
 - **回測保證金歷史（2026-07-03 起）**：`run_backtest.py` 預設帶 `MARGIN_SCHEDULE`（檔內常數：200U → 300U@2026-07-03 → 500U@2026-08-01，之後調保證金就往表上加一行），每筆名目/FEE/熔斷線依進場日等比（= 線上動態風控）；`--flat` 切回全程 200U 研究基準（= V14~V28 文件數字）；明細表新增 Mgn 欄；引擎 `simulate_v14_detailed(margin_schedule=)`，未傳 = 原行為，研究腳本不受影響
 - **多實例（多人使用，方案 A）**：一份程式碼 + 每人一個實例（各自 Binance key / Telegram bot / 資料 / 狀態）。靠環境變數 `INSTANCE_DIR` 分流 `data/`·`logs/`·`eth_state*.json`（`paths.py`，未設則沿用程式目錄=單人原行為）。部署用 systemd template `cryptobot@<名字>` + `instances/<名字>/.env`，步驟見 [deploy/cheatsheet.txt](deploy/cheatsheet.txt)「多實例」段。每則 Telegram 訊息開頭標「👤 實例名」（`INSTANCE_NAME`，未設則用目錄名；單人為空不加），讓多人各自確認查到自己的。注意每人需各自一支 Telegram bot（同 token 兩進程會搶更新）。**共用 K 線**：多實例時每小時只有一個實例真的抓 Binance、其他讀共用檔（`data_feed.py`，flock 去重，快取在 `cache/`，所有實例共用；fail-open 退回各自抓；單人維持原樣）
 

@@ -177,7 +177,8 @@ def compute_indicators(df):
 
 
 def simulate_v14_detailed(ind, datetimes, start_bar=None,
-                          realistic=False, slip_bps=0.0, margin_schedule=None):
+                          realistic=False, slip_bps=0.0, margin_schedule=None,
+                          extra_cost=0.0):
     """Run V14 L+S simulation with full trade detail (MAE/MFE/GK pctile).
 
     Args:
@@ -198,7 +199,12 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
                      - 每筆交易名目 = 進場 bar 當時保證金 × 20（qty 進場定死，同實盤）
                      - FEE 與熔斷線（日虧/月虧）依「當下 bar」保證金等比（同線上動態風控）
                    None（預設）= 全程 200U/$4,000，與歷史研究基準完全相同。
+        extra_cost: 每筆已實現交易額外扣除的固定美元執行成本；會在日虧、月虧、
+                    連虧冷卻更新前扣除。預設 0，保留研究腳本的原始基準。
     """
+    extra_cost = float(extra_cost or 0.0)
+    if extra_cost < 0:
+        raise ValueError("extra_cost 不可為負數")
     slip = slip_bps / 10000.0
     o, h, l, c = ind['o'], ind['h'], ind['l'], ind['c']
     pL, pS = ind['pctile_L'], ind['pctile_S']
@@ -343,7 +349,8 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
 
             if ex_price > 0:
                 pnl_pct = (ex_price - ep) / ep
-                pnl = pnl_pct * lp_ntl - lp_fee
+                gross_pnl = pnl_pct * lp_ntl
+                pnl = gross_pnl - lp_fee - extra_cost
                 trades.append({
                     'side': 'L',
                     'margin': round(lp_ntl / 20.0, 2),
@@ -354,6 +361,9 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
                     'entry_price': round(ep, 2),
                     'exit_price': round(ex_price, 2),
                     'pnl_pct': round(pnl_pct * 100, 3),
+                    'gross_pnl_usd': round(gross_pnl, 2),
+                    'fee_usd': round(lp_fee, 2),
+                    'extra_cost_usd': round(extra_cost, 2),
                     'pnl_usd': round(pnl, 2),
                     'exit_reason': ex_reason,
                     'bars_held': bh,
@@ -425,7 +435,8 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
 
             if ex_price > 0:
                 pnl_pct = (ep - ex_price) / ep
-                pnl = pnl_pct * sp_ntl - sp_fee
+                gross_pnl = pnl_pct * sp_ntl
+                pnl = gross_pnl - sp_fee - extra_cost
                 trades.append({
                     'side': 'S',
                     'margin': round(sp_ntl / 20.0, 2),
@@ -436,6 +447,9 @@ def simulate_v14_detailed(ind, datetimes, start_bar=None,
                     'entry_price': round(ep, 2),
                     'exit_price': round(ex_price, 2),
                     'pnl_pct': round(pnl_pct * 100, 3),
+                    'gross_pnl_usd': round(gross_pnl, 2),
+                    'fee_usd': round(sp_fee, 2),
+                    'extra_cost_usd': round(extra_cost, 2),
                     'pnl_usd': round(pnl, 2),
                     'exit_reason': ex_reason,
                     'bars_held': bh,
