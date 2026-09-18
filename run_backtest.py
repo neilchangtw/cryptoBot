@@ -11,11 +11,15 @@
     .venv/bin/python run_backtest.py --end 2026-05-31         # 對齊某個結算日
     .venv/bin/python run_backtest.py --refresh                # 先抓最新 K 線再跑
     .venv/bin/python run_backtest.py --symbol ETHUSDT
+    .venv/bin/python run_backtest.py --live-replay 實戰ALL.txt \
+        --compare-backtest 回測ALL.txt -t                    # 實戰風控重播與明細比對
 """
 import os
 import sys
 import argparse
 import importlib.util
+from pathlib import Path
+from collections import defaultdict
 
 import pandas as pd
 
@@ -50,6 +54,113 @@ def _load_engine():
     return mod
 
 
+def _load_replay_rows(path_text):
+    """讀取實戰 CSV 或交易列表 TXT；時間統一為 UTC+8 實際成交時間。"""
+    from trade_viewer import load_trades
+
+    path = Path(path_text).expanduser()
+    if not path.is_file():
+        raise ValueError(f"找不到實戰重播檔案：{path}")
+    return load_trades(path)
+
+
+def _fmt_replay_time(dt):
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def _run_live_replay(args):
+    from live_replay import (
+        compare_trade_entries,
+        margin_for_time,
+        parse_replay_time,
+        replay_trades,
+        state_at,
+    )
+
+    try:
+        live_rows = _load_replay_rows(args.live_replay)
+        result = replay_trades(live_rows, MARGIN_SCHEDULE)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"❌ 實戰重播失敗：{exc}")
+        return 2
+
+    print("═" * 92)
+    print(" 實戰重播模式（歷史風控狀態稽核，不是純 K 棒預測回測）")
+    print(f" 實戰來源：{Path(args.live_replay).resolve()}")
+    print(f" 交易範圍：{_fmt_replay_time(result.first_entry)} ~ {_fmt_replay_time(result.last_exit)}（UTC+8 實際成交時間）")
+    print(f" 交易數量：{len(result.rows)}")
+
+    if args.trades:
+        print("\n 進場風控稽核")
+        print(" #   Dir Entry (UTC+8)      PnL($)   月L/月S(進場前)       連虧  判定")
+        print("-" * 92)
+        for audit in result.entry_audits:
+            row = audit["row"]
+            monthly = audit["monthly_pnl"]
+            verdict = "✅ 允許" if audit["risk_allowed"] else "⚠️ " + "；".join(audit["risk_reasons"])
+            print(
+                f"{str(row['number']):>3} {row['side']:<3} {row['entry_time']:<16} "
+                f"{float(row['pnl']):>8.2f} "
+                f"{monthly.get('L', 0.0):>7.2f}/{monthly.get('S', 0.0):>7.2f} "
+                f"{audit['consec_losses']:>5}  {verdict}"
+            )
+
+    # 依實際出場月份統計，因為 executor 是在平倉時更新日/月風控帳本。
+    monthly = defaultdict(float)
+    for row in result.rows:
+        monthly[parse_replay_time(row["exit_time"]).strftime("%Y-%m")] += float(row["pnl"])
+    print("\n 風控帳本（依實際出場月份）")
+    for month in sorted(monthly):
+        print(f"   {month}：${monthly[month]:+.2f}")
+
+    state = result.state
+    last_dt = result.last_exit
+    margin = margin_for_time(last_dt, MARGIN_SCHEDULE)
+    l_cap = -75.0 * margin / 200.0
+    s_cap = -150.0 * margin / 200.0
+    cd = _fmt_replay_time(state.cooldown_until) if state.cooldown_until else "無"
+    print("\n 最後風控狀態")
+    print(f"   保證金基準：{margin:.0f}U")
+    print(f"   L 月虧：${state.monthly_pnl.get('L', 0.0):+.2f} / ${l_cap:+.2f} "
+          f"{'🔴 已阻擋' if state.monthly_pnl.get('L', 0.0) <= l_cap else '🟢 可通過'}")
+    print(f"   S 月虧：${state.monthly_pnl.get('S', 0.0):+.2f} / ${s_cap:+.2f} "
+          f"{'🔴 已阻擋' if state.monthly_pnl.get('S', 0.0) <= s_cap else '🟢 可通過'}")
+    print(f"   連虧：{state.consec_losses} 筆；冷卻至：{cd}")
+
+    if args.compare_backtest:
+        try:
+            back_rows = _load_replay_rows(args.compare_backtest)
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"❌ 回測比對失敗：{exc}")
+            return 2
+        comparison = compare_trade_entries(live_rows, back_rows)
+        print("\n 明細比對（方向＋實際進場時間）")
+        print(f"   共同比對：{len(comparison['common'])} 筆")
+        print(f"   實戰有、回測無：{len(comparison['live_only'])} 筆")
+        print(f"   回測有、實戰無：{len(comparison['backtest_only'])} 筆")
+
+        if comparison["backtest_only"]:
+            print("\n 回測多出的交易：")
+            outside_before = 0
+            for row in comparison["backtest_only"]:
+                entry_dt = parse_replay_time(row["entry_time"])
+                if entry_dt < result.first_entry:
+                    outside_before += 1
+                    continue
+                replay_state = state_at(live_rows, entry_dt, MARGIN_SCHEDULE)
+                reasons = replay_state.block_reasons(row["side"], entry_dt)
+                if reasons:
+                    reason = "；".join(reasons)
+                    print(f"   {row['side']} {row['entry_time']} PnL ${float(row['pnl']):+.2f}："
+                          f"🚫 實戰重播會阻擋（{reason}）")
+                else:
+                    print(f"   {row['side']} {row['entry_time']} PnL ${float(row['pnl']):+.2f}："
+                          "⚠️ 非風控阻擋，需再比對信號／持倉／資料")
+            if outside_before:
+                print(f"   （另有 {outside_before} 筆早於實戰檔案起始時間，未納入逐筆判定）")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="終端機回測（V14+R+V25-D，可選日期）")
     ap.add_argument("--start", default="", metavar="YYYY-MM-DD", help="開始日期（空=最早）")
@@ -60,10 +171,18 @@ def main():
     ap.add_argument("--ideal", action="store_true",
                     help="用理想化成交（TP 鎖理論價）；預設貼近實盤（TP/BE 用市價收盤成交）")
     ap.add_argument("--slip", type=float, default=0.0, metavar="BPS",
-                    help="每次市價成交逆向滑價 bp（1bp=0.01%），預設 0；高波動可設 2~5 壓測")
+                    help="每次市價成交逆向滑價 bp（1bp=0.01%%），預設 0；高波動可設 2~5 壓測")
     ap.add_argument("--flat", action="store_true",
                     help="忽略保證金歷史，全程 200U/$4,000（= 歷史研究基準數字）")
+    ap.add_argument("--live-replay", metavar="PATH",
+                    help="重播實戰 CSV/TXT，重建日/月風控與連虧冷卻")
+    ap.add_argument("--compare-backtest", metavar="PATH",
+                    help="搭配 --live-replay，比對回測明細多出的交易")
     args = ap.parse_args()
+    if args.compare_backtest and not args.live_replay:
+        ap.error("--compare-backtest 必須搭配 --live-replay")
+    if args.live_replay:
+        return _run_live_replay(args)
     realistic = not args.ideal
     schedule = None if args.flat else MARGIN_SCHEDULE
 
