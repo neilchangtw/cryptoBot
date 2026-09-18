@@ -586,11 +586,16 @@ class DataStore:
             peak = max(peak, cumulative)
             max_drawdown = max(max_drawdown, peak - cumulative)
             equity.append({
+                "id": row.get("id"),
                 "time_utc": row.get("exit_time_utc") or row.get("entry_time_utc"),
                 "time_display": row.get("exit_time_display") or row.get("entry_time_display"),
                 "number": row.get("number"),
+                "side": row.get("side"),
                 "pnl": float(row["pnl"]),
                 "cumulative_pnl": round(cumulative, 6),
+                "mae_pct": row.get("mae_pct"),
+                "mfe_pct": row.get("mfe_pct"),
+                "exit_reason": row.get("exit_reason"),
             })
 
         def summary(rows):
@@ -681,6 +686,7 @@ class DataStore:
             gk_s = _number(raw.get("gk_pctile_s"), None)
             if gk_l is not None or gk_s is not None:
                 gk_series.append({
+                    "time_utc": _iso(_parse_datetime(raw.get("bar_time_utc8"))),
                     "time_display": _display_time(_parse_datetime(raw.get("bar_time_utc8"))),
                     "long": gk_l,
                     "short": gk_s,
