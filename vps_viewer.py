@@ -595,6 +595,8 @@ class DataStore:
                 "cumulative_pnl": round(cumulative, 6),
                 "mae_pct": row.get("mae_pct"),
                 "mfe_pct": row.get("mfe_pct"),
+                "gk_pctile": row.get("gk_pctile"),
+                "gk_pctile_s": row.get("gk_pctile_s"),
                 "exit_reason": row.get("exit_reason"),
             })
 
