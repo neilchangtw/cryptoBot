@@ -26,6 +26,11 @@
     .status-ok { color:var(--green); } .status-warn { color:var(--orange); } .status-error, .loss { color:var(--red); } .profit { color:var(--green); }
     .section-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; flex-wrap:wrap; }
     .signal-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }
+    .signal-positions { margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--line); }
+    .signal-subhead { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+    .signal-subhead h3 { margin:0; font-size:13px; font-weight:600; }
+    .positions-inline { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px; margin-top:7px; }
+    .position-card { min-width:0; background:#0d1728; border:1px solid var(--line); border-radius:8px; padding:9px; }
     .signal-card, .risk-card { min-width:0; background:#0d1728; border:1px solid var(--line); border-radius:8px; padding:10px; }
     .signal-card.can-open { border-color:var(--green); }
     .signal-card.blocked { border-color:#41516a; }
@@ -57,7 +62,7 @@
     .analysis-card h3 { margin:0 0 6px; font-size:13px; font-weight:600; }
     .analysis-card canvas { height:220px; background:transparent; }
     .analysis-card.wide canvas { height:390px; }
-    .drawdown-card canvas { height:170px; margin-top:8px; }
+    .drawdown-card canvas { height:140px; margin-top:8px; }
     .no-trade-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
     .no-trade-side h4 { margin:4px 0 8px; font-size:13px; font-weight:500; }
     .no-trade-row { display:grid; grid-template-columns:minmax(120px,1fr) 2fr auto; gap:8px; align-items:center; margin:7px 0; font-size:12px; }
@@ -94,7 +99,7 @@
     @media (prefers-reduced-motion:reduce) { .load-status.is-loading::before { animation:none; } }
     @media (max-width:900px) { .grid { grid-template-columns:1fr; } .chart-wrap { height:52vh; } .analysis-card.wide canvas { height:380px; } }
     @media (max-width:600px) { header { padding:14px; } main { padding:10px; } h1 { font-size:18px; } .stats { grid-template-columns:repeat(2,1fr); } .analysis-grid { grid-template-columns:1fr; } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary { font-size:11px; line-height:1.6; } .metric-guide { grid-template-columns:1fr; } .metric-guide span { font-size:11px; } .load-status { width:100%; min-height:18px; } button,select { padding:6px 8px; font-size:12px; } }
-    @media (max-width:600px) { .signal-grid, .risk-grid, .no-trade-grid { grid-template-columns:1fr; } .gate-row { grid-template-columns:18px 92px minmax(0,1fr); font-size:11px; } .drawdown-card canvas { height:180px; } .trade-drawer { padding:12px; } }
+    @media (max-width:600px) { .signal-grid, .risk-grid, .no-trade-grid { grid-template-columns:1fr; } .gate-row { grid-template-columns:18px 92px minmax(0,1fr); font-size:11px; } .drawdown-card canvas { height:150px; } .trade-drawer { padding:12px; } }
   </style>
 </head>
 <body>
@@ -103,9 +108,8 @@
     <div class="sub">VPS 唯讀資料／Binance 公開 K 線 · 不提供下單或持倉修改功能 · 顯示時區 Asia/Taipei</div>
     <div class="toolbar">
       <select id="source" aria-label="資料來源"><option value="live">實戰</option><option value="backtest">回測</option></select>
-      <button data-days="7">7 天</button><button data-days="30" class="active">30 天</button><button data-days="90">90 天</button><button data-days="365">1 年</button>
+      <select id="days" aria-label="日期範圍"><option value="7">7 天</option><option value="30" selected>30 天</option><option value="90">90 天</option><option value="365">1 年</option></select>
       <select id="side"><option value="ALL">全部方向</option><option value="L">Long</option><option value="S">Short</option></select>
-      <button id="zoomIn" title="放大 K 線">＋ 放大</button><button id="zoomOut" title="縮小 K 線">－ 縮小</button><button id="resetZoom" title="顯示全部 K 線">全覽</button>
       <button id="refresh">重新整理</button><span id="updated" class="muted"></span><span id="loadStatus" class="load-status" role="status" aria-live="polite" aria-atomic="true"></span>
     </div>
   </header>
@@ -121,6 +125,10 @@
     </div>
     <section class="panel" style="margin-top:14px" aria-labelledby="signalTitle">
       <div class="section-head"><h2 id="signalTitle">即時開單條件與風控狀態</h2><span id="signalUpdated" class="muted"></span></div>
+      <div class="signal-positions">
+        <div class="signal-subhead"><h3>目前持倉</h3><span class="muted">唯讀同步</span></div>
+        <div id="positions" class="positions-inline"><div class="empty">讀取中...</div></div>
+      </div>
       <div id="signalMessage" class="analysis-note">讀取中…</div>
       <div id="signalSides" class="signal-grid"></div>
       <div id="signalRisk" class="risk-grid"></div>
@@ -147,14 +155,11 @@
         <h2>K 線與交易標記</h2>
         <div class="chart-wrap"><canvas id="chart"></canvas></div>
         <div class="legend"><span class="l">L 開倉</span><span class="s">S 開倉</span><span class="exit">平倉</span><span>標記：實際成交時間</span><span>虛線：未收盤 K 線</span></div>
-        <div class="sub" style="margin-top:7px">操作：滑鼠滾輪／按鈕縮放、拖曳平移、雙擊全覽；手機可拖曳或雙指縮放。<span id="zoomInfo"></span></div>
+        <div class="sub" style="margin-top:7px">操作：滑鼠滾輪、拖曳平移；手機可拖曳或雙指縮放。<span id="zoomInfo"></span></div>
       </section>
       <aside class="panel">
         <h2>服務與資料狀態</h2>
         <dl id="health" class="kv"><dt>讀取中</dt><dd>...</dd></dl>
-        <hr style="border-color:var(--line);border-width:1px 0 0;margin:14px 0">
-        <h2>目前持倉</h2>
-        <div id="positions" class="empty">讀取中...</div>
       </aside>
     </div>
     <section class="panel" style="margin-top:14px">
@@ -312,7 +317,7 @@
       ctx.fillStyle='#91a4bf';ctx.fillText(`${candles[0].time_display} → ${candles[candles.length-1].time_display} Asia/Taipei`,pad.l,rect.height-7);
     }
     function tradeHtml(tr){ const pnl=tr.pnl==null?'<span class="muted">進行中</span>':`<span class="${Number(tr.pnl)>=0?'profit':'loss'}">${esc(money(tr.pnl))}</span>`; return `<tr class="clickable" data-trade="${esc(tr.id)}"><td>${esc(tr.number)}</td><td>${tr.side==='L'?'Long':'Short'}</td><td>${esc(tr.entry_time_display)}</td><td>${esc(tr.exit_time_display||'-')}</td><td>${esc(tr.exit_reason)}</td><td>${pnl}</td><td>${esc(tr.hold_hours!=null?`${tr.hold_hours}h`:tr.hold_bars!=null?`${tr.hold_bars} bars`:'-')}</td><td>${esc(tr.regime)}</td></tr>`; }
-    function render(){ const d=state.data, s=d.stats||{}; $('tradeCount').textContent=s.trades??'-'; $('winRate').textContent=s.trades?`${(s.wins/s.trades*100).toFixed(1)}%`:'-'; $('pnl').textContent=money(s.pnl); $('pnl').className=Number(s.pnl)>=0?'profit':'loss'; $('positionCount').textContent=(d.positions||[]).length; $('trades').innerHTML=(d.trades||[]).slice().reverse().map(tradeHtml).join('')||'<tr><td colspan="8" class="empty">目前沒有符合條件的交易</td></tr>'; [...document.querySelectorAll('[data-trade]')].forEach(row=>row.addEventListener('click',()=>{ const tr=(d.trades||[]).find(x=>x.id===row.dataset.trade); if(tr) showTrade(tr); })); const st=d.state||{}; $('positions').innerHTML=(d.positions||[]).map(p=>`<div class="panel" style="padding:9px;margin-bottom:7px"><b class="${p.side==='L'?'profit':'status-warn'}">${p.direction}</b><dl class="kv"><dt>Trade ID</dt><dd>${esc(p.id)}</dd><dt>進場時間</dt><dd>${esc(p.entry_time_display)}</dd><dt>價格</dt><dd>${esc(p.entry_price)}</dd><dt>Regime</dt><dd>${esc(p.entry_regime)}</dd><dt>持倉 bars</dt><dd>${esc(p.hold_bars)}</dd></dl></div>`).join('')||'<div class="empty">目前沒有持倉</div>'; $('updated').textContent=`更新 ${shortTime(d.server_time_display)} Asia/Taipei`; draw(); renderHealth(st,d); }
+    function render(){ const d=state.data, s=d.stats||{}; $('tradeCount').textContent=s.trades??'-'; $('winRate').textContent=s.trades?`${(s.wins/s.trades*100).toFixed(1)}%`:'-'; $('pnl').textContent=money(s.pnl); $('pnl').className=Number(s.pnl)>=0?'profit':'loss'; $('positionCount').textContent=(d.positions||[]).length; $('trades').innerHTML=(d.trades||[]).slice().reverse().map(tradeHtml).join('')||'<tr><td colspan="8" class="empty">目前沒有符合條件的交易</td></tr>'; [...document.querySelectorAll('[data-trade]')].forEach(row=>row.addEventListener('click',()=>{ const tr=(d.trades||[]).find(x=>x.id===row.dataset.trade); if(tr) showTrade(tr); })); const st=d.state||{}; $('positions').innerHTML=(d.positions||[]).map(p=>`<div class="position-card"><b class="${p.side==='L'?'profit':'status-warn'}">${p.direction}</b><dl class="kv"><dt>Trade ID</dt><dd>${esc(p.id)}</dd><dt>進場時間</dt><dd>${esc(p.entry_time_display)}</dd><dt>價格</dt><dd>${esc(p.entry_price)}</dd><dt>Regime</dt><dd>${esc(p.entry_regime)}</dd><dt>持倉 bars</dt><dd>${esc(p.hold_bars)}</dd></dl></div>`).join('')||'<div class="empty">目前沒有持倉</div>'; $('updated').textContent=`更新 ${shortTime(d.server_time_display)} Asia/Taipei`; draw(); renderHealth(st,d); }
     function renderHealth(st,d){ const k=d.stats?.last_closed_candle, f=d.stats?.forming_candle; $('health').innerHTML=`<dt>服務</dt><dd class="status-ok">唯讀正常</dd><dt>資料模式</dt><dd>${esc(d.source_label||state.source)}</dd><dt>最後已收盤</dt><dd>${esc(k?.time_display||'-')}</dd><dt>形成中 K 線</dt><dd>${esc(f?.time_display||'無')}</dd><dt>交易資料</dt><dd>${st.available?'已讀取':d.source==='backtest'?'回測無即時持倉':'尚未找到'}</dd><dt>狀態更新</dt><dd>${esc(st.updated_at?shortTime(st.updated_at):'-')}</dd><dt>資料來源</dt><dd>${d.source==='backtest'?'本機 730 天 K 線／回測檔':'公開 K 線／實戰 CSV'}</dd>`; }
     function riskMeter(label,current,limit,display){ const max=Number(limit),value=Number(current),ratio=max>0?Math.max(0,Math.min(100,value/max*100)):0,level=ratio>=100?'danger':ratio>=75?'warn':'',labelClass=level?'risk-label-'+level:''; return `<div class="risk-meter"><div class="risk-meter-head"><span>${esc(label)}</span><b class="${labelClass}">${esc(display)}　${ratio.toFixed(0)}%</b></div><div class="risk-track" role="progressbar" aria-label="${esc(label)}" aria-valuenow="${ratio.toFixed(0)}" aria-valuemin="0" aria-valuemax="100"><div class="risk-fill ${level}" style="width:${ratio.toFixed(1)}%"></div></div></div>`; }
     function renderSignal(payload,error=''){
@@ -344,10 +349,10 @@
       if(!preferred) throw new Error('找不到可用的實戰或回測交易資料');
       state.source=preferred.id; select.value=state.source;
     }
-    document.querySelectorAll('[data-days]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-days]').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.days=Number(b.dataset.days);load(true);}));
+    $('days').addEventListener('change',e=>{state.days=Number(e.target.value);load(true);});
     $('source').addEventListener('change',e=>{state.source=e.target.value;load(true);});
     $('side').addEventListener('change',e=>{state.side=e.target.value;load(true);});
-    $('refresh').addEventListener('click',()=>load(false)); $('zoomIn').addEventListener('click',()=>zoomAt(.7)); $('zoomOut').addEventListener('click',()=>zoomAt(1.4)); $('resetZoom').addEventListener('click',resetView);
+    $('refresh').addEventListener('click',()=>load(false));
     $('drawerClose').addEventListener('click',closeTradeDrawer); $('tradeDrawerBackdrop').addEventListener('click',closeTradeDrawer); document.addEventListener('keydown',event=>{if(event.key==='Escape')closeTradeDrawer();});
     window.addEventListener('resize',()=>{if(state.data)draw();if(state.analysis)renderAnalysis(state.analysis);});
     const canvas=$('chart'), pointers=new Map();
