@@ -504,9 +504,11 @@ class DataStore:
                 "entry_time_utc": _iso(_parse_datetime(position.get("entry_time_utc8") or position.get("entry_time_utc"))),
                 "entry_time_display": _display_time(_parse_datetime(position.get("entry_time_utc8") or position.get("entry_time_utc"))),
                 "entry_price": _number(position.get("entry_price")),
+                "qty": _number(position.get("qty")),
                 "entry_regime": str(position.get("entry_regime") or "NA"),
                 "hold_bars": _int(position.get("bars_held"), None),
                 "mfe_pct": _number(position.get("running_mfe_pct"), None),
+                "mae_pct": _number(position.get("mae_pct"), None),
             })
 
         updated = _mtime(STATE_PATH)
@@ -517,6 +519,28 @@ class DataStore:
             "last_bar_time": payload.get("last_bar_time"),
             "positions": positions,
         }
+
+    @staticmethod
+    def _mark_positions(state, candles):
+        """用公開 K 線標記持倉現價與估算浮動損益，完全唯讀。"""
+        latest = candles[-1] if candles else None
+        if not latest or _number(latest.get("close"), None) is None:
+            return state
+        current_price = float(latest["close"])
+        for position in state.get("positions", []):
+            entry = _number(position.get("entry_price"), None)
+            if entry is None or entry <= 0:
+                continue
+            side = position.get("side")
+            move_pct = ((current_price - entry) / entry * 100
+                        if side == "L" else (entry - current_price) / entry * 100)
+            qty = _number(position.get("qty"), None)
+            position["current_price"] = current_price
+            position["price_time_display"] = latest.get("time_display")
+            position["price_is_closed"] = bool(latest.get("closed"))
+            position["unrealized_pnl_pct"] = move_pct
+            position["unrealized_pnl_usd"] = move_pct / 100 * entry * qty if qty else None
+        return state
 
     def signal(self):
         """呼叫既有唯讀診斷，避免 viewer 複製策略判斷。"""
@@ -606,6 +630,8 @@ class DataStore:
             "updated_at": None,
             "positions": [],
         }
+        if source == "live":
+            self._mark_positions(state, selected_candles)
         return {
             "server_time_utc": _iso(datetime.now(timezone.utc)),
             "server_time_display": _display_time(datetime.now(timezone.utc)),

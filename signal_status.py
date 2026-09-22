@@ -195,6 +195,84 @@ def build_signal_status(df, idx, st, html: bool = False) -> str:
     return text
 
 
+def _position_payload(trade_id, position, close, bar_time, bar_counter):
+    """把既有持倉狀態轉成唯讀 viewer 可用的出場資訊。"""
+    side = str(position.get("sub_strategy") or "").upper()
+    entry_price = float(position.get("entry_price") or 0)
+    if side not in {"L", "S"} or entry_price <= 0:
+        return None
+
+    regime = str(position.get("entry_regime") or "NA")
+    bars_held = int(position.get("bars_held") or max(
+        0, int(bar_counter or 0) - int(position.get("entry_bar_counter") or 0)
+    ))
+    if side == "L":
+        tp_pct = strategy.get_l_tp(regime)
+        stop_pct = strategy.L_SAFENET_PCT
+        max_hold = strategy.L_COND_REDUCED_MH if position.get("mh_reduced") else strategy.get_l_mh(regime)
+        tp_price = entry_price * (1 + tp_pct)
+        stop_price = entry_price * (1 - stop_pct)
+        current_pnl_pct = (close - entry_price) / entry_price * 100
+        distance_tp = (tp_price - close) / close * 100 if close > 0 else None
+        distance_stop = (close - stop_price) / close * 100 if close > 0 else None
+        extension_bars = strategy.L_EXT_BARS
+    else:
+        tp_pct = strategy.S_TP_PCT
+        stop_pct = strategy.S_SAFENET_PCT
+        max_hold = strategy.get_s_mh(regime)
+        tp_price = entry_price * (1 - tp_pct)
+        stop_price = entry_price * (1 + stop_pct)
+        current_pnl_pct = (entry_price - close) / entry_price * 100
+        distance_tp = (close - tp_price) / close * 100 if close > 0 else None
+        distance_stop = (stop_price - close) / close * 100 if close > 0 else None
+        extension_bars = strategy.S_EXT_BARS
+
+    qty = float(position.get("qty") or 0)
+    unrealized_pnl = current_pnl_pct / 100 * entry_price * qty if qty > 0 else None
+    extension_active = bool(position.get("extension_active"))
+    if extension_active:
+        elapsed = max(0, int(bar_counter or 0) - int(position.get("extension_start_bar") or 0))
+        hold_status = f"延長期 {min(elapsed + 1, extension_bars)}/{extension_bars} 根｜BE 價 ${entry_price:.2f}"
+        hold_remaining = max(0, extension_bars - elapsed)
+    else:
+        hold_remaining = max(0, max_hold - bars_held)
+        hold_status = f"距 MaxHold 剩 {hold_remaining} 根（約 {hold_remaining}h）"
+    try:
+        max_hold_due = (pd.to_datetime(bar_time) + pd.Timedelta(hours=hold_remaining)).strftime("%m-%d %H:%M")
+    except (TypeError, ValueError):
+        max_hold_due = None
+
+    return {
+        "id": str(trade_id),
+        "side": side,
+        "direction": "Long" if side == "L" else "Short",
+        "entry_time_display": str(position.get("entry_time_utc8") or position.get("entry_time_utc") or "")[:16],
+        "entry_price": entry_price,
+        "entry_regime": regime,
+        "hold_bars": bars_held,
+        "current_price": close,
+        "price_time_display": bar_time,
+        "price_is_closed": True,
+        "unrealized_pnl_usd": unrealized_pnl,
+        "unrealized_pnl_pct": current_pnl_pct,
+        "tp_price": tp_price,
+        "tp_pct": tp_pct * 100,
+        "safenet_price": stop_price,
+        "stop_price": stop_price,
+        "stop_pct": stop_pct * 100,
+        "distance_tp_pct": distance_tp,
+        "distance_safenet_pct": distance_stop,
+        "max_hold_bars": max_hold,
+        "max_hold_remaining_bars": hold_remaining,
+        "max_hold_due_display": max_hold_due,
+        "hold_status": hold_status,
+        "extension_active": extension_active,
+        "actual_exit_time_display": None,
+        "mfe_pct": position.get("mfe_pct"),
+        "mae_pct": position.get("mae_pct"),
+    }
+
+
 def build_signal_payload(df, idx, st) -> dict:
     """回傳給唯讀 viewer 的結構化即時開單條件，不改變任何策略判斷。"""
     row = df.iloc[idx]
@@ -254,6 +332,12 @@ def build_signal_payload(df, idx, st) -> dict:
             "blocked_by": [label for ok, label, _ in gates if not ok] + global_blocks,
         }
 
+    position_details = []
+    for trade_id, position in (st.get("positions", {}) or {}).items():
+        detail = _position_payload(trade_id, position, close, bar_time, bar_counter)
+        if detail:
+            position_details.append(detail)
+
     return {
         "evaluated_bar_time": bar_time,
         "close": close,
@@ -269,5 +353,6 @@ def build_signal_payload(df, idx, st) -> dict:
         "consecutive_cooldown_remaining": int(consec_remain),
         "paused": paused,
         "sides": sides,
+        "positions": position_details,
         "session_windows": session_windows(),
     }
