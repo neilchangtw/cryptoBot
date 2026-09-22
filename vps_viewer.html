@@ -62,7 +62,9 @@
     .analysis-card h3 { margin:0 0 6px; font-size:13px; font-weight:600; }
     .analysis-card canvas { height:220px; background:transparent; }
     .analysis-card.wide canvas { height:390px; }
-    .drawdown-card canvas { height:140px; margin-top:8px; }
+    /* .analysis-card.wide 的高度規則更具體，回撤圖要用同等 specificity 才能真正縮小。 */
+    .analysis-card.wide.drawdown-card canvas { height:125px; margin-top:0; }
+    .analysis-card.wide.drawdown-card canvas + canvas { margin-top:2px; }
     .no-trade-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
     .no-trade-side h4 { margin:4px 0 8px; font-size:13px; font-weight:500; }
     .no-trade-row { display:grid; grid-template-columns:minmax(120px,1fr) 2fr auto; gap:8px; align-items:center; margin:7px 0; font-size:12px; }
@@ -99,7 +101,7 @@
     @media (prefers-reduced-motion:reduce) { .load-status.is-loading::before { animation:none; } }
     @media (max-width:900px) { .grid { grid-template-columns:1fr; } .chart-wrap { height:52vh; } .analysis-card.wide canvas { height:380px; } }
     @media (max-width:600px) { header { padding:14px; } main { padding:10px; } h1 { font-size:18px; } .stats { grid-template-columns:repeat(2,1fr); } .analysis-grid { grid-template-columns:1fr; } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary { font-size:11px; line-height:1.6; } .metric-guide { grid-template-columns:1fr; } .metric-guide span { font-size:11px; } .load-status { width:100%; min-height:18px; } button,select { padding:6px 8px; font-size:12px; } }
-    @media (max-width:600px) { .signal-grid, .risk-grid, .no-trade-grid { grid-template-columns:1fr; } .gate-row { grid-template-columns:18px 92px minmax(0,1fr); font-size:11px; } .drawdown-card canvas { height:150px; } .trade-drawer { padding:12px; } }
+    @media (max-width:600px) { .signal-grid, .risk-grid, .no-trade-grid { grid-template-columns:1fr; } .gate-row { grid-template-columns:18px 92px minmax(0,1fr); font-size:11px; } .analysis-card.wide.drawdown-card canvas { height:115px; } .trade-drawer { padding:12px; } }
   </style>
 </head>
 <body>
