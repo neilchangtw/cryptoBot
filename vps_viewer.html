@@ -45,8 +45,13 @@
     .gk-legend { display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
     .gk-legend .gk-l { color:var(--green); } .gk-legend .gk-s { color:var(--orange); }
     .analysis-note { margin-top:8px; color:var(--muted); font-size:12px; }
+    .load-status { display:inline-flex; align-items:center; gap:6px; min-height:22px; color:var(--blue); font-size:12px; }
+    .load-status.is-loading::before { content:""; width:12px; height:12px; border:2px solid var(--line); border-top-color:var(--blue); border-radius:50%; animation:viewer-spin .8s linear infinite; }
+    #refresh:disabled { opacity:.65; cursor:wait; }
+    @keyframes viewer-spin { to { transform:rotate(360deg); } }
+    @media (prefers-reduced-motion:reduce) { .load-status.is-loading::before { animation:none; } }
     @media (max-width:900px) { .grid { grid-template-columns:1fr; } .chart-wrap { height:52vh; } .analysis-card.wide canvas { height:380px; } }
-    @media (max-width:600px) { header { padding:14px; } main { padding:10px; } h1 { font-size:18px; } .stats { grid-template-columns:repeat(2,1fr); } .analysis-grid { grid-template-columns:1fr; } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary { font-size:11px; line-height:1.6; } .metric-guide { grid-template-columns:1fr; } .metric-guide span { font-size:11px; } button,select { padding:6px 8px; font-size:12px; } }
+    @media (max-width:600px) { header { padding:14px; } main { padding:10px; } h1 { font-size:18px; } .stats { grid-template-columns:repeat(2,1fr); } .analysis-grid { grid-template-columns:1fr; } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary { font-size:11px; line-height:1.6; } .metric-guide { grid-template-columns:1fr; } .metric-guide span { font-size:11px; } .load-status { width:100%; min-height:18px; } button,select { padding:6px 8px; font-size:12px; } }
   </style>
 </head>
 <body>
@@ -58,7 +63,7 @@
       <button data-days="7">7 天</button><button data-days="30" class="active">30 天</button><button data-days="90">90 天</button><button data-days="365">1 年</button>
       <select id="side"><option value="ALL">全部方向</option><option value="L">Long</option><option value="S">Short</option></select>
       <button id="zoomIn" title="放大 K 線">＋ 放大</button><button id="zoomOut" title="縮小 K 線">－ 縮小</button><button id="resetZoom" title="顯示全部 K 線">全覽</button>
-      <button id="refresh">重新整理</button><span id="updated" class="muted"></span>
+      <button id="refresh">重新整理</button><span id="updated" class="muted"></span><span id="loadStatus" class="load-status" role="status" aria-live="polite" aria-atomic="true"></span>
     </div>
   </header>
   <main>
@@ -108,7 +113,7 @@
   </main>
   <div id="tooltip"></div>
   <script>
-    const state = { source:'live', days:30, side:'ALL', data:null, hits:[], analysisHits:[], gkHits:[], view:null, gesture:null, dragged:false };
+    const state = { source:'live', days:30, side:'ALL', data:null, hits:[], analysisHits:[], gkHits:[], view:null, gesture:null, dragged:false, loading:false };
     const $ = id => document.getElementById(id);
     const money = value => value == null || Number.isNaN(Number(value)) ? '-' : `${Number(value)>=0?'+':''}$${Number(value).toFixed(2)}`;
     const esc = value => String(value ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -250,7 +255,8 @@
     function renderHealth(st,d){ const k=d.stats?.last_closed_candle, f=d.stats?.forming_candle; $('health').innerHTML=`<dt>服務</dt><dd class="status-ok">唯讀正常</dd><dt>資料模式</dt><dd>${esc(d.source_label||state.source)}</dd><dt>最後已收盤</dt><dd>${esc(k?.time_display||'-')}</dd><dt>形成中 K 線</dt><dd>${esc(f?.time_display||'無')}</dd><dt>交易資料</dt><dd>${st.available?'已讀取':d.source==='backtest'?'回測無即時持倉':'尚未找到'}</dd><dt>狀態更新</dt><dd>${esc(st.updated_at?shortTime(st.updated_at):'-')}</dd><dt>資料來源</dt><dd>${d.source==='backtest'?'本機 730 天 K 線／回測檔':'公開 K 線／實戰 CSV'}</dd>`; }
     function showTrade(tr){ const text=`${tr.direction} #${tr.number}\n進場成交：${tr.entry_time_display} @ ${tr.entry_price}\n進場訊號 K 棒：${tr.entry_signal_time_display||'-'}\n平倉成交：${tr.exit_time_display||'進行中'} @ ${tr.exit_price??'-'}\n平倉訊號 K 棒：${tr.exit_signal_time_display||'-'}\n原因：${tr.exit_reason}\nPnL：${money(tr.pnl)}\n持倉：${tr.hold_hours!=null?tr.hold_hours+' 小時':tr.hold_bars!=null?tr.hold_bars+' bars':'-'}\nRegime：${tr.regime}`; const tip=$('tooltip');tip.textContent=text;tip.style.display='block';tip.style.left='20px';tip.style.bottom='20px';setTimeout(()=>tip.style.display='none',7000); }
     function showAnalysisGroup(group){ const text=`交易區段 #${group.fromNumber}～#${group.toNumber}（${group.count} 筆）\n期間：${group.firstTime||'-'} → ${group.lastTime||'-'}\n區段淨 PnL：${money(group.pnl)}\n最深 MAE：${group.maeMin==null?'-':group.maeMin.toFixed(2)+'%'}\n最高 MFE：${group.mfeMax==null?'-':group.mfeMax.toFixed(2)+'%'}\n平均 L GK：${group.gkLong==null?'-':group.gkLong.toFixed(1)+'%'}\n平均 S GK：${group.gkShort==null?'-':group.gkShort.toFixed(1)+'%'}`; const tip=$('tooltip');tip.textContent=text;tip.style.display='block';tip.style.left='20px';tip.style.bottom='20px';setTimeout(()=>tip.style.display='none',7000); }
-    async function load(resetView=false){ setError(''); try{ const query=`source=${encodeURIComponent(state.source)}&days=${state.days}&side=${state.side}`; const [dataRes,analysisRes]=await Promise.all([fetch(`/api/data?${query}`,{cache:'no-store'}),fetch(`/api/analysis?${query}`,{cache:'no-store'})]); const payload=await dataRes.json(); const analysis=await analysisRes.json(); if(!dataRes.ok) throw new Error(payload.error||`HTTP ${dataRes.status}`); if(!analysisRes.ok) throw new Error(analysis.error||`分析 HTTP ${analysisRes.status}`); if(resetView) state.view=null; state.data=payload; state.analysis=analysis; render(); renderAnalysis(analysis); }catch(err){ setError(`資料讀取失敗：${err.message}`); } }
+    function setLoading(loading, result=''){ state.loading=loading; const button=$('refresh'), status=$('loadStatus'); button.disabled=loading; button.textContent=loading?'更新中…':'重新整理'; document.querySelector('main').setAttribute('aria-busy',loading?'true':'false'); status.classList.toggle('is-loading',loading); status.textContent=loading?'正在更新 K 線、交易紀錄與分析…':result; if(!loading&&result){setTimeout(()=>{if(!state.loading)status.textContent='';},2500);} }
+    async function load(resetView=false){ if(state.loading)return; setLoading(true); setError(''); try{ const query=`source=${encodeURIComponent(state.source)}&days=${state.days}&side=${state.side}`; const [dataRes,analysisRes]=await Promise.all([fetch(`/api/data?${query}`,{cache:'no-store'}),fetch(`/api/analysis?${query}`,{cache:'no-store'})]); const payload=await dataRes.json(); const analysis=await analysisRes.json(); if(!dataRes.ok) throw new Error(payload.error||`HTTP ${dataRes.status}`); if(!analysisRes.ok) throw new Error(analysis.error||`分析 HTTP ${analysisRes.status}`); if(resetView) state.view=null; state.data=payload; state.analysis=analysis; render(); renderAnalysis(analysis); setLoading(false,'更新完成'); }catch(err){ setError(`資料讀取失敗：${err.message}`); setLoading(false,'更新失敗'); } }
     async function loadMeta(){
       const res=await fetch('/api/meta',{cache:'no-store'}), meta=await res.json();
       if(!res.ok) throw new Error(meta.error||`HTTP ${res.status}`);
