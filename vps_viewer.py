@@ -76,6 +76,10 @@ def _int(value, default=None):
     return int(number) if number is not None else default
 
 
+def _truthy(value):
+    return str(value or "").strip().lower() in {"true", "1", "yes", "y", "ok"}
+
+
 def _side(value: str) -> str:
     text = str(value or "").strip().upper()
     if text in {"L", "LONG"}:
@@ -651,6 +655,8 @@ class DataStore:
                 "side": row.get("side"),
                 "pnl": float(row["pnl"]),
                 "cumulative_pnl": round(cumulative, 6),
+                "peak_pnl": round(peak, 6),
+                "drawdown": round(cumulative - peak, 6),
                 "mae_pct": row.get("mae_pct"),
                 "mfe_pct": row.get("mfe_pct"),
                 "gk_pctile": row.get("gk_pctile"),
@@ -696,6 +702,16 @@ class DataStore:
             item = summary(rows)
             item["period"] = period
             monthly.append(item)
+
+        daily_groups = {}
+        for row in ordered:
+            stamp = row.get("exit_time_display") or row.get("entry_time_display") or "NA"
+            daily_groups.setdefault(str(stamp)[:10], []).append(row)
+        daily = []
+        for period, rows in sorted(daily_groups.items()):
+            item = summary(rows)
+            item["period"] = period
+            daily.append(item)
 
         hold_bins = (("0-3h", 0, 3), ("4-7h", 4, 7), ("8-11h", 8, 11), ("12h+", 12, None))
         hold_distribution = []
@@ -759,6 +775,61 @@ class DataStore:
             step = max(1, len(gk_series) // 1000)
             gk_series = gk_series[::step]
 
+        def no_trade_reasons(rows, side):
+            """用 bar snapshot 的已保存 gate 統計未開單原因；不推估未保存風控。"""
+            signal_key = "long_signal" if side == "L" else "short_signals"
+            gk_key = "gk_pctile" if side == "L" else "gk_pctile_s"
+            breakout_key = "breakout_long" if side == "L" else "breakout_short"
+            session_key = "session_ok_l" if side == "L" else "session_ok_s"
+            regime_key = "regime_block_l" if side == "L" else "regime_block_s"
+            position_key = "long_positions" if side == "L" else "short_positions"
+            threshold = 25.0 if side == "L" else 35.0
+            reasons = {}
+            signal_bars = 0
+            blocked_bars = 0
+            for raw in rows:
+                signal = str(raw.get(signal_key) or "").strip().upper()
+                if signal and signal not in {"HOLD", "NONE", "N/A"}:
+                    signal_bars += 1
+                    continue
+                blocked_bars += 1
+                gk = _number(raw.get(gk_key), None)
+                if gk is None:
+                    label = "GK 暖機／資料不足"
+                elif gk >= threshold:
+                    label = f"GK 未壓縮（≥{threshold:g}%）"
+                elif str(raw.get(breakout_key) or "").strip() == "":
+                    label = "突破欄位不足"
+                elif not _truthy(raw.get(breakout_key)):
+                    label = "未突破 15-bar"
+                elif str(raw.get(session_key) or "").strip() == "":
+                    label = "時段欄位不足"
+                elif not _truthy(raw.get(session_key)):
+                    label = "封鎖時段／休市日"
+                elif _truthy(raw.get(regime_key)):
+                    label = "Regime gate"
+                elif _int(raw.get(position_key), 0) >= 1:
+                    label = "已有同向持倉"
+                else:
+                    label = "風控／冷卻／其他（快照未保存）"
+                reasons[label] = reasons.get(label, 0) + 1
+            reason_rows = [
+                {"label": label, "count": count}
+                for label, count in sorted(reasons.items(), key=lambda item: (-item[1], item[0]))
+            ]
+            return {
+                "sample_bars": len(rows),
+                "blocked_bars": blocked_bars,
+                "signal_bars": signal_bars,
+                "reasons": reason_rows,
+                "note": "統計依已保存的 GK、突破、時段、Regime、同向持倉欄位；月虧上限與出場冷卻未逐根保存，合併於其他。",
+            }
+
+        no_trade = {
+            "L": no_trade_reasons(snapshot_selected, "L"),
+            "S": no_trade_reasons(snapshot_selected, "S"),
+        }
+
         selected_ids = {str(row.get("id")) for row in selected_trades}
         lifecycle_by_bar = {}
         for raw in lifecycle_rows:
@@ -801,6 +872,8 @@ class DataStore:
                 "avg_hold_hours": round(sum(float(row.get("hold_hours") or 0) for row in closed) / len(closed), 6) if closed else 0.0,
             },
             "equity": equity,
+            "drawdown": equity,
+            "daily": daily,
             "monthly": monthly,
             "by_side": grouped(closed, lambda row: "Long" if row.get("side") == "L" else "Short"),
             "by_exit_reason": grouped(closed, lambda row: row.get("exit_reason")),
@@ -820,6 +893,7 @@ class DataStore:
                     "error": snapshot_error,
                     "gk_series": gk_series,
                     "breakout_counts": breakout_counts,
+                    "no_trade_reasons": no_trade,
                 },
                 "position_lifecycle": {
                     "available": bool(lifecycle_rows) and lifecycle_error is None,
@@ -832,6 +906,44 @@ class DataStore:
                     "reason": "目前紀錄沒有逐根保存可驗證的 TP／SafeNet／MaxHold 價格線",
                 },
             },
+        }
+
+    def trade_detail(self, source="live", trade_id=""):
+        """回傳單筆交易與持倉生命週期，僅讀取 CSV。"""
+        trade_id = str(trade_id or "")
+        if not trade_id or len(trade_id) > 200:
+            raise ValueError("交易編號格式不正確")
+        trade = next((row for row in self.trades(source) if str(row.get("id")) == trade_id), None)
+        if trade is None:
+            raise ValueError("找不到指定交易")
+
+        lifecycle_rows, lifecycle_error = self.read_artifact(source, "position_lifecycle.csv")
+        lifecycle = []
+        for raw in lifecycle_rows:
+            if str(raw.get("trade_id") or "") != trade_id:
+                continue
+            stamp = _parse_datetime(raw.get("bar_time_utc8") or raw.get("bar_time_utc"))
+            lifecycle.append({
+                "bar": _int(raw.get("lifecycle_bar"), None),
+                "time_utc": _iso(stamp),
+                "time_display": _display_time(stamp),
+                "current_price": _number(raw.get("current_price"), None),
+                "unrealized_pnl_usd": _number(raw.get("unrealized_pnl_usd"), None),
+                "unrealized_pnl_pct": _number(raw.get("unrealized_pnl_pct"), None),
+                "max_adverse_so_far": _number(raw.get("max_adverse_so_far"), None),
+                "max_favorable_so_far": _number(raw.get("max_favorable_so_far"), None),
+                "safenet_distance_pct": _number(raw.get("safenet_distance_pct"), None),
+                "exit_triggered": _truthy(raw.get("exit_triggered")),
+                "exit_type": str(raw.get("exit_type") or "").strip(),
+            })
+        lifecycle.sort(key=lambda row: (row.get("bar") is None, row.get("bar") or 0))
+        return {
+            "source": source,
+            "source_label": self.source_label(source),
+            "trade": trade,
+            "lifecycle": lifecycle,
+            "lifecycle_available": lifecycle_error is None and bool(lifecycle_rows),
+            "lifecycle_error": lifecycle_error,
         }
 
     def health(self, source="live"):
@@ -929,6 +1041,14 @@ def make_handler(store: DataStore):
                     if side not in {"ALL", "L", "S"}:
                         raise ValueError("方向只能是 ALL、L 或 S")
                     self._json(store.analysis(source=source, days=days, side=side))
+                    return
+                if parsed.path == "/api/trade":
+                    query = parse_qs(parsed.query)
+                    source = query.get("source", ["live"])[0].lower()
+                    if source not in {"live", "backtest"}:
+                        raise ValueError("資料來源只能是 live 或 backtest")
+                    trade_id = query.get("id", [""])[0]
+                    self._json(store.trade_detail(source=source, trade_id=trade_id))
                     return
                 self.send_error(404)
             except (OSError, ValueError, KeyError, TypeError) as exc:
