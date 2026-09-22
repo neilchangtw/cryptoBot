@@ -169,6 +169,14 @@ def _trade_row(raw: dict, index: int) -> dict | None:
     pnl = _number(raw.get("net_pnl_usd"), None)
     side = _side(raw.get("sub_strategy") or raw.get("direction"))
     trade_id = str(raw.get("trade_id") or f"csv-{index}")
+    # trades.csv 的 gk_pctile_at_entry 是「該筆實際方向」的 GK；
+    # 舊資料沒有獨立的 gk_pctile_s_at_entry 欄位，S 需回退讀取同一欄位。
+    entry_gk = _first_number(
+        raw,
+        "gk_pctile_s_at_entry" if side == "S" else "gk_pctile_at_entry",
+        "gk_pctile_at_entry",
+        "gk_pctile_s" if side == "S" else "gk_pctile",
+    )
     return {
         "id": trade_id,
         "number": raw.get("trade_number") or trade_id,
@@ -191,8 +199,8 @@ def _trade_row(raw: dict, index: int) -> dict | None:
         "pnl_pct": _number(raw.get("net_pnl_pct"), None),
         "mae_pct": _first_number(raw, "max_adverse_excursion_pct", "mae_pct"),
         "mfe_pct": _first_number(raw, "max_favorable_excursion_pct", "mfe_pct"),
-        "gk_pctile": _first_number(raw, "gk_pctile_at_entry", "gk_pctile"),
-        "gk_pctile_s": _first_number(raw, "gk_pctile_s_at_entry"),
+        "gk_pctile": entry_gk if side == "L" else None,
+        "gk_pctile_s": entry_gk if side == "S" else None,
         "gk_ratio": _first_number(raw, "gk_ratio_at_entry", "gk_ratio"),
         "breakout_strength_pct": _first_number(raw, "breakout_strength_pct"),
         "regime": str(raw.get("entry_regime") or "NA").strip(),
