@@ -29,6 +29,7 @@ def main():
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--paper", action="store_true", help="讀 eth_state.json（模擬）")
     g.add_argument("--live", action="store_true", help="讀 eth_state_live.json（正式）")
+    ap.add_argument("--json", action="store_true", help="輸出唯讀結構化結果（供 viewer 使用）")
     args = ap.parse_args()
 
     if args.paper:
@@ -41,7 +42,8 @@ def main():
     state_path = paths.state_file(paper)  # 多實例：INSTANCE_DIR 下；未設則程式目錄
 
     st = {}
-    if os.path.exists(state_path):
+    state_available = os.path.exists(state_path)
+    if state_available:
         with open(state_path, "r", encoding="utf-8") as f:
             raw = json.load(f)
         cb = raw.get("circuit_breaker", {})
@@ -55,14 +57,24 @@ def main():
             "consec_losses": cb.get("consec_losses", 0),
             "consec_loss_cooldown_until": cb.get("consec_loss_cooldown_until", 0),
         }
-    else:
+    elif not args.json:
         print(f"⚠️ 找不到狀態檔 {os.path.basename(state_path)}，冷卻/月計數以 0 顯示\n")
 
-    print(f"資料來源：{'模擬' if paper else '正式'} {os.path.basename(state_path)}（即時抓 K 線中…）\n")
+    if not args.json:
+        print(f"資料來源：{'模擬' if paper else '正式'} {os.path.basename(state_path)}（即時抓 K 線中…）\n")
     eth_df, _ = data_feed.fetch_eth_and_btc()
     df = strategy.compute_indicators(eth_df)
     idx = len(df) - 2  # 最新已收盤 bar
-    print(signal_status.build_signal_status(df, idx, st, html=False))
+    if args.json:
+        payload = signal_status.build_signal_payload(df, idx, st)
+        payload.update({
+            "source": "live" if not paper else "paper",
+            "state_file": os.path.basename(state_path),
+            "state_available": state_available,
+        })
+        print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+    else:
+        print(signal_status.build_signal_status(df, idx, st, html=False))
 
 
 if __name__ == "__main__":

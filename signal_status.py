@@ -193,3 +193,81 @@ def build_signal_status(df, idx, st, html: bool = False) -> str:
         text = _html.escape(text, quote=False)  # & < > → 實體，避免被當標籤
         text = text.replace(BOLD_L, "<b>").replace(BOLD_R, "</b>")
     return text
+
+
+def build_signal_payload(df, idx, st) -> dict:
+    """回傳給唯讀 viewer 的結構化即時開單條件，不改變任何策略判斷。"""
+    row = df.iloc[idx]
+    bar_time = str(row["datetime"])[:16]
+    close = float(row["close"])
+    slope = row.get("sma_slope")
+    regime = strategy.classify_regime(slope)
+    bar_counter = st.get("bar_counter", 0)
+    consec = st.get("consec_losses", 0)
+    cd_until = st.get("consec_loss_cooldown_until", 0) or 0
+    consec_remain = max(0, cd_until - bar_counter) if cd_until > 0 else 0
+    paused = bool(st.get("paused", False))
+
+    global_blocks = []
+    if paused:
+        global_blocks.append("已 /pause 暫停開新倉")
+    if consec_remain > 0:
+        global_blocks.append(f"連虧 {consec} 筆冷卻中，剩 {consec_remain}h")
+
+    sides = {}
+    for side in ("L", "S"):
+        gates, fire = _side_gates(side, row, st)
+        positions = st.get("positions", {}) or {}
+        pos_count = sum(1 for p in positions.values() if p.get("sub_strategy") == side)
+        if side == "L":
+            entry_cap = strategy.L_MONTHLY_ENTRY_CAP
+            loss_cap = strategy.L_MONTHLY_LOSS_CAP
+            position_cap = strategy.L_MAX_TOTAL
+            cooldown = strategy.L_EXIT_CD
+        else:
+            entry_cap = strategy.S_MONTHLY_ENTRY_CAP
+            loss_cap = strategy.S_MONTHLY_LOSS_CAP
+            position_cap = strategy.S_MAX_TOTAL
+            cooldown = strategy.S_EXIT_CD
+        monthly_entries = (st.get("monthly_entries", {}) or {}).get(side, 0)
+        monthly_pnl = (st.get("monthly_pnl", {}) or {}).get(side, 0.0)
+        last_exit = (st.get("last_exits", {}) or {}).get(side, -9999)
+        cooldown_remaining = max(0, cooldown - (bar_counter - last_exit)) \
+            if last_exit and last_exit > -9999 else 0
+        sides[side] = {
+            "label": "Long" if side == "L" else "Short",
+            "can_open": bool(fire and not global_blocks),
+            "gates": [
+                {"ok": bool(ok), "label": label, "detail": detail}
+                for ok, label, detail in gates
+            ],
+            "risk": {
+                "monthly_entries": int(monthly_entries),
+                "monthly_entry_cap": int(entry_cap),
+                "monthly_pnl": float(monthly_pnl),
+                "monthly_loss_cap": float(loss_cap),
+                "positions": int(pos_count),
+                "position_cap": int(position_cap),
+                "cooldown_remaining": int(cooldown_remaining),
+                "cooldown_bars": int(cooldown),
+            },
+            "blocked_by": [label for ok, label, _ in gates if not ok] + global_blocks,
+        }
+
+    return {
+        "evaluated_bar_time": bar_time,
+        "close": close,
+        "regime": regime,
+        "slope_pct": float(slope) * 100 if pd.notna(slope) else None,
+        "gk": {
+            "L": float(row["gk_pctile"]) if pd.notna(row.get("gk_pctile")) else None,
+            "S": float(row["gk_pctile_s"]) if pd.notna(row.get("gk_pctile_s")) else None,
+            "thresholds": {"L": float(strategy.L_GK_THRESH), "S": float(strategy.S_GK_THRESH)},
+        },
+        "global_blocks": global_blocks,
+        "consecutive_losses": int(consec),
+        "consecutive_cooldown_remaining": int(consec_remain),
+        "paused": paused,
+        "sides": sides,
+        "session_windows": session_windows(),
+    }

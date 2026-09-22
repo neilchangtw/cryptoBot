@@ -19,6 +19,8 @@ import argparse
 import csv
 import json
 import os
+import subprocess
+import sys
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -46,6 +48,8 @@ DEFAULT_BACKTEST_SNAPSHOT_PATH = ROOT / "data" / "backtest_bar_snapshots.csv"
 DEFAULT_BACKTEST_LIFECYCLE_PATH = ROOT / "data" / "backtest_position_lifecycle.csv"
 BINANCE_KLINES_URL = "https://fapi.binance.com/fapi/v1/klines"
 KLINE_TTL_SECONDS = 55
+SIGNAL_TTL_SECONDS = 20
+SIGNAL_TIMEOUT_SECONDS = 20
 MAX_KLINES = 1000
 UTC8 = timezone(timedelta(hours=8))
 
@@ -301,6 +305,8 @@ class DataStore:
         self._lock = threading.RLock()
         self._trades_cache = {}
         self._klines_cache = {}
+        self._signal_cache = None
+        self._signal_refresh_lock = threading.Lock()
         self._last_kline_error = None
 
     @property
@@ -499,6 +505,58 @@ class DataStore:
             "last_bar_time": payload.get("last_bar_time"),
             "positions": positions,
         }
+
+    def signal(self):
+        """呼叫既有唯讀診斷，避免 viewer 複製策略判斷。"""
+        now = time.time()
+        with self._lock:
+            cached = self._signal_cache
+            if cached and now - cached[0] < SIGNAL_TTL_SECONDS:
+                return cached[1]
+
+        with self._signal_refresh_lock:
+            now = time.time()
+            with self._lock:
+                cached = self._signal_cache
+                if cached and now - cached[0] < SIGNAL_TTL_SECONDS:
+                    return cached[1]
+
+            env = os.environ.copy()
+            env["INSTANCE_DIR"] = str(INSTANCE_DIR)
+            command = [sys.executable, str(ROOT / "check_signal.py"), "--live", "--json"]
+            try:
+                completed = subprocess.run(
+                    command,
+                    cwd=str(ROOT),
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    timeout=SIGNAL_TIMEOUT_SECONDS,
+                    check=False,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise OSError(f"即時開單條件檢查失敗：{exc}") from exc
+
+            output = completed.stdout.strip()
+            if completed.returncode != 0:
+                detail = completed.stderr.strip() or output or f"exit code {completed.returncode}"
+                raise OSError(f"即時開單條件檢查失敗：{detail[-500:]}")
+            try:
+                payload = json.loads(output)
+            except json.JSONDecodeError as exc:
+                detail = completed.stderr.strip() or output
+                raise OSError(f"即時開單條件格式錯誤：{detail[-500:]}") from exc
+
+            payload.update({
+                "server_time_utc": _iso(datetime.now(timezone.utc)),
+                "server_time_display": _display_time(datetime.now(timezone.utc)),
+                "source_label": "實戰",
+                "cache_ttl_seconds": SIGNAL_TTL_SECONDS,
+            })
+            with self._lock:
+                self._signal_cache = (time.time(), payload)
+            return payload
 
     def meta(self):
         sources = []
@@ -842,6 +900,13 @@ def make_handler(store: DataStore):
                     return
                 if parsed.path == "/api/meta":
                     self._json(store.meta())
+                    return
+                if parsed.path == "/api/signal":
+                    query = parse_qs(parsed.query)
+                    source = query.get("source", ["live"])[0].lower()
+                    if source != "live":
+                        raise ValueError("即時開單條件只適用於實戰資料")
+                    self._json(store.signal())
                     return
                 if parsed.path == "/api/data":
                     query = parse_qs(parsed.query)
