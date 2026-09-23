@@ -28,18 +28,29 @@
 
 ## 回測資料快照
 
-Viewer 不會自行執行回測，也不會修改策略或實盤資料。要讓頁面出現可切換的「回測」來源，
-在 VPS 以 `cryptobot` 使用者執行：
+Viewer 本身仍是唯讀：它不執行回測、不寫交易資料，也不會載入下單模組。獨立的
+`cryptoviewer-backtest-refresh.timer` 每小時在新 K 線收盤後執行一次更新器；更新器先抓最新
+730 天已收盤 K 線，再以現行回測引擎重算，驗證明細格式後以原子替換更新快照。失敗時保留
+上一份可讀快照，不會留下半寫入檔案。頁面顯示回測快照更新時間；超過 90 分鐘會標示可能缺少
+最近已收盤 K 線。
+
+手動更新或安裝排程：
 
 ```bash
 cd ~/cryptoBot
 mkdir -p data
-.venv/bin/python run_backtest.py -t > data/backtest_trades.txt
+.venv/bin/python refresh_viewer_backtest.py
+sudo cp deploy/cryptoviewer-backtest-refresh.service /etc/systemd/system/
+sudo cp deploy/cryptoviewer-backtest-refresh.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now cryptoviewer-backtest-refresh.timer
+sudo systemctl start cryptoviewer-backtest-refresh.service
+systemctl list-timers cryptoviewer-backtest-refresh.timer --no-pager
 ```
 
-Viewer 預設讀取 `data/backtest_trades.txt`；也可以在 `cryptoviewer.service` 設定
-`VIEWER_BACKTEST_PATH` 指向其他唯讀回測明細檔。若檔案不存在，頁面會把「回測」標為不可用，
-不會把實戰資料冒充成回測。回測模式沒有目前持倉資料。
+回測資料來源預設是 `data/backtest_trades.txt`；若 Viewer 設定了自訂
+`VIEWER_BACKTEST_PATH`，更新服務也需使用相同路徑。若快照不存在或更新失敗，頁面不會把實戰
+資料冒充成回測。回測模式沒有目前持倉狀態。
 
 ## 分析資料與限制
 

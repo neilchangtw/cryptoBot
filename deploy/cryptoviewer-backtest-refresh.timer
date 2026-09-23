@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly refresh of CryptoBot viewer backtest snapshot
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=2min
+Unit=cryptoviewer-backtest-refresh.service
+
+[Install]
+WantedBy=timers.target

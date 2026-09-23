@@ -599,6 +599,7 @@ class DataStore:
         for source in ("live", "backtest"):
             path = self.source_path(source)
             available = path.is_file()
+            modified = _mtime(path)
             rows = []
             error = None
             if available:
@@ -614,12 +615,15 @@ class DataStore:
                 "count": len(rows),
                 "first": rows[0]["entry_time_display"] if rows else None,
                 "last": rows[-1]["exit_time_display"] if rows else None,
+                "updated_at": _iso(datetime.fromtimestamp(modified, timezone.utc)) if modified else None,
+                "updated_at_display": _display_time(datetime.fromtimestamp(modified, timezone.utc)) if modified else None,
                 "error": error or (None if available else "尚未找到資料檔"),
             })
         return {"sources": sources, "timezone": "Asia/Taipei"}
 
     def data(self, source="live", days=30, side="ALL"):
         selected_candles, selected_trades, _ = self.selection(source, days, side)
+        trades_mtime = _mtime(self.source_path(source))
 
         closed = [row for row in selected_trades if row["closed"]]
         pnl_values = [row["pnl"] for row in closed if row["pnl"] is not None]
@@ -638,6 +642,10 @@ class DataStore:
             "timezone": "Asia/Taipei",
             "source": source,
             "source_label": self.source_label(source),
+            "source_updated_at": _iso(datetime.fromtimestamp(trades_mtime, timezone.utc)) if trades_mtime else None,
+            "source_updated_at_display": (
+                _display_time(datetime.fromtimestamp(trades_mtime, timezone.utc)) if trades_mtime else None
+            ),
             "candles": selected_candles,
             "trades": selected_trades,
             "positions": state["positions"],
@@ -981,6 +989,8 @@ class DataStore:
         }
 
     def health(self, source="live"):
+        trade_path = self.source_path(source)
+        trades_mtime = _mtime(trade_path)
         try:
             candles = self.klines(source)
             kline_status = "ok"
@@ -1005,7 +1015,11 @@ class DataStore:
             "kline_status": kline_status,
             "kline_error": self._last_kline_error,
             "latest_kline": latest,
-            "trades_exists": self.source_path(source).is_file(),
+            "trades_exists": trade_path.is_file(),
+            "trades_updated_at": _iso(datetime.fromtimestamp(trades_mtime, timezone.utc)) if trades_mtime else None,
+            "trades_updated_at_display": (
+                _display_time(datetime.fromtimestamp(trades_mtime, timezone.utc)) if trades_mtime else None
+            ),
             "state": state,
             "instance_dir": str(INSTANCE_DIR),
         }
