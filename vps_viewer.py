@@ -47,7 +47,10 @@ DEFAULT_BACKTEST_PATH = ROOT / "data" / "backtest_trades.txt"
 DEFAULT_BACKTEST_SNAPSHOT_PATH = ROOT / "data" / "backtest_bar_snapshots.csv"
 DEFAULT_BACKTEST_LIFECYCLE_PATH = ROOT / "data" / "backtest_position_lifecycle.csv"
 BINANCE_KLINES_URL = "https://fapi.binance.com/fapi/v1/klines"
+BINANCE_PRICE_URL = "https://fapi.binance.com/fapi/v1/ticker/price"
 KLINE_TTL_SECONDS = 55
+PRICE_TTL_SECONDS = 5
+PRICE_FAILURE_TTL_SECONDS = 3
 SIGNAL_TTL_SECONDS = 20
 SIGNAL_TIMEOUT_SECONDS = 20
 MAX_KLINES = 1000
@@ -317,8 +320,12 @@ class DataStore:
         self._lock = threading.RLock()
         self._trades_cache = {}
         self._klines_cache = {}
+        self._price_cache = None
+        self._price_retry_after = 0.0
+        self._price_last_error = None
         self._signal_cache = None
         self._signal_refresh_lock = threading.Lock()
+        self._price_refresh_lock = threading.Lock()
         self._last_kline_error = None
 
     @property
@@ -409,6 +416,84 @@ class DataStore:
         if len(rows) < 2:
             raise OSError("Binance 公開 K 線資料不足")
         return rows
+
+    @staticmethod
+    def _price_result(cache, stale=False, error=None):
+        fetched_at, payload = cache
+        return {
+            **payload,
+            "stale": stale,
+            "age_seconds": max(0, int(time.monotonic() - fetched_at)),
+            "error": error,
+        }
+
+    def price(self):
+        if not self.allow_network:
+            raise OSError("此 Viewer 已停用即時行情連線")
+
+        now = time.monotonic()
+        with self._lock:
+            cache = self._price_cache
+            if cache and now - cache[0] < PRICE_TTL_SECONDS:
+                return self._price_result(cache)
+            if now < self._price_retry_after:
+                if cache:
+                    return self._price_result(cache, stale=True, error=self._price_last_error)
+                raise OSError(self._price_last_error or "即時行情暫時無法取得")
+
+        with self._price_refresh_lock:
+            now = time.monotonic()
+            with self._lock:
+                cache = self._price_cache
+                if cache and now - cache[0] < PRICE_TTL_SECONDS:
+                    return self._price_result(cache)
+                if now < self._price_retry_after:
+                    if cache:
+                        return self._price_result(cache, stale=True, error=self._price_last_error)
+                    raise OSError(self._price_last_error or "即時行情暫時無法取得")
+
+            try:
+                query = urlencode({"symbol": "ETHUSDT"})
+                request = Request(
+                    f"{BINANCE_PRICE_URL}?{query}",
+                    headers={"User-Agent": "cryptobot-readonly-viewer/1.0"},
+                )
+                with urlopen(request, timeout=4) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                if not isinstance(payload, dict) or payload.get("symbol") != "ETHUSDT":
+                    raise ValueError("Binance 即時行情回應格式錯誤")
+                price = _number(payload.get("price"))
+                exchange_time_ms = _int(payload.get("time"))
+                if price is None or price <= 0:
+                    raise ValueError("Binance 即時行情價格無效")
+                updated_at_ms = int(time.time() * 1000)
+                exchange_time = datetime.fromtimestamp(exchange_time_ms / 1000, timezone.utc) if exchange_time_ms else None
+                updated_at = datetime.fromtimestamp(updated_at_ms / 1000, timezone.utc)
+                result = {
+                    "symbol": "ETHUSDT",
+                    "price": price,
+                    "exchange_time_ms": exchange_time_ms,
+                    "exchange_time_display": exchange_time.astimezone(UTC8).strftime("%Y-%m-%d %H:%M:%S") if exchange_time else None,
+                    "updated_at_ms": updated_at_ms,
+                    "updated_at_display": updated_at.astimezone(UTC8).strftime("%Y-%m-%d %H:%M:%S"),
+                    "source": "Binance USDⓈ-M Futures 最新成交價",
+                }
+            except (OSError, URLError, TimeoutError, ValueError) as exc:
+                error = f"即時行情讀取失敗：{exc}"
+                with self._lock:
+                    self._price_last_error = error
+                    self._price_retry_after = time.monotonic() + PRICE_FAILURE_TTL_SECONDS
+                    cache = self._price_cache
+                if cache:
+                    return self._price_result(cache, stale=True, error=error)
+                raise OSError(error) from exc
+
+            fetched_at = time.monotonic()
+            with self._lock:
+                self._price_cache = (fetched_at, result)
+                self._price_retry_after = 0.0
+                self._price_last_error = None
+                return self._price_result(self._price_cache)
 
     def klines(self, source="live"):
         now = time.time()
@@ -1060,6 +1145,9 @@ def make_handler(store: DataStore):
                     return
                 if parsed.path == "/api/meta":
                     self._json(store.meta())
+                    return
+                if parsed.path == "/api/price":
+                    self._json(store.price())
                     return
                 if parsed.path == "/api/signal":
                     query = parse_qs(parsed.query)

@@ -12,6 +12,13 @@
     h1 { margin:0 0 4px; font-size:20px; } h2 { margin:0 0 10px; font-size:16px; }
     .sub, .muted { color:var(--muted); } .sub { font-size:12px; }
     .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; align-items:center; }
+    .market-price { display:flex; flex-wrap:wrap; align-items:baseline; gap:3px 10px; width:fit-content; max-width:100%; margin-top:7px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--surface); }
+    .market-price-label { color:var(--muted); font-size:11px; }
+    .market-price-value { font-size:19px; line-height:1.25; font-variant-numeric:tabular-nums; }
+    .market-price-meta { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:10px; line-height:1.4; }
+    .market-price-dot { width:7px; height:7px; flex:none; border-radius:50%; background:var(--green); }
+    .market-price.is-stale .market-price-dot { background:var(--orange); }
+    .market-price.is-unavailable .market-price-dot { background:var(--red); }
     button, select { background:var(--surface-raised); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:7px 10px; cursor:pointer; }
     button:hover { border-color:var(--blue); } button.active { background:var(--active); border-color:var(--blue); }
     main { max-width:1500px; margin:auto; padding:16px; }
@@ -113,13 +120,18 @@
     @media (prefers-reduced-motion:reduce) { .load-status.is-loading::before { animation:none; } }
     @media (max-width:900px) { .grid { grid-template-columns:1fr; } .chart-wrap { height:52vh; } .analysis-card.wide canvas { height:380px; } }
     @media (max-width:800px) { .analysis-grid { grid-template-columns:1fr; } }
-    @media (max-width:600px) { header { position:static; padding:14px; } main { padding:10px; } h1 { font-size:18px; } .stats { grid-template-columns:repeat(2,1fr); } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary, .chart-coverage { font-size:11px; line-height:1.6; } .metric-guide { grid-template-columns:1fr; } .metric-guide span { font-size:11px; } .load-status { width:100%; min-height:18px; } button,select { min-height:40px; padding:6px 8px; font-size:12px; } }
+    @media (max-width:600px) { header { position:static; padding:14px; } main { padding:10px; } h1 { font-size:18px; } .market-price { width:100%; align-items:center; gap:4px 8px; } .market-price-value { font-size:18px; } .market-price-meta { flex-basis:100%; } .stats { grid-template-columns:repeat(2,1fr); } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary, .chart-coverage { font-size:11px; line-height:1.6; } .metric-guide { grid-template-columns:1fr; } .metric-guide span { font-size:11px; } .load-status { width:100%; min-height:18px; } button,select { min-height:40px; padding:6px 8px; font-size:12px; } }
     @media (max-width:600px) { .signal-grid, .risk-grid, .no-trade-grid { grid-template-columns:1fr; } .gate-row { grid-template-columns:18px 92px minmax(0,1fr); font-size:11px; } .position-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 8px; } .analysis-card.wide.drawdown-card canvas { height:115px; } .trade-drawer { padding:12px; } }
   </style>
 </head>
 <body>
   <header>
     <h1 id="pageTitle">樣本還在長，先看行情</h1>
+    <div id="marketPriceCard" class="market-price" role="group" aria-label="ETHUSDT 即時價格，Binance USDⓈ-M Futures 最新成交價">
+      <span class="market-price-label">ETHUSDT 即時成交價 · Binance Futures</span>
+      <strong id="marketPrice" class="market-price-value">讀取中…</strong>
+      <span class="market-price-meta"><span id="marketPriceDot" class="market-price-dot" aria-hidden="true"></span><span id="marketPriceTime">連線中…</span></span>
+    </div>
     <div class="toolbar">
       <select id="source" aria-label="資料來源"><option value="live">實戰</option><option value="backtest">回測</option></select>
       <select id="days" aria-label="日期範圍"><option value="7">7 天</option><option value="30" selected>30 天</option><option value="90">90 天</option><option value="365">1 年</option></select>
@@ -191,7 +203,7 @@
     <div id="drawerBody" class="drawer-section">讀取中…</div>
   </aside>
   <script>
-    const state = { source:'live', days:30, side:'ALL', data:null, analysis:null, signal:null, hits:[], analysisHits:[], gkHits:[], view:null, gesture:null, dragged:false, loading:false, pendingLoad:false, pendingResetView:false, appliedSelection:null, viewFrame:0, pendingView:null };
+    const state = { source:'live', days:30, side:'ALL', data:null, analysis:null, signal:null, marketPrice:null, marketPricePending:false, hits:[], analysisHits:[], gkHits:[], view:null, gesture:null, dragged:false, loading:false, pendingLoad:false, pendingResetView:false, appliedSelection:null, viewFrame:0, pendingView:null };
     const $ = id => document.getElementById(id);
     const money = value => { const number=numeric(value); return number===null?'-':`${number>=0?'+':''}$${number.toFixed(2)}`; };
     const numeric = value => { if(value==null||String(value).trim()==='')return null; const number=Number(value); return Number.isFinite(number)?number:null; };
@@ -369,6 +381,21 @@
     function tradeHtml(tr){ const pnl=tr.pnl==null?'<span class="muted">進行中</span>':`<span class="${Number(tr.pnl)>=0?'profit':'loss'}">${esc(money(tr.pnl))}</span>`; return `<tr class="clickable" data-trade="${esc(tr.id)}"><td>${esc(tr.number)}</td><td>${tr.side==='L'?'Long':'Short'}</td><td>${esc(tr.entry_time_display)}</td><td>${esc(tr.exit_time_display||'-')}</td><td>${esc(tr.exit_reason)}</td><td>${pnl}</td><td>${esc(tr.hold_hours!=null?`${tr.hold_hours}h`:tr.hold_bars!=null?`${tr.hold_bars} bars`:'-')}</td><td>${esc(tr.regime)}</td></tr>`; }
     const priceText=value=>numeric(value)!==null?`$${numeric(value).toFixed(2)}`:'-';
     const pctText=value=>numeric(value)!==null?`${numeric(value)>=0?'+':''}${numeric(value).toFixed(2)}%`:'-';
+    function renderMarketPrice(data){
+      const card=$('marketPriceCard'),price=numeric(data?.price),value=$('marketPrice'),meta=$('marketPriceTime');
+      if(price===null){card.classList.add('is-unavailable');card.classList.remove('is-stale');value.textContent='暫不可用';meta.textContent=data?.error||'目前無法連線取得行情';return;}
+      state.marketPrice=data;
+      value.textContent=`$${price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+      const times=[data.exchange_time_display?`成交 ${data.exchange_time_display}（台北）`:null,data.updated_at_display?`頁面抓取 ${data.updated_at_display}（台北）`:null].filter(Boolean).join('｜');
+      const stale=Boolean(data.stale);card.classList.toggle('is-stale',stale);card.classList.remove('is-unavailable');
+      meta.textContent=stale?`資料延遲，顯示上次行情｜${times}${data.error?`｜${data.error}`:''}`:times||'行情已更新';
+    }
+    async function loadMarketPrice(){
+      if(state.marketPricePending)return;state.marketPricePending=true;
+      try{const response=await fetch('/api/price',{cache:'no-store'}),payload=await response.json();if(!response.ok)throw new Error(payload.error||`HTTP ${response.status}`);renderMarketPrice(payload);}
+      catch(error){if(state.marketPrice)renderMarketPrice({...state.marketPrice,stale:true,error:error.message});else renderMarketPrice({error:`即時行情讀取失敗：${error.message}`});}
+      finally{state.marketPricePending=false;}
+    }
     function positionDistance(current,target,side,protective=false){const price=numeric(current),level=numeric(target);if(price===null||level===null||price<=0)return null;if(side==='L')return (protective?(price-level):(level-price))/price*100;return (protective?(level-price):(price-level))/price*100;}
     function positionMetric(label,value,cls=''){return `<div class="position-metric"><span>${esc(label)}</span><strong class="${cls}">${esc(value)}</strong></div>`;}
     function renderPositions(basePositions=[],detailPositions=[]){
@@ -479,6 +506,7 @@
     canvas.addEventListener('pointermove',event=>{if(!pointers.has(event.pointerId))return;pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});const gesture=state.gesture;if(!gesture)return;if(pointers.size>=2&&gesture.type==='pinch'){const values=[...pointers.values()],distance=Math.max(1,Math.hypot(values[0].x-values[1].x,values[0].y-values[1].y)),factor=gesture.startDistance/distance,span=gesture.baseRight-gesture.baseLeft,center=gesture.baseLeft+span*gesture.centerRatio,nextSpan=span*factor;gesture.moved=Math.abs(factor-1)>.02;scheduleView(center-nextSpan*gesture.centerRatio,center+nextSpan*(1-gesture.centerRatio));return;}if(gesture.type==='pan'){const dx=event.clientX-gesture.startX;if(Math.abs(dx)>4)gesture.moved=true;const delta=-dx/gesture.chartWidth*(gesture.baseRight-gesture.baseLeft);scheduleView(gesture.baseLeft+delta,gesture.baseRight+delta);}});
     canvas.addEventListener('pointerup',event=>{pointers.delete(event.pointerId);if(state.gesture?.moved)state.dragged=true;if(pointers.size===0)state.gesture=null;}); canvas.addEventListener('pointercancel',event=>{pointers.delete(event.pointerId);if(pointers.size===0)state.gesture=null;});
     canvas.addEventListener('dblclick',resetView); canvas.addEventListener('click',e=>{if(state.dragged){state.dragged=false;return;}const point=canvasPoint(e);let best=null,dist=1e9;state.hits.forEach(h=>{const d=Math.hypot(h.x-point.x,h.y-point.y);if(d<h.r&&d<dist){best=h;dist=d;}});if(best)showTrade(best.tr);});
+    loadMarketPrice();setInterval(loadMarketPrice,5000);
     (async()=>{try{await loadMeta();await load(true);}catch(err){setError(`資料讀取失敗：${err.message}`);}})(); setInterval(()=>load(false),60000);
   </script>
 </body>
