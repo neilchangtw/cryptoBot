@@ -23,7 +23,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import URLError
@@ -54,6 +54,7 @@ PRICE_FAILURE_TTL_SECONDS = 3
 SIGNAL_TTL_SECONDS = 20
 SIGNAL_TIMEOUT_SECONDS = 20
 MAX_KLINES = 1000
+MAX_RANGE_KLINES = 30000
 UTC8 = timezone(timedelta(hours=8))
 
 
@@ -120,6 +121,24 @@ def _iso(value: datetime | None) -> str | None:
 
 def _display_time(value: datetime | None) -> str | None:
     return value.astimezone(UTC8).strftime("%Y-%m-%d %H:%M") if value else None
+
+
+def _date_window(start_date: str, end_date: str):
+    """Convert inclusive Asia/Taipei calendar dates to a UTC half-open range."""
+    try:
+        start_day = date.fromisoformat(str(start_date))
+        end_day = date.fromisoformat(str(end_date))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("請選擇有效的開始與結束日期") from exc
+    if end_day < start_day:
+        raise ValueError("結束日期不可早於開始日期")
+    start = datetime.combine(start_day, datetime_time.min, UTC8).astimezone(timezone.utc)
+    end = datetime.combine(end_day + timedelta(days=1), datetime_time.min, UTC8).astimezone(timezone.utc)
+    return start, end
+
+
+def _date_label(value: datetime | None):
+    return value.astimezone(UTC8).date().isoformat() if value else None
 
 
 def _mtime(path: Path):
@@ -354,6 +373,36 @@ class DataStore:
     def source_label(source):
         return {"live": "實戰", "backtest": "回測"}.get(source, source)
 
+    def available_date_bounds(self, source, trades=None):
+        timestamps = []
+        for row in trades if trades is not None else self.trades(source):
+            for key in ("entry_time_utc", "exit_time_utc"):
+                stamp = _parse_datetime(row.get(key))
+                if stamp:
+                    timestamps.append(stamp)
+
+        if source == "backtest":
+            for path in (LOCAL_KLINE_PATH, SHARED_KLINE_PATH):
+                if not path.is_file():
+                    continue
+                try:
+                    candles = _parse_local_klines(path)
+                except OSError:
+                    continue
+                if candles:
+                    timestamps.extend((
+                        datetime.fromtimestamp(candles[0]["time_ms"] / 1000, timezone.utc),
+                        datetime.fromtimestamp(candles[-1]["time_ms"] / 1000, timezone.utc),
+                    ))
+                    break
+        elif source == "live":
+            timestamps.append(datetime.now(timezone.utc))
+
+        return {
+            "min_date": _date_label(min(timestamps)) if timestamps else None,
+            "max_date": _date_label(max(timestamps)) if timestamps else None,
+        }
+
     def artifact_path(self, source, artifact):
         if source == "live":
             return LIVE_DIR / artifact
@@ -404,17 +453,56 @@ class DataStore:
             self._trades_cache[source] = (mtime, rows)
         return rows
 
-    def _fetch_public_klines(self):
-        query = urlencode({"symbol": "ETHUSDT", "interval": "1h", "limit": MAX_KLINES})
-        request = Request(
-            f"{BINANCE_KLINES_URL}?{query}",
-            headers={"User-Agent": "cryptobot-readonly-viewer/1.0"},
-        )
-        with urlopen(request, timeout=12) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        rows = _parse_binance_klines(payload)
-        if len(rows) < 2:
-            raise OSError("Binance 公開 K 線資料不足")
+    def _fetch_public_klines(self, start_ms=None, end_ms=None):
+        if start_ms is None or end_ms is None:
+            query = urlencode({"symbol": "ETHUSDT", "interval": "1h", "limit": MAX_KLINES})
+            request = Request(
+                f"{BINANCE_KLINES_URL}?{query}",
+                headers={"User-Agent": "cryptobot-readonly-viewer/1.0"},
+            )
+            with urlopen(request, timeout=12) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            rows = _parse_binance_klines(payload)
+            if len(rows) < 2:
+                raise OSError("Binance 公開 K 線資料不足")
+            return rows
+
+        if end_ms < start_ms:
+            raise ValueError("結束日期不可早於開始日期")
+        estimated_bars = (end_ms - start_ms) // 3_600_000 + 1
+        if estimated_bars > MAX_RANGE_KLINES:
+            raise ValueError(f"單次圖表最多載入 {MAX_RANGE_KLINES:,} 根 1h K 線，請縮短日期範圍")
+
+        raw_rows = []
+        cursor = start_ms
+        while cursor <= end_ms:
+            query = urlencode({
+                "symbol": "ETHUSDT",
+                "interval": "1h",
+                "startTime": cursor,
+                "endTime": end_ms,
+                "limit": MAX_KLINES,
+            })
+            request = Request(
+                f"{BINANCE_KLINES_URL}?{query}",
+                headers={"User-Agent": "cryptobot-readonly-viewer/1.0"},
+            )
+            with urlopen(request, timeout=12) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            if not payload:
+                break
+            raw_rows.extend(payload)
+            last_open_ms = int(payload[-1][0])
+            next_cursor = last_open_ms + 3_600_000
+            if next_cursor <= cursor:
+                raise OSError("Binance K 線分頁時間未前進，已停止載入")
+            cursor = next_cursor
+            if len(payload) < MAX_KLINES:
+                break
+
+        rows = _parse_binance_klines(raw_rows)
+        if not rows:
+            raise OSError("所選日期沒有可用的 Binance 公開 K 線")
         return rows
 
     @staticmethod
@@ -495,10 +583,13 @@ class DataStore:
                 self._price_last_error = None
                 return self._price_result(self._price_cache)
 
-    def klines(self, source="live"):
+    def klines(self, source="live", start=None, end=None):
+        start_ms = int(start.timestamp() * 1000) if start else None
+        end_ms = int(end.timestamp() * 1000) - 1 if end else None
+        cache_key = (source, start_ms, end_ms)
         now = time.time()
         with self._lock:
-            cached = self._klines_cache.get(source)
+            cached = self._klines_cache.get(cache_key)
             if cached and now - cached[0] < KLINE_TTL_SECONDS:
                 return cached[1]
 
@@ -514,15 +605,17 @@ class DataStore:
                 if not path.is_file():
                     continue
                 try:
-                    rows = _parse_local_klines(path)[-MAX_KLINES:]
+                    rows = _parse_local_klines(path)
                     if rows:
                         break
                 except OSError as exc:
                     errors.append(str(exc))
 
-        if not rows and self.allow_network:
+        # Historical live dates are fetched from Binance in bounded pages; current-only
+        # requests keep the existing 1,000-bar behavior.
+        if (source == "live" or not rows) and self.allow_network:
             try:
-                rows = self._fetch_public_klines()
+                rows = self._fetch_public_klines(start_ms, end_ms)
             except (OSError, URLError, TimeoutError, ValueError) as exc:
                 errors.append(f"公開 K 線：{exc}")
 
@@ -531,7 +624,7 @@ class DataStore:
                 if not path.is_file():
                     continue
                 try:
-                    rows = _parse_local_klines(path)[-MAX_KLINES:]
+                    rows = _parse_local_klines(path)
                     if rows:
                         break
                 except OSError as exc:
@@ -540,23 +633,39 @@ class DataStore:
         if not rows:
             raise OSError("；".join(errors) or "找不到 K 線資料")
 
+        if start_ms is not None and end_ms is not None:
+            rows = [row for row in rows if start_ms <= row["time_ms"] <= end_ms]
+        elif source == "backtest":
+            rows = rows[-MAX_KLINES:]
+
         with self._lock:
-            self._klines_cache[source] = (time.time(), rows)
+            self._klines_cache[cache_key] = (time.time(), rows)
             self._last_kline_error = errors[-1] if errors else None
         return rows
 
-    def selection(self, source="live", days=30, side="ALL"):
-        candles = self.klines(source)
-        if not candles:
-            raise OSError("沒有 K 線資料")
-        days = max(1, min(int(days), 730))
-        latest = datetime.fromtimestamp(candles[-1]["time_ms"] / 1000, timezone.utc)
-        start = latest - timedelta(days=days)
-        selected_candles = [
-            row for row in candles
-            if datetime.fromtimestamp(row["time_ms"] / 1000, timezone.utc) >= start
-        ]
+    def selection_window(self, source="live", start_date=None, end_date=None, days=30):
+        if start_date is not None or end_date is not None:
+            if not start_date or not end_date:
+                raise ValueError("開始與結束日期都必須選擇")
+            start, end = _date_window(start_date, end_date)
+        else:
+            recent = self.klines(source)
+            if not recent:
+                raise OSError("沒有 K 線資料")
+            days = max(1, min(int(days), 730))
+            latest = datetime.fromtimestamp(recent[-1]["time_ms"] / 1000, timezone.utc)
+            latest_day = latest.astimezone(UTC8).date()
+            end = datetime.combine(latest_day + timedelta(days=1), datetime_time.min, UTC8).astimezone(timezone.utc)
+            start = end - timedelta(days=days)
+        bounds = self.available_date_bounds(source)
+        start_day, end_day = start.astimezone(UTC8).date(), (end - timedelta(microseconds=1)).astimezone(UTC8).date()
+        if bounds["min_date"] and start_day < date.fromisoformat(bounds["min_date"]):
+            raise ValueError(f"開始日期不能早於最早可選日 {bounds['min_date']}")
+        if bounds["max_date"] and end_day > date.fromisoformat(bounds["max_date"]):
+            raise ValueError(f"結束日期不能晚於最新可選日 {bounds['max_date']}")
+        return start, end
 
+    def select_trades(self, source, start, end, side="ALL"):
         trades = self.trades(source)
         selected_trades = []
         for row in trades:
@@ -564,9 +673,18 @@ class DataStore:
                 continue
             entry_ms = _parse_datetime(row["entry_time_utc"])
             exit_ms = _parse_datetime(row["exit_time_utc"])
-            if (entry_ms and entry_ms >= start) or (exit_ms and exit_ms >= start):
+            # Realized performance is grouped by fill/exit time. An open trade
+            # remains visible in the interval containing its entry time.
+            event_time = exit_ms if exit_ms is not None else entry_ms
+            if event_time is not None and start <= event_time < end:
                 selected_trades.append(row)
-        return selected_candles, selected_trades, start
+        return selected_trades
+
+    def selection(self, source="live", days=30, side="ALL", start_date=None, end_date=None):
+        start, end = self.selection_window(source, start_date, end_date, days)
+        selected_candles = self.klines(source, start, end)
+        selected_trades = self.select_trades(source, start, end, side)
+        return selected_candles, selected_trades, start, end
 
     def state(self):
         payload, error = _read_json(STATE_PATH)
@@ -700,6 +818,7 @@ class DataStore:
                     rows = self.trades(source)
                 except OSError as exc:
                     error = str(exc)
+            bounds = self.available_date_bounds(source, rows) if error is None else {"min_date": None, "max_date": None}
             sources.append({
                 "id": source,
                 "label": self.source_label(source),
@@ -708,14 +827,18 @@ class DataStore:
                 "count": len(rows),
                 "first": rows[0]["entry_time_display"] if rows else None,
                 "last": rows[-1]["exit_time_display"] if rows else None,
+                "min_date": bounds["min_date"],
+                "max_date": bounds["max_date"],
                 "updated_at": _iso(datetime.fromtimestamp(modified, timezone.utc)) if modified else None,
                 "updated_at_display": _display_time(datetime.fromtimestamp(modified, timezone.utc)) if modified else None,
                 "error": error or (None if available else "尚未找到資料檔"),
             })
         return {"sources": sources, "timezone": "Asia/Taipei"}
 
-    def data(self, source="live", days=30, side="ALL"):
-        selected_candles, selected_trades, _ = self.selection(source, days, side)
+    def data(self, source="live", days=30, side="ALL", start_date=None, end_date=None):
+        selected_candles, selected_trades, start, end = self.selection(
+            source, days, side, start_date, end_date
+        )
         trades_mtime = _mtime(self.source_path(source))
 
         closed = [row for row in selected_trades if row["closed"]]
@@ -728,13 +851,20 @@ class DataStore:
             "positions": [],
         }
         if source == "live":
-            self._mark_positions(state, selected_candles)
+            current_candles = selected_candles
+            if not current_candles or current_candles[-1]["time_ms"] < (time.time() - 3 * 3600) * 1000:
+                current_candles = self.klines("live")
+            self._mark_positions(state, current_candles)
         return {
             "server_time_utc": _iso(datetime.now(timezone.utc)),
             "server_time_display": _display_time(datetime.now(timezone.utc)),
             "timezone": "Asia/Taipei",
             "source": source,
             "source_label": self.source_label(source),
+            "date_range": {
+                "start": _date_label(start),
+                "end": _date_label(end - timedelta(microseconds=1)),
+            },
             "source_updated_at": _iso(datetime.fromtimestamp(trades_mtime, timezone.utc)) if trades_mtime else None,
             "source_updated_at_display": (
                 _display_time(datetime.fromtimestamp(trades_mtime, timezone.utc)) if trades_mtime else None
@@ -762,8 +892,9 @@ class DataStore:
             },
         }
 
-    def analysis(self, source="live", days=30, side="ALL"):
-        _, selected_trades, start = self.selection(source, days, side)
+    def analysis(self, source="live", days=30, side="ALL", start_date=None, end_date=None):
+        start, end = self.selection_window(source, start_date, end_date, days)
+        selected_trades = self.select_trades(source, start, end, side)
         closed = [row for row in selected_trades if row["closed"] and row["pnl"] is not None]
         ordered = sorted(
             closed,
@@ -887,7 +1018,7 @@ class DataStore:
         snapshot_selected = []
         for raw in snapshot_rows:
             stamp = _parse_datetime(raw.get("bar_time_utc8"))
-            if stamp and stamp >= start:
+            if stamp and start <= stamp < end:
                 snapshot_selected.append(raw)
         snapshot_selected.sort(key=lambda row: row.get("bar_time_utc8") or "")
         gk_series = []
@@ -968,10 +1099,10 @@ class DataStore:
         selected_ids = {str(row.get("id")) for row in selected_trades}
         lifecycle_by_bar = {}
         for raw in lifecycle_rows:
-            if selected_ids and str(raw.get("trade_id")) not in selected_ids:
+            if str(raw.get("trade_id")) not in selected_ids:
                 continue
             stamp = _parse_datetime(raw.get("bar_time_utc8"))
-            if stamp is None or stamp < start:
+            if stamp is None or not start <= stamp < end:
                 continue
             bar = _int(raw.get("lifecycle_bar"), None)
             pnl_pct = _number(raw.get("unrealized_pnl_pct"), None)
@@ -1170,10 +1301,15 @@ def make_handler(store: DataStore):
                     if source not in {"live", "backtest"}:
                         raise ValueError("資料來源只能是 live 或 backtest")
                     days = query.get("days", ["30"])[0]
+                    start_date = query.get("start", [None])[0]
+                    end_date = query.get("end", [None])[0]
                     side = query.get("side", ["ALL"])[0].upper()
                     if side not in {"ALL", "L", "S"}:
                         raise ValueError("方向只能是 ALL、L 或 S")
-                    self._json(store.data(source=source, days=days, side=side))
+                    self._json(store.data(
+                        source=source, days=days, side=side,
+                        start_date=start_date, end_date=end_date,
+                    ))
                     return
                 if parsed.path == "/api/analysis":
                     query = parse_qs(parsed.query)
@@ -1181,10 +1317,15 @@ def make_handler(store: DataStore):
                     if source not in {"live", "backtest"}:
                         raise ValueError("資料來源只能是 live 或 backtest")
                     days = query.get("days", ["30"])[0]
+                    start_date = query.get("start", [None])[0]
+                    end_date = query.get("end", [None])[0]
                     side = query.get("side", ["ALL"])[0].upper()
                     if side not in {"ALL", "L", "S"}:
                         raise ValueError("方向只能是 ALL、L 或 S")
-                    self._json(store.analysis(source=source, days=days, side=side))
+                    self._json(store.analysis(
+                        source=source, days=days, side=side,
+                        start_date=start_date, end_date=end_date,
+                    ))
                     return
                 if parsed.path == "/api/trade":
                     query = parse_qs(parsed.query)

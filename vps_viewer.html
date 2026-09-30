@@ -12,6 +12,10 @@
     h1 { margin:0 0 4px; font-size:20px; } h2 { margin:0 0 10px; font-size:16px; }
     .sub, .muted { color:var(--muted); } .sub { font-size:12px; }
     .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; align-items:center; }
+    .date-range-control { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+    .date-range-control label { color:var(--muted); font-size:12px; }
+    input[type="date"] { background:var(--surface-raised); border:1px solid var(--line); color:var(--text); color-scheme:dark; border-radius:7px; padding:7px 9px; min-height:36px; }
+    .date-range-hint { color:var(--muted); font-size:11px; }
     .market-price { display:flex; flex-wrap:wrap; align-items:baseline; gap:3px 10px; width:fit-content; max-width:100%; margin-top:7px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--surface); }
     .market-price-label { color:var(--muted); font-size:11px; }
     .market-price-value { font-size:19px; line-height:1.25; font-variant-numeric:tabular-nums; }
@@ -120,7 +124,7 @@
     @media (prefers-reduced-motion:reduce) { .load-status.is-loading::before { animation:none; } }
     @media (max-width:900px) { .grid { grid-template-columns:1fr; } .chart-wrap { height:52vh; } .analysis-card.wide canvas { height:380px; } }
     @media (max-width:800px) { .analysis-grid { grid-template-columns:1fr; } }
-    @media (max-width:600px) { header { position:static; padding:14px; } main { padding:10px; } h1 { font-size:18px; } .market-price { width:100%; align-items:center; gap:4px 8px; } .market-price-value { font-size:18px; } .market-price-meta { flex-basis:100%; } .stats { grid-template-columns:repeat(2,1fr); } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary, .chart-coverage { font-size:11px; line-height:1.6; } .metric-guide { grid-template-columns:1fr; } .metric-guide span { font-size:11px; } .load-status { width:100%; min-height:18px; } button,select { min-height:40px; padding:6px 8px; font-size:12px; } }
+    @media (max-width:600px) { header { position:static; padding:14px; } main { padding:10px; } h1 { font-size:18px; } .market-price { width:100%; align-items:center; gap:4px 8px; } .market-price-value { font-size:18px; } .market-price-meta { flex-basis:100%; } .stats { grid-template-columns:repeat(2,1fr); } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary, .chart-coverage { font-size:11px; line-height:1.6; } .metric-guide { grid-template-columns:1fr; } .metric-guide span { font-size:11px; } .load-status { width:100%; min-height:18px; } button,select,input[type="date"] { min-height:40px; padding:6px 8px; font-size:12px; } .date-range-control { width:100%; } .date-range-control input { flex:1 1 130px; min-width:0; } .date-range-hint { flex-basis:100%; } }
     @media (max-width:600px) { .signal-grid, .risk-grid, .no-trade-grid { grid-template-columns:1fr; } .gate-row { grid-template-columns:18px 92px minmax(0,1fr); font-size:11px; } .position-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 8px; } .analysis-card.wide.drawdown-card canvas { height:115px; } .trade-drawer { padding:12px; } }
   </style>
 </head>
@@ -134,7 +138,12 @@
     </div>
     <div class="toolbar">
       <select id="source" aria-label="資料來源"><option value="live">實戰</option><option value="backtest">回測</option></select>
-      <select id="days" aria-label="日期範圍"><option value="7">7 天</option><option value="30" selected>30 天</option><option value="90">90 天</option><option value="365">1 年</option></select>
+      <div class="date-range-control" role="group" aria-label="自訂日期區間（台北時間）">
+        <label for="startDate">日期區間</label><input id="startDate" type="date" aria-label="開始日期">
+        <span aria-hidden="true">至</span><input id="endDate" type="date" aria-label="結束日期">
+        <button id="applyDateRange" type="button">套用日期</button>
+        <span id="dateRangeHint" class="date-range-hint" aria-live="polite"></span>
+      </div>
       <select id="side"><option value="ALL">全部方向</option><option value="L">Long</option><option value="S">Short</option></select>
       <button id="refresh">重新整理</button><span id="updated" class="muted"></span><span id="loadStatus" class="load-status" role="status" aria-live="polite" aria-atomic="true"></span>
     </div>
@@ -203,12 +212,14 @@
     <div id="drawerBody" class="drawer-section">讀取中…</div>
   </aside>
   <script>
-    const state = { source:'live', days:30, side:'ALL', data:null, analysis:null, signal:null, marketPrice:null, marketPricePending:false, highlightedTradeId:null, hits:[], analysisHits:[], gkHits:[], view:null, gesture:null, dragged:false, loading:false, pendingLoad:false, pendingResetView:false, appliedSelection:null, viewFrame:0, pendingView:null };
+    const state = { source:'live', side:'ALL', sourceBounds:{}, dateRanges:{}, startDate:'', endDate:'', data:null, analysis:null, signal:null, marketPrice:null, marketPricePending:false, highlightedTradeId:null, hits:[], analysisHits:[], gkHits:[], view:null, gesture:null, dragged:false, loading:false, pendingLoad:false, pendingResetView:false, appliedSelection:null, viewFrame:0, pendingView:null };
     const $ = id => document.getElementById(id);
     const money = value => { const number=numeric(value); return number===null?'-':`${number>=0?'+':''}$${number.toFixed(2)}`; };
     const numeric = value => { if(value==null||String(value).trim()==='')return null; const number=Number(value); return Number.isFinite(number)?number:null; };
     const esc = value => String(value ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const shortTime = value => value ? String(value).replace('T',' ').replace(/:\d{2}(?:\+00:00)?$/,'') : '-';
+    const todayTaipei = () => new Date(Date.now()+8*60*60*1000).toISOString().slice(0,10);
+    const shiftDate = (value,days) => { const [year,month,day]=String(value||'').split('-').map(Number);if(!year||!month||!day)return '';return new Date(Date.UTC(year,month-1,day+days)).toISOString().slice(0,10); };
     function setError(text='') { $('error').textContent = text; }
     function chartColors(){ const root=getComputedStyle(document.documentElement); return {muted:root.getPropertyValue('--muted').trim()||'#a5adb8',line:root.getPropertyValue('--line').trim()||'#393e48',green:root.getPropertyValue('--green').trim()||'#50d99a',red:root.getPropertyValue('--red').trim()||'#ff7c89',blue:root.getPropertyValue('--blue').trim()||'#86b5ff',orange:root.getPropertyValue('--orange').trim()||'#ffc16f'}; }
     function chartCanvas(id){ const canvas=$(id), rect=canvas.getBoundingClientRect(), dpr=Math.min(window.devicePixelRatio||1,window.innerWidth<600?1.5:2), width=Math.max(1,rect.width), height=Math.max(1,rect.height||220); canvas.width=width*dpr; canvas.height=height*dpr; const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,width,height); return {canvas,ctx,width,height,pad:{l:42,r:12,t:14,b:34},colors:chartColors()}; }
@@ -297,7 +308,8 @@
       if(!a){return;}
       const s=a.summary||{},streak=a.streaks||{},snap=a.evidence?.bar_snapshots||{},life=a.evidence?.position_lifecycle||{},equity=a.equity||[],monthly=a.monthly||[];
       $('profitFactor').textContent=s.profit_factor==null?'-':Number(s.profit_factor).toFixed(2);$('maxDrawdown').textContent=money(-(Number(s.max_drawdown)||0));
-      $('analysisNote').textContent=`${a.source_label||state.source}｜樣本 ${s.trades||0} 筆｜勝率 ${(Number(s.win_rate)||0).toFixed(1)}%｜PF ${Number(s.profit_factor||0).toFixed(2)}｜最大回撤 ${money(-(Number(s.max_drawdown)||0))}｜最長連勝 ${streak.max_win||0}／連敗 ${streak.max_loss||0}${snap.available?'｜GK／breakout 已讀取':'｜bar snapshot 不可用'}${life.available?'｜lifecycle 已讀取':'｜lifecycle 不可用'}`;
+      const period=state.appliedSelection?`${state.appliedSelection.startDate} → ${state.appliedSelection.endDate}（Asia/Taipei）`:'';
+      $('analysisNote').textContent=`${a.source_label||state.source}｜${period}｜樣本 ${s.trades||0} 筆｜勝率 ${(Number(s.win_rate)||0).toFixed(1)}%｜PF ${Number(s.profit_factor||0).toFixed(2)}｜最大回撤 ${money(-(Number(s.max_drawdown)||0))}｜最長連勝 ${streak.max_win||0}／連敗 ${streak.max_loss||0}${snap.available?'｜GK／breakout 已讀取':'｜bar snapshot 不可用'}${life.available?'｜lifecycle 已讀取':'｜lifecycle 不可用'}`;
       drawRiskPnl('riskPnlChart',equity);renderGkRiskSummary(equity);
       const drawdown=a.drawdown||equity;drawSeriesChart('equityChart',drawdown,[{key:'cumulative_pnl',color:chartColors().blue},{key:'peak_pnl',color:chartColors().muted}],'$');drawSeriesChart('drawdownChart',drawdown,[{key:'drawdown',color:chartColors().red}],'$');const deepest=drawdown.reduce((worst,p)=>Number(p.drawdown)<Number(worst?.drawdown??0)?p:worst,null);$('drawdownSummary').textContent=deepest?`最深回撤 ${money(deepest.drawdown)}（${deepest.time_display||'-'}），藍線為累積 PnL，灰線為歷史峰值；水下圖低於 0 代表仍在回撤。`:'目前沒有回撤資料';
       const peak=equity.reduce((best,p)=>Number(p.cumulative_pnl)>Number(best?.cumulative_pnl??-Infinity)?p:best,null),last=equity[equity.length-1];
@@ -450,11 +462,11 @@
       $('positions').innerHTML=merged.map(p=>{const pnl=numeric(p.unrealized_pnl_usd),pnlPct=numeric(p.unrealized_pnl_pct),pnlClass=pnl!==null?pnl>=0?'profit':'loss':'',safePrice=p.safenet_price??p.stop_price,tpDistance=positionDistance(p.current_price,p.tp_price,p.side),safeDistance=positionDistance(p.current_price,safePrice,p.side,true),direction=p.direction||(p.side==='L'?'Long':'Short'),priceState=p.price_time_display?`現價 ${esc(p.price_time_display)}（${p.price_is_closed?'已收盤':'形成中'}）`:'唯讀同步';return `<div class="position-card"><div class="position-header"><b class="${p.side==='L'?'profit':'status-warn'}">${esc(direction)}｜持倉中</b><span class="position-status">${priceState}</span></div><div class="position-grid">${positionMetric('Trade ID',p.id)}${positionMetric('進場成交',p.entry_time_display||'-')}${positionMetric('訊號 K 棒',p.entry_signal_time_display||'-')}${positionMetric('進場價格',priceText(p.entry_price))}${positionMetric('現在價格',priceText(p.current_price))}${positionMetric('估算浮動 PnL（未計費用／資金費）',pnl!==null?money(pnl):'-',pnlClass)}${positionMetric('浮動報酬（價格變動）',pctText(pnlPct),pnlClass)}${positionMetric('TP 價格',priceText(p.tp_price), 'status-ok')}${positionMetric('SafeNet／SL',priceText(safePrice),'status-warn')}${positionMetric('距 TP（依現價）',pctText(tpDistance??(p.current_price==null?p.distance_tp_pct:null)))}${positionMetric('距 SafeNet（依現價）',pctText(safeDistance??(p.current_price==null?p.distance_safenet_pct:null)))}${positionMetric('MaxHold',p.max_hold_bars!=null?`${p.hold_bars??0}/${p.max_hold_bars} 根`:`${p.hold_bars??0} 根`)}${positionMetric('預估最晚出場',p.max_hold_due_display||'-')}${positionMetric('出場時間',p.actual_exit_time_display||'尚未出場')}${positionMetric('Regime',p.entry_regime||'NA')}${positionMetric('MFE／MAE',`${pctText(p.mfe_pct)}／${pctText(p.mae_pct)}`)}</div>${p.hold_status?`<div class="position-note">${esc(p.hold_status)}${p.extension_active?'｜延長期 BE（保本）出場仍有效':''}</div>`:''}</div>`;}).join('')||'<div class="empty">目前沒有持倉</div>';
     }
     function renderChartCoverage(d){
-      const candles=d.candles||[],selection=state.appliedSelection||{days:state.days};
-      if(!candles.length){$('chartCoverage').textContent='目前沒有可用 K 線資料。';return;}
-      const first=candles[0],last=candles[candles.length-1],firstMs=numeric(first.time_ms),lastMs=numeric(last.time_ms),requestedStart=lastMs==null?null:lastMs-(Number(selection.days)||30)*24*60*60*1000,limited=firstMs!=null&&requestedStart!=null&&firstMs>requestedStart+60*60*1000;
+      const candles=d.candles||[],selection=state.appliedSelection||{startDate:state.startDate,endDate:state.endDate};
+      if(!candles.length){$('chartCoverage').textContent=`篩選 ${selection.startDate||'-'} → ${selection.endDate||'-'}（Asia/Taipei）；所選區間沒有可用 K 線資料。`;return;}
+      const first=candles[0],last=candles[candles.length-1],firstMs=numeric(first.time_ms),lastMs=numeric(last.time_ms),requestedStart=Date.parse(`${selection.startDate}T00:00:00+08:00`),requestedEnd=selection.endDate===todayTaipei()?Date.now():Date.parse(`${selection.endDate}T23:00:00+08:00`),limited=(Number.isFinite(requestedStart)&&firstMs>requestedStart+60*60*1000)||(Number.isFinite(requestedEnd)&&lastMs<requestedEnd-2*60*60*1000);
       const range=`K 線涵蓋 ${first.time_display||'-'} → ${last.time_display||'-'}（${candles.length} 根）`;
-      $('chartCoverage').textContent=limited?`統計／明細篩選為近 ${selection.days} 天；${range}。K 線沒有涵蓋整段篩選區間，績效與交易明細仍按所選天數計算，K 線範圍外的成交標記不會顯示。`:`統計／明細篩選為近 ${selection.days} 天；${range}。`;
+      $('chartCoverage').textContent=limited?`篩選 ${selection.startDate} → ${selection.endDate}（Asia/Taipei）；${range}。K 線部分區間未取得，績效與交易明細仍按選取日期計算，範圍外的成交標記不會顯示。`:`篩選 ${selection.startDate} → ${selection.endDate}（Asia/Taipei）；${range}。`;
     }
     function updatePageTitle(winRate){
       const title=winRate===null?'樣本還在長，先看行情':winRate>=60?'有賺先吃雞排・躺平看行情':winRate>=45?'我的錢在散步・數錢先等等':'數錢先等等・有賺再叫我';
@@ -494,19 +506,19 @@
       state.loading=loading;const button=$('refresh'),status=$('loadStatus');button.disabled=loading;button.textContent=loading?'更新中…':'重新整理';document.querySelector('main').setAttribute('aria-busy',loading?'true':'false');status.classList.toggle('is-loading',loading);status.classList.toggle('is-error',!loading&&result==='更新失敗');status.textContent=loading?'正在更新 K 線、交易紀錄與分析…':result;
       if(!loading&&result&&result!=='更新失敗')setTimeout(()=>{if(!state.loading&&status.textContent===result)status.textContent='';},3500);
     }
-    function selectionMatches(selection){return selection.source===state.source&&selection.days===state.days&&selection.side===state.side;}
+    function selectionMatches(selection){return selection.source===state.source&&selection.startDate===state.startDate&&selection.endDate===state.endDate&&selection.side===state.side;}
     function showStaleNotice(){
       const notice=$('staleNotice'),selection=state.appliedSelection;
       if(!state.data||!selection){notice.hidden=true;return;}
       const source=selection.source==='live'?'實戰':'回測',side=selection.side==='ALL'?'全部方向':selection.side==='L'?'Long':'Short';
-      notice.textContent=`更新失敗；目前仍顯示上次成功載入的 ${source}／${selection.days} 天／${side} 資料（${$('updated').textContent||'更新時間不明'}）。目前篩選尚未成功套用，請勿將舊畫面視為即時狀態。`;notice.hidden=false;
+      notice.textContent=`更新失敗；目前仍顯示上次成功載入的 ${source}／${selection.startDate} 至 ${selection.endDate}／${side} 資料（${$('updated').textContent||'更新時間不明'}）。目前篩選尚未成功套用，請勿將舊畫面視為即時狀態。`;notice.hidden=false;
     }
     async function load(resetView=false){
       if(state.loading){state.pendingLoad=true;state.pendingResetView=state.pendingResetView||resetView;return;}
-      const selection={source:state.source,days:state.days,side:state.side};let result='更新完成';
+      const selection={source:state.source,startDate:state.startDate,endDate:state.endDate,side:state.side};let result='更新完成';
       setLoading(true);setError('');renderSignal(null,'loading');
       try{
-        const query=`source=${encodeURIComponent(selection.source)}&days=${selection.days}&side=${selection.side}`;
+        const query=`source=${encodeURIComponent(selection.source)}&start=${encodeURIComponent(selection.startDate)}&end=${encodeURIComponent(selection.endDate)}&side=${selection.side}`;
         const signalRequest=selection.source==='live'?fetch('/api/signal?source=live',{cache:'no-store'}).then(async response=>({response,body:await response.json()})).catch(error=>({error})):Promise.resolve(null);
         const [dataRes,analysisRes,signalResult]=await Promise.all([fetch(`/api/data?${query}`,{cache:'no-store'}),fetch(`/api/analysis?${query}`,{cache:'no-store'}),signalRequest]);
         const payload=await dataRes.json(),analysis=await analysisRes.json();
@@ -529,17 +541,37 @@
         if(state.pendingLoad){const pendingReset=state.pendingResetView;state.pendingLoad=false;state.pendingResetView=false;queueMicrotask(()=>load(pendingReset));}
       }
     }
+    function setDateRangeForSource(source){
+      const bounds=state.sourceBounds[source]||{},min=bounds.min_date||todayTaipei(),max=bounds.max_date||todayTaipei(),remembered=state.dateRanges[source];
+      let start=remembered?.startDate,end=remembered?.endDate;
+      if(!start||!end){end=max;start=shiftDate(end,-29);if(start<min)start=min;}
+      start=start<min?min:start>max?max:start;end=end>max?max:end<min?min:end;if(start>end)start=end;
+      state.startDate=start;state.endDate=end;state.dateRanges[source]={startDate:start,endDate:end};
+      $('startDate').min=min;$('startDate').max=max;$('endDate').min=min;$('endDate').max=max;
+      $('startDate').value=start;$('endDate').value=end;$('startDate').max=end;$('endDate').min=start;
+      $('dateRangeHint').textContent=`最早可選：${min}（台北）｜績效依出場日`;$('dateRangeHint').title=`此資料來源可選 ${min} 至 ${max}；已平倉交易績效依實際出場日歸屬，進行中交易依進場日顯示。`;
+    }
     async function loadMeta(){
       const res=await fetch('/api/meta',{cache:'no-store'}), meta=await res.json();
       if(!res.ok) throw new Error(meta.error||`HTTP ${res.status}`);
       const select=$('source'); select.replaceChildren();
-      meta.sources.forEach(item=>{ const option=document.createElement('option'); option.value=item.id; option.textContent=item.available?`${item.label}（${item.count}筆）`:`${item.label}（不可用）`; option.disabled=!item.available; option.title=[item.error||item.path,item.updated_at_display?`資料更新 ${item.updated_at_display} Asia/Taipei`:null].filter(Boolean).join('｜'); select.appendChild(option); });
+      meta.sources.forEach(item=>{ state.sourceBounds[item.id]={min_date:item.min_date,max_date:item.max_date};const option=document.createElement('option'); option.value=item.id; option.textContent=item.available?`${item.label}（${item.count}筆）`:`${item.label}（不可用）`; option.disabled=!item.available; option.title=[item.error||item.path,item.min_date&&item.max_date?`可選 ${item.min_date} 至 ${item.max_date}（Asia/Taipei）`:null,item.updated_at_display?`資料更新 ${item.updated_at_display} Asia/Taipei`:null].filter(Boolean).join('｜'); select.appendChild(option); });
       const preferred=meta.sources.find(item=>item.id==='live'&&item.available)||meta.sources.find(item=>item.available);
       if(!preferred) throw new Error('找不到可用的實戰或回測交易資料');
       state.source=preferred.id; select.value=state.source;
+      setDateRangeForSource(state.source);
     }
-    $('days').addEventListener('change',e=>{state.days=Number(e.target.value);load(true);});
-    $('source').addEventListener('change',e=>{state.source=e.target.value;load(true);});
+    $('applyDateRange').addEventListener('click',()=>{
+      const start=$('startDate').value,end=$('endDate').value,bounds=state.sourceBounds[state.source]||{};
+      if(!start||!end){setError('請先選擇開始與結束日期。');return;}
+      if(start>end){setError('結束日期不可早於開始日期。');return;}
+      if(bounds.min_date&&start<bounds.min_date){setError(`開始日期不能早於最早可選日 ${bounds.min_date}。`);return;}
+      if(bounds.max_date&&end>bounds.max_date){setError(`結束日期不能晚於最新可選日 ${bounds.max_date}。`);return;}
+      state.startDate=start;state.endDate=end;state.dateRanges[state.source]={startDate:start,endDate:end};load(true);
+    });
+    $('startDate').addEventListener('change',e=>{if(e.target.value){$('endDate').min=e.target.value;if($('endDate').value<e.target.value)$('endDate').value=e.target.value;}});
+    $('endDate').addEventListener('change',e=>{if(e.target.value){$('startDate').max=e.target.value;if($('startDate').value>e.target.value)$('startDate').value=e.target.value;}});
+    $('source').addEventListener('change',e=>{state.source=e.target.value;setDateRangeForSource(state.source);load(true);});
     $('side').addEventListener('change',e=>{state.side=e.target.value;load(true);});
     $('refresh').addEventListener('click',()=>load(false));
     $('drawerClose').addEventListener('click',closeTradeDrawer); $('tradeDrawerBackdrop').addEventListener('click',closeTradeDrawer); document.addEventListener('keydown',event=>{if(event.key==='Escape')closeTradeDrawer();});

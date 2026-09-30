@@ -12,6 +12,7 @@
 - 最近交易與服務／資料 freshness
 - Asia/Taipei 顯示，API 同時提供 UTC 時間
 - 實戰／回測資料模式切換
+- 可自由選擇起訖日期，日期以 Asia/Taipei 計算；最早可選日依各資料來源可用 K 線／交易紀錄動態顯示，不能選到更早日期
 - K 線縮放、拖曳平移與全覽復原（桌面滑鼠及手機觸控）；手機圖表允許頁面垂直滑動
 - 績效分析：累積 PnL、月度 PnL、方向勝率、出場原因、regime、持倉時間勝率
 - 交易品質分析：累積 PnL 對齊每筆 MAE／MFE、最大回撤、PF、連勝連敗
@@ -54,8 +55,10 @@ systemctl list-timers cryptoviewer-backtest-refresh.timer --no-pager
 
 ## 分析資料與限制
 
-分析資料透過唯讀 `GET /api/analysis?source=live|backtest&days=30&side=ALL` 提供，
+分析資料透過唯讀 `GET /api/analysis?source=live|backtest&start=YYYY-MM-DD&end=YYYY-MM-DD&side=ALL` 提供，
 頁面每次載入、切換來源／區間／方向、按重新整理，以及每 60 秒會同步更新。
+起訖日為含首尾的台北日曆日期；交易統計、交易明細、GK／未開單原因、生命週期與 K 線都使用相同日期範圍。
+已平倉績效依實際出場日歸屬；尚未平倉的交易依進場日顯示。
 `live` 模式會讀取 `data_live/bar_snapshots.csv` 與 `data_live/position_lifecycle.csv`。
 回測模式若要顯示 GK／breakout／生命週期圖，需另外產生與回測同一批資料對應的 CSV，
 預設檔名為：
@@ -70,9 +73,9 @@ data/backtest_position_lifecycle.csv
 TP／SafeNet／MaxHold 價格線，因此 viewer 不會自行推算或從策略程式重建這些線，避免把推測
 當成實際紀錄。
 
-實戰公開 K 線每次最多讀取最近 1,000 根 1h K 線。若選擇 90 天或 1 年，交易統計和明細仍按所選
-天數篩選，但 K 線可能只覆蓋區間後段；頁面會標示兩者的涵蓋範圍，圖表不會顯示 K 線範圍外的
-成交標記。縮窄區間可讓圖表與績效統計更接近同一段期間。
+實戰公開 K 線依所選日期向 Binance 分頁讀取；單次最多 30,000 根 1h K 線，超過時 API 會要求縮短區間。
+回測日期受本機回測 K 線快取與交易資料可用範圍限制。頁面會顯示最早可選日期與實際 K 線涵蓋範圍；
+若 K 線來源缺少部分區間，交易績效仍按所選日期計算，並明確提醒圖表可能缺少範圍外的成交標記。
 
 ## VPS 單實例啟用
 

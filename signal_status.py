@@ -238,7 +238,10 @@ def _position_payload(trade_id, position, close, bar_time, bar_counter):
         hold_remaining = max(0, max_hold - bars_held)
         hold_status = f"距 MaxHold 剩 {hold_remaining} 根（約 {hold_remaining}h）"
     try:
-        max_hold_due = (pd.to_datetime(bar_time) + pd.Timedelta(hours=hold_remaining)).strftime("%m-%d %H:%M")
+        # bar_time is the open time of the latest closed candle. The MaxHold
+        # estimate is the close time of the remaining candles, so include the
+        # current candle's one-hour duration: 2 bars remaining -> +3 hours.
+        max_hold_due = (pd.to_datetime(bar_time) + pd.Timedelta(hours=hold_remaining + 1)).strftime("%m-%d %H:%M")
     except (TypeError, ValueError):
         max_hold_due = None
 
