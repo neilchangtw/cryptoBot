@@ -242,11 +242,23 @@ def _position_payload(trade_id, position, close, bar_time, bar_counter):
     except (TypeError, ValueError):
         max_hold_due = None
 
+    raw_entry_time = position.get("entry_time_utc8") or position.get("entry_time_utc") or ""
+    entry_signal_time = pd.to_datetime(raw_entry_time, errors="coerce")
+    if pd.isna(entry_signal_time):
+        entry_signal_time_display = str(raw_entry_time)[:16] or None
+        entry_time_display = None
+    else:
+        if entry_signal_time.tzinfo is not None:
+            entry_signal_time = entry_signal_time.tz_convert("Asia/Taipei")
+        entry_signal_time_display = entry_signal_time.strftime("%Y-%m-%d %H:%M")
+        entry_time_display = (entry_signal_time + pd.Timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
+
     return {
         "id": str(trade_id),
         "side": side,
         "direction": "Long" if side == "L" else "Short",
-        "entry_time_display": str(position.get("entry_time_utc8") or position.get("entry_time_utc") or "")[:16],
+        "entry_time_display": entry_time_display,
+        "entry_signal_time_display": entry_signal_time_display,
         "entry_price": entry_price,
         "entry_regime": regime,
         "hold_bars": bars_held,

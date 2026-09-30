@@ -582,12 +582,20 @@ class DataStore:
         positions = []
         for trade_id, position in (payload.get("positions") or {}).items():
             side = _side(position.get("sub_strategy") or position.get("side"))
+            entry_signal_time = _parse_datetime(
+                position.get("entry_time_utc8") or position.get("entry_time_utc")
+            )
+            entry_time = _execution_time(
+                position.get("entry_time_utc8") or position.get("entry_time_utc")
+            )
             positions.append({
                 "id": str(trade_id),
                 "side": side,
                 "direction": "Long" if side == "L" else "Short" if side == "S" else side,
-                "entry_time_utc": _iso(_parse_datetime(position.get("entry_time_utc8") or position.get("entry_time_utc"))),
-                "entry_time_display": _display_time(_parse_datetime(position.get("entry_time_utc8") or position.get("entry_time_utc"))),
+                "entry_signal_time_utc": _iso(entry_signal_time),
+                "entry_signal_time_display": _display_time(entry_signal_time),
+                "entry_time_utc": _iso(entry_time),
+                "entry_time_display": _display_time(entry_time),
                 "entry_price": _number(position.get("entry_price")),
                 "qty": _number(position.get("qty")),
                 "entry_regime": str(position.get("entry_regime") or "NA"),
