@@ -138,6 +138,7 @@
     </div>
     <div class="toolbar">
       <select id="source" aria-label="資料來源"><option value="live">實戰</option><option value="backtest">回測</option></select>
+      <select id="days" aria-label="快速日期範圍"><option value="custom">自訂日期</option><option value="7">7 天</option><option value="30">30 天</option><option value="90">90 天</option><option value="180">半年（180 天）</option><option value="365">1 年</option></select>
       <div class="date-range-control" role="group" aria-label="自訂日期區間（台北時間）">
         <label for="startDate">日期區間</label><input id="startDate" type="date" aria-label="開始日期">
         <span aria-hidden="true">至</span><input id="endDate" type="date" aria-label="結束日期">
@@ -543,10 +544,11 @@
     }
     function setDateRangeForSource(source){
       const bounds=state.sourceBounds[source]||{},min=bounds.min_date||todayTaipei(),max=bounds.max_date||todayTaipei(),remembered=state.dateRanges[source];
-      let start=remembered?.startDate,end=remembered?.endDate;
-      if(!start||!end){end=max;start=shiftDate(end,-29);if(start<min)start=min;}
+      let start=remembered?.startDate,end=remembered?.endDate,preset=remembered?.preset||'30';
+      if(!start||!end){preset='30';end=max;start=shiftDate(end,-29);if(start<min)start=min;}
       start=start<min?min:start>max?max:start;end=end>max?max:end<min?min:end;if(start>end)start=end;
-      state.startDate=start;state.endDate=end;state.dateRanges[source]={startDate:start,endDate:end};
+      if(!['custom','7','30','90','180','365'].includes(String(preset)))preset='custom';
+      state.startDate=start;state.endDate=end;state.dateRanges[source]={startDate:start,endDate:end,preset};$('days').value=preset;
       $('startDate').min=min;$('startDate').max=max;$('endDate').min=min;$('endDate').max=max;
       $('startDate').value=start;$('endDate').value=end;$('startDate').max=end;$('endDate').min=start;
       $('dateRangeHint').textContent=`最早可選：${min}（台北）｜績效依出場日`;$('dateRangeHint').title=`此資料來源可選 ${min} 至 ${max}；已平倉交易績效依實際出場日歸屬，進行中交易依進場日顯示。`;
@@ -567,10 +569,11 @@
       if(start>end){setError('結束日期不可早於開始日期。');return;}
       if(bounds.min_date&&start<bounds.min_date){setError(`開始日期不能早於最早可選日 ${bounds.min_date}。`);return;}
       if(bounds.max_date&&end>bounds.max_date){setError(`結束日期不能晚於最新可選日 ${bounds.max_date}。`);return;}
-      state.startDate=start;state.endDate=end;state.dateRanges[state.source]={startDate:start,endDate:end};load(true);
+      state.startDate=start;state.endDate=end;state.dateRanges[state.source]={startDate:start,endDate:end,preset:$('days').value||'custom'};load(true);
     });
-    $('startDate').addEventListener('change',e=>{if(e.target.value){$('endDate').min=e.target.value;if($('endDate').value<e.target.value)$('endDate').value=e.target.value;}});
-    $('endDate').addEventListener('change',e=>{if(e.target.value){$('startDate').max=e.target.value;if($('startDate').value>e.target.value)$('startDate').value=e.target.value;}});
+    $('days').addEventListener('change',e=>{const preset=e.target.value;if(preset==='custom')return;const bounds=state.sourceBounds[state.source]||{},min=bounds.min_date||todayTaipei(),end=bounds.max_date||todayTaipei(),days=Number(preset);let start=shiftDate(end,1-days);if(start<min)start=min;state.startDate=start;state.endDate=end;state.dateRanges[state.source]={startDate:start,endDate:end,preset};$('startDate').min=min;$('startDate').max=end;$('endDate').min=start;$('endDate').max=end;$('startDate').value=start;$('endDate').value=end;load(true);});
+    $('startDate').addEventListener('change',e=>{if(e.target.value){$('days').value='custom';$('endDate').min=e.target.value;if($('endDate').value<e.target.value)$('endDate').value=e.target.value;}});
+    $('endDate').addEventListener('change',e=>{if(e.target.value){$('days').value='custom';$('startDate').max=e.target.value;if($('startDate').value>e.target.value)$('startDate').value=e.target.value;}});
     $('source').addEventListener('change',e=>{state.source=e.target.value;setDateRangeForSource(state.source);load(true);});
     $('side').addEventListener('change',e=>{state.side=e.target.value;load(true);});
     $('refresh').addEventListener('click',()=>load(false));
