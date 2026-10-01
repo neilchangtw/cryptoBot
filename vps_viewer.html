@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>樣本還在長，先看行情</title>
   <style>
     :root { color-scheme: dark; --bg:#191b20; --header:#202329; --panel:#252930; --line:#393e48; --text:#edf0f3; --muted:#a5adb8; --green:#50d99a; --red:#ff7c89; --blue:#86b5ff; --orange:#ffc16f; --surface:#1d2026; --surface-raised:#2d323a; --chart-bg:#191d23; --track:#343941; --hover:#2c3138; --tooltip-bg:#15171b; --tooltip-line:#49515d; --metric:#22262d; --calendar-cell:#2b2f36; --active:#3a424d; }
@@ -126,15 +126,134 @@
     @media (max-width:800px) { .analysis-grid { grid-template-columns:1fr; } }
     @media (max-width:600px) { header { position:static; padding:14px; } main { padding:10px; } h1 { font-size:18px; } .market-price { width:100%; align-items:center; gap:4px 8px; } .market-price-value { font-size:18px; } .market-price-meta { flex-basis:100%; } .stats { grid-template-columns:repeat(2,1fr); } .panel { padding:10px; } .chart-wrap { min-height:280px; height:52vh; } .analysis-card.wide canvas { height:400px; } .analysis-card h3 { font-size:14px; } .chart-summary, .chart-coverage { font-size:11px; line-height:1.6; } .metric-guide { grid-template-columns:1fr; } .metric-guide span { font-size:11px; } .load-status { width:100%; min-height:18px; } button,select,input[type="date"] { min-height:40px; padding:6px 8px; font-size:12px; } .date-range-control { width:100%; } .date-range-control input { flex:1 1 130px; min-width:0; } .date-range-hint { flex-basis:100%; } }
     @media (max-width:600px) { .signal-grid, .risk-grid, .no-trade-grid { grid-template-columns:1fr; } .gate-row { grid-template-columns:18px 92px minmax(0,1fr); font-size:11px; } .position-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 8px; } .analysis-card.wide.drawdown-card canvas { height:115px; } .trade-drawer { padding:12px; } }
+
+    /* Viewer visual system: calm graphite surfaces, clear hierarchy, and touch-first navigation. */
+    :root { --bg:#101318; --header:#141920; --panel:#191f27; --line:#303944; --text:#f0f3f6; --muted:#aab4c0; --blue:#8bc7ee; --surface:#171d24; --surface-raised:#242c35; --chart-bg:#11171e; --track:#2d353f; --hover:#222b35; --tooltip-bg:#10151b; --tooltip-line:#46515e; --metric:#1e252e; --calendar-cell:#252d36; --active:#263947; }
+    html { scroll-behavior:smooth; scroll-padding-top:68px; }
+    body { min-width:320px; overflow-x:hidden; background:radial-gradient(ellipse at 12% -18%,rgba(70,133,158,.14),transparent 38%),linear-gradient(180deg,#131920 0,var(--bg) 460px); font-size:14px; }
+    header { position:relative; padding:22px max(18px,env(safe-area-inset-left)) 16px; background:linear-gradient(135deg,rgba(25,33,42,.98),rgba(18,23,30,.98)); border-bottom:1px solid var(--line); }
+    .header-shell { width:min(100%,1468px); margin:0 auto; }
+    .header-topline { display:flex; align-items:center; justify-content:space-between; gap:20px; }
+    h1 { margin:0; font-size:clamp(24px,2.5vw,34px); font-weight:650; letter-spacing:-.045em; line-height:1.16; }
+    .market-price { margin:0; width:auto; min-width:min(430px,48%); max-width:560px; gap:3px 12px; padding:9px 13px; border-color:#3a4653; border-radius:11px; background:linear-gradient(135deg,rgba(31,41,51,.96),rgba(22,29,37,.96)); box-shadow:inset 0 1px rgba(255,255,255,.035); }
+    .market-price-label { font-size:11px; letter-spacing:.025em; }
+    .market-price-value { font-size:clamp(20px,2vw,26px); font-weight:650; letter-spacing:-.03em; }
+    .market-price-meta { flex-basis:auto; gap:7px; font-size:10px; }
+    .market-price-dot { box-shadow:0 0 0 3px rgba(80,217,154,.12); }
+    .market-price.is-stale .market-price-dot { box-shadow:0 0 0 3px rgba(255,193,111,.12); }
+    .toolbar { display:flex; align-items:center; gap:8px; margin-top:14px; padding:10px; border:1px solid rgba(151,169,188,.17); border-radius:12px; background:rgba(12,16,21,.34); }
+    button,select,input[type="date"] { min-height:42px; border-radius:9px; transition:border-color .18s ease,background-color .18s ease,transform .18s ease; }
+    button:hover { border-color:var(--blue); background-color:#2b3743; }
+    button:active { transform:translateY(1px); }
+    button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,canvas:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
+    main { max-width:1500px; padding:20px 18px 44px; }
+    .section-nav { position:sticky; top:0; z-index:7; border-bottom:1px solid rgba(143,161,181,.18); background:rgba(15,20,26,.92); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
+    .section-nav-inner { display:flex; align-items:center; gap:6px; max-width:1500px; margin:0 auto; padding:7px 18px; overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; }
+    .section-nav-inner::-webkit-scrollbar { display:none; }
+    .section-nav a { flex:none; padding:7px 12px; border:1px solid transparent; border-radius:8px; color:var(--muted); font-size:12px; text-decoration:none; white-space:nowrap; transition:color .18s ease,border-color .18s ease,background-color .18s ease; }
+    .section-nav a:hover,.section-nav a:focus-visible { color:var(--text); border-color:var(--line); background:var(--surface-raised); }
+    #overview,#liveStatus,#analysis,#marketChart,#recentTrades { scroll-margin-top:72px; }
+    .stats { grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+    .stat { min-width:0; min-height:78px; padding:12px 13px; border:1px solid rgba(151,169,188,.12); border-radius:12px; background:linear-gradient(145deg,rgba(30,37,46,.96),rgba(22,28,35,.96)); box-shadow:0 8px 24px rgba(0,0,0,.08); }
+    .stat span { display:block; font-size:11px; letter-spacing:.02em; }
+    .stat b { margin-top:3px; font-size:clamp(17px,1.6vw,22px); font-weight:620; letter-spacing:-.025em; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+    .panel { padding:16px; border-radius:14px; border-color:rgba(151,169,188,.16); box-shadow:0 14px 36px rgba(0,0,0,.10); }
+    .panel h2 { font-size:16px; font-weight:620; letter-spacing:-.015em; }
+    .analysis-grid { gap:14px; }
+    .analysis-card { padding:13px; border-radius:12px; border-color:rgba(151,169,188,.15); background:linear-gradient(145deg,rgba(25,32,40,.98),rgba(21,27,34,.98)); }
+    .analysis-card h3 { margin-bottom:9px; font-size:13px; letter-spacing:.005em; }
+    .chart-summary,.analysis-note,.chart-coverage { color:#b0bac6; }
+    .chart-summary { padding-top:3px; }
+    .signal-card,.risk-card,.position-card { border-radius:11px; border-color:rgba(151,169,188,.17); }
+    .signal-card { padding:13px; }
+    .signal-card.blocked { border-left:3px solid #66717e; }
+    .signal-card.can-open { border-left:3px solid var(--green); background:linear-gradient(145deg,rgba(31,62,53,.35),var(--surface)); }
+    .risk-card { padding:13px; }
+    .risk-track { height:7px; }
+    .position-card { padding:12px; }
+    .table-wrap { border:1px solid rgba(151,169,188,.14); border-radius:10px; overscroll-behavior-x:contain; scrollbar-color:#56616e transparent; }
+    table { min-width:760px; }
+    th { position:sticky; top:0; z-index:1; background:var(--surface); }
+    tr.clickable:hover td { background:var(--hover); }
+    .chart-wrap { height:clamp(360px,58vh,650px); min-height:320px; }
+    #chart { border:1px solid rgba(151,169,188,.12); touch-action:pan-y; }
+    .chart-section-head { align-items:center; margin-bottom:8px; }
+    .chart-section-head h2 { margin:0; }
+    .chart-controls { display:flex; align-items:center; gap:6px; }
+    .chart-controls button { min-width:42px; min-height:40px; padding:6px 10px; font-weight:600; }
+    .chart-controls #resetChartView { min-width:72px; font-size:11px; }
+    .legend { gap:9px 14px; }
+    .trade-drawer { padding:20px; border-left-color:rgba(151,169,188,.2); }
+    .trade-drawer-backdrop { backdrop-filter:blur(2px); }
+    @media (max-width:1100px) { .stats { grid-template-columns:repeat(3,minmax(0,1fr)); } .market-price { min-width:min(390px,52%); } }
+    @media (max-width:800px) { .analysis-grid { grid-template-columns:1fr; } .analysis-card.wide canvas { height:360px; } }
+    @media (max-width:600px) {
+      html { scroll-padding-top:64px; }
+      header { padding:calc(16px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 14px max(14px,env(safe-area-inset-left)); }
+      .header-topline { align-items:stretch; flex-direction:column; gap:12px; }
+      h1 { font-size:clamp(22px,6vw,27px); }
+      .market-price { width:100%; min-width:0; max-width:none; align-items:center; padding:10px 12px; gap:3px 9px; }
+      .market-price-label { flex:1 1 auto; }
+      .market-price-value { font-size:21px; }
+      .market-price-meta { flex:1 1 100%; flex-wrap:wrap; font-size:10px; }
+      .toolbar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:12px; padding:9px; }
+      .toolbar select,.toolbar button { width:100%; min-width:0; min-height:44px; font-size:13px; }
+      .toolbar select { font-size:16px; }
+      .date-range-control { display:grid; grid-column:1/-1; grid-template-columns:minmax(0,1fr) min-content minmax(0,1fr); width:100%; gap:7px; }
+      .date-range-control label,.date-range-hint { grid-column:1/-1; }
+      .date-range-control label { font-size:11px; }
+      .date-range-control input { width:100%; min-width:0; min-height:44px; padding:7px 6px; font-size:16px; }
+      .date-range-control button { grid-column:1/-1; }
+      .date-range-hint { font-size:10px; line-height:1.45; }
+      .toolbar #updated,.toolbar #loadStatus { grid-column:1/-1; margin:0; font-size:11px; line-height:1.45; }
+      .toolbar #loadStatus { width:auto; }
+      .section-nav-inner { gap:4px; padding:6px 12px; }
+      .section-nav a { padding:7px 10px; font-size:11px; }
+      main { padding:14px max(12px,env(safe-area-inset-right)) 34px max(12px,env(safe-area-inset-left)); }
+      .stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:12px; }
+      .stat { min-height:72px; padding:10px; border-radius:10px; }
+      .stat span { font-size:10px; }
+      .stat b { font-size:18px; }
+      .panel { padding:12px; border-radius:12px; }
+      .panel h2 { font-size:15px; }
+      .analysis-grid { gap:10px; }
+      .analysis-card { padding:11px; }
+      .analysis-card h3 { font-size:13px; }
+      .analysis-card canvas { height:210px; }
+      .analysis-card.wide canvas { height:350px; }
+      .analysis-card.wide.drawdown-card canvas { height:115px; }
+      .chart-summary,.chart-coverage { font-size:11px; line-height:1.55; }
+      .metric-guide { grid-template-columns:1fr; }
+      .signal-grid,.risk-grid,.no-trade-grid { grid-template-columns:1fr; }
+      .gate-row { grid-template-columns:18px 86px minmax(0,1fr); font-size:11px; }
+      .position-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px 9px; }
+      .position-metric span { font-size:10px; }
+      .position-metric strong { font-size:12px; }
+      .chart-wrap { height:clamp(330px,54svh,520px); min-height:300px; }
+      .chart-section-head { align-items:flex-start; }
+      .chart-controls { flex:none; gap:5px; }
+      .chart-controls button { min-width:44px; min-height:44px; }
+      .chart-controls #resetChartView { min-width:62px; padding-inline:7px; }
+      .legend { gap:8px 12px; font-size:11px; }
+      .table-wrap { max-height:380px; }
+      table { min-width:760px; font-size:12px; }
+      th,td { padding:9px 8px; }
+      .trade-drawer { padding:calc(14px + env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); }
+    }
+    @media (max-width:360px) { .market-price-meta { font-size:9px; } .position-grid { grid-template-columns:1fr; } .gate-row { grid-template-columns:16px 76px minmax(0,1fr); gap:4px; font-size:10px; } .chart-controls #resetChartView { min-width:54px; font-size:10px; } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.01ms !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; } }
   </style>
 </head>
 <body>
   <header>
+    <div class="header-shell">
+    <div class="header-topline">
     <h1 id="pageTitle">樣本還在長，先看行情</h1>
     <div id="marketPriceCard" class="market-price" role="group" aria-label="ETHUSDT 即時價格，Binance USDⓈ-M Futures 最新成交價">
       <span class="market-price-label">ETHUSDT 即時成交價 · Binance Futures</span>
       <strong id="marketPrice" class="market-price-value">讀取中…</strong>
       <span class="market-price-meta"><span id="marketPriceDot" class="market-price-dot" aria-hidden="true"></span><span id="marketPriceTime">連線中…</span></span>
+    </div>
     </div>
     <div class="toolbar">
       <select id="source" aria-label="資料來源"><option value="live">實戰</option><option value="backtest">回測</option></select>
@@ -148,11 +267,13 @@
       <select id="side"><option value="ALL">全部方向</option><option value="L">Long</option><option value="S">Short</option></select>
       <button id="refresh">重新整理</button><span id="updated" class="muted"></span><span id="loadStatus" class="load-status" role="status" aria-live="polite" aria-atomic="true"></span>
     </div>
+    </div>
   </header>
+  <nav class="section-nav" aria-label="頁面區段導覽"><div class="section-nav-inner"><a href="#overview">總覽</a><a href="#liveStatus">即時狀態</a><a href="#analysis">績效分析</a><a href="#marketChart">K 線圖</a><a href="#recentTrades">最近交易</a></div></nav>
   <main>
     <div id="error" class="error"></div>
     <div id="staleNotice" class="stale-notice" role="status" hidden></div>
-    <div class="stats">
+    <div class="stats" id="overview" aria-label="區間績效總覽">
       <div class="stat"><span class="muted">已平倉筆數</span><b id="tradeCount">-</b></div>
       <div class="stat"><span class="muted">勝率</span><b id="winRate">-</b></div>
       <div class="stat"><span class="muted">區間淨損益</span><b id="pnl">-</b></div>
@@ -160,7 +281,7 @@
       <div class="stat"><span class="muted">獲利因子 PF</span><b id="profitFactor">-</b></div>
       <div class="stat"><span class="muted">最大回撤</span><b id="maxDrawdown">-</b></div>
     </div>
-    <section class="panel" style="margin-top:14px" aria-labelledby="signalTitle">
+    <section class="panel" id="liveStatus" style="margin-top:14px" aria-labelledby="signalTitle">
       <div class="section-head"><h2 id="signalTitle">即時開單條件與風控狀態</h2><span id="signalUpdated" class="muted"></span></div>
       <div class="signal-positions">
         <div class="signal-subhead"><h3>目前持倉</h3><span class="muted">唯讀同步</span></div>
@@ -170,7 +291,7 @@
       <div id="signalSides" class="signal-grid"></div>
       <div id="signalRisk" class="risk-grid"></div>
     </section>
-    <section class="panel" style="margin-top:14px">
+    <section class="panel" id="analysis" style="margin-top:14px">
       <h2>績效與策略分析</h2>
       <div id="analysisNote" class="analysis-note">讀取中...</div>
       <div class="analysis-grid" style="margin-top:10px">
@@ -188,11 +309,11 @@
       </div>
     </section>
     <div class="grid">
-      <section class="panel chart-panel">
-        <h2>K 線與交易標記</h2>
-        <div class="chart-wrap"><canvas id="chart"></canvas></div>
+      <section class="panel chart-panel" id="marketChart">
+        <div class="section-head chart-section-head"><h2>K 線與交易標記</h2><div class="chart-controls" role="group" aria-label="K 線圖縮放控制"><button id="zoomIn" type="button" aria-label="放大 K 線圖" title="放大">＋</button><button id="zoomOut" type="button" aria-label="縮小 K 線圖" title="縮小">−</button><button id="resetChartView" type="button" aria-label="顯示完整期間">還原</button></div></div>
+        <div class="chart-wrap"><canvas id="chart" role="img" aria-label="ETHUSDT 一小時 K 線與實際成交進出場標記" aria-describedby="chartCoverage"></canvas></div>
         <div class="legend"><span class="l">L 開倉</span><span class="s">S 開倉</span><span class="exit">平倉</span><span class="position">持倉區間</span><span class="price">即時價格</span><span>標記：實際成交時間</span><span>虛線：未收盤 K 線</span></div>
-        <div class="sub" style="margin-top:7px">操作：滑鼠滾輪、拖曳平移；手機可拖曳或雙指縮放。放大圖表會顯示可見交易的進出場價格標籤與持倉區間；點選交易可查看完整明細；雙擊 K 線還原全期間。K 棒時間是開盤時刻，交易標記與明細時間是實際成交時刻。<span id="zoomInfo"></span></div>
+        <div class="sub" style="margin-top:7px">操作：滑鼠滾輪或按 ＋／− 縮放，拖曳平移；手機可拖曳或雙指縮放。按「還原」或雙擊圖表顯示完整期間。點選成交標記查看明細。K 棒時間是開盤時刻；交易標記與明細時間是實際成交時刻。<span id="zoomInfo"></span></div>
         <div id="chartCoverage" class="chart-coverage" aria-live="polite"></div>
       </section>
       <aside class="panel">
@@ -200,7 +321,7 @@
         <dl id="health" class="kv"><dt>讀取中</dt><dd>...</dd></dl>
       </aside>
     </div>
-    <section class="panel" style="margin-top:14px">
+    <section class="panel" id="recentTrades" style="margin-top:14px">
       <h2>最近交易</h2>
       <div class="table-wrap"><table><thead><tr><th>編號</th><th>方向</th><th>成交進場</th><th>成交出場</th><th>原因</th><th>PnL</th><th>持倉</th><th>Regime</th></tr></thead><tbody id="trades"></tbody></table></div>
       <div class="sub" style="margin-top:8px">點擊交易列可在圖表中查看該筆交易。圖表標記與表格時間都是實際成交時間；訊號 K 棒開盤時間會在明細中另外列出。</div>
@@ -583,6 +704,7 @@
     const canvas=$('chart'), pointers=new Map();
     $('riskPnlChart').addEventListener('click',event=>{const point=localPoint($('riskPnlChart'),event);let best=null,dist=1e9;state.analysisHits.forEach(hit=>{const distance=Math.hypot(hit.x-point.x,hit.y-point.y);if(distance<hit.r&&distance<dist){best=hit;dist=distance;}});if(best){if(best.group){showAnalysisGroup(best.group);}else{const tr=(state.data?.trades||[]).find(row=>String(row.number)===String(best.number));if(tr)showTrade(tr,true);}}});
     $('gkChart').addEventListener('click',event=>{const point=localPoint($('gkChart'),event),hit=state.gkHits.find(item=>point.x>=item.x&&point.x<=item.x+item.w&&point.y>=item.y&&point.y<=item.y+item.h);if(hit&&Number.isFinite(hit.startMs)){focusKline(hit.startMs,hit.endMs);$('gkSummary').textContent=`已聚焦 ${hit.label} 時段｜L ${hit.long==null?'-':hit.long.toFixed(1)}%｜S ${hit.short==null?'-':hit.short.toFixed(1)}%｜請查看下方 K 線突破與交易結果`;}});
+    $('zoomIn').addEventListener('click',()=>zoomAt(.8)); $('zoomOut').addEventListener('click',()=>zoomAt(1.25)); $('resetChartView').addEventListener('click',resetView);
     canvas.addEventListener('wheel',event=>{event.preventDefault(); const point=canvasPoint(event), chart=state.chart; if(!chart||point.x<chart.pad.l||point.x>chart.pad.l+chart.w)return; zoomAt(event.deltaY<0?.8:1.25,(point.x-chart.pad.l)/chart.w);},{passive:false});
     canvas.addEventListener('pointerdown',event=>{canvas.setPointerCapture(event.pointerId);pointers.set(event.pointerId,{x:event.clientX,y:event.clientY}); if(pointers.size===1){const point=canvasPoint(event), chart=state.chart, range=viewRange(); state.gesture={type:'pan',startX:event.clientX,baseLeft:range.left,baseRight:range.right,chartWidth:chart?.w||1,moved:false};}else if(pointers.size===2){const values=[...pointers.values()];const midX=(values[0].x+values[1].x)/2;const point=canvasPoint({clientX:midX,clientY:(values[0].y+values[1].y)/2}),chart=state.chart,range=viewRange();state.gesture={type:'pinch',startDistance:Math.hypot(values[0].x-values[1].x,values[0].y-values[1].y),centerRatio:chart?Math.max(0,Math.min(1,(point.x-chart.pad.l)/chart.w)):.5,baseLeft:range.left,baseRight:range.right};}});
     canvas.addEventListener('pointermove',event=>{if(!pointers.has(event.pointerId))return;pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});const gesture=state.gesture;if(!gesture)return;if(pointers.size>=2&&gesture.type==='pinch'){const values=[...pointers.values()],distance=Math.max(1,Math.hypot(values[0].x-values[1].x,values[0].y-values[1].y)),factor=gesture.startDistance/distance,span=gesture.baseRight-gesture.baseLeft,center=gesture.baseLeft+span*gesture.centerRatio,nextSpan=span*factor;gesture.moved=Math.abs(factor-1)>.02;scheduleView(center-nextSpan*gesture.centerRatio,center+nextSpan*(1-gesture.centerRatio));return;}if(gesture.type==='pan'){const dx=event.clientX-gesture.startX;if(Math.abs(dx)>4)gesture.moved=true;const delta=-dx/gesture.chartWidth*(gesture.baseRight-gesture.baseLeft);scheduleView(gesture.baseLeft+delta,gesture.baseRight+delta);}});
