@@ -134,6 +134,7 @@
     .header-shell { width:min(100%,1468px); margin:0 auto; }
     .header-topline { display:flex; align-items:center; justify-content:space-between; gap:20px; }
     h1 { margin:0; font-size:clamp(24px,2.5vw,34px); font-weight:650; letter-spacing:-.045em; line-height:1.16; }
+    #pageTitle { display:none; }
     .market-price { margin:0; width:auto; min-width:min(430px,48%); max-width:560px; gap:3px 12px; padding:9px 13px; border-color:var(--tooltip-line); border-radius:11px; background:linear-gradient(135deg,var(--surface-raised),var(--surface)); box-shadow:inset 0 1px rgba(255,255,255,.04); }
     .market-price-label { font-size:11px; letter-spacing:.025em; }
     .market-price-value { font-size:clamp(20px,2vw,26px); font-weight:650; letter-spacing:-.03em; }
@@ -198,11 +199,12 @@
       .toolbar { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:12px; padding:9px; }
       .toolbar select,.toolbar button { width:100%; min-width:0; min-height:44px; font-size:13px; }
       .toolbar select { font-size:16px; }
-      .date-range-control { display:grid; grid-column:1/-1; grid-template-columns:minmax(0,1fr) min-content minmax(0,1fr); width:100%; gap:7px; }
-      .date-range-control label,.date-range-hint { grid-column:1/-1; }
+      .date-range-control { display:grid; grid-column:1/-1; grid-template-columns:minmax(0,1fr); width:100%; gap:7px; }
+      .date-range-control label,.date-range-hint { grid-column:1; }
+      .date-range-control > span[aria-hidden="true"] { grid-column:1; justify-self:center; line-height:1; }
       .date-range-control label { font-size:11px; }
-      .date-range-control input { width:100%; min-width:0; min-height:44px; padding:7px 6px; font-size:16px; }
-      .date-range-control button { grid-column:1/-1; }
+      .date-range-control input { grid-column:1; width:100%; min-width:0; min-height:44px; padding:7px 6px; font-size:16px; }
+      .date-range-control button { grid-column:1; }
       .date-range-hint { font-size:10px; line-height:1.45; }
       .toolbar #updated,.toolbar #loadStatus { grid-column:1/-1; margin:0; font-size:11px; line-height:1.45; }
       .toolbar #loadStatus { width:auto; }
