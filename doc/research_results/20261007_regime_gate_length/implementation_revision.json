@@ -1,0 +1,6 @@
+{
+  "registered_sha256": "ac8bc13c418bed333018e14c9fc7e5c241dfdf1ae0984d9c0f9e376f60f0ccfd",
+  "current_sha256": "f13423ca070e15d59a5f122e874c61484c93ff47c043781f3b4835e57b2f2ec5",
+  "candidate_pnl_inspected_before_revision": false,
+  "reason": "Pre-PnL verification stopped because all three fixed cuts were flat. Add deterministic earliest-entry cut for each audited configuration, guaranteeing an open-position prefix; no parameter, dataset, cost, ranking or trade logic changed. Also make docstring raw to remove SyntaxWarning."
+}

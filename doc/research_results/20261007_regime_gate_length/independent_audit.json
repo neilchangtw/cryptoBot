@@ -1,0 +1,18 @@
+{
+  "status": "PASS",
+  "complete_scenarios": 234,
+  "exact_trade_accounting": "PASS",
+  "quantity_fee_time": "PASS",
+  "occupancy_cooldown_session_monthly_cap": "PASS",
+  "100h_families_all_trades": "PASS",
+  "selected_price_equity_and_funding": "PASS",
+  "input_hashes_and_head": "PASS",
+  "discovery_tie_free": true,
+  "no_scenario_or_ranking_rule_changes": true,
+  "post_analysis_only": true,
+  "historical_winners": {
+    "fixed_joint": 125,
+    "fixed_gate_only": 100,
+    "scaled_joint": 150
+  }
+}

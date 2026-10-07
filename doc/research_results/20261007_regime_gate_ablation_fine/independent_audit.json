@@ -1,0 +1,8 @@
+{
+  "independent_saved_ledger": "150 scenarios PASS",
+  "gate_only100_vs101_all_trade_columns": "PASS",
+  "joint_and_gate_only105_vs106_execution_columns": "PASS",
+  "no_gate_extra_trades": 46,
+  "no_gate_drawdown_change_pct": 39.881689824310065,
+  "report_annotations": "Post-analysis explanatory text only; no candidate/ranking/simulation changes"
+}

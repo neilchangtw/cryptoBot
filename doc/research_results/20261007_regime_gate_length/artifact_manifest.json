@@ -1,0 +1,74 @@
+{
+  "doc\\research_results\\20261007_regime_gate_length\\all_trades.csv": {
+    "bytes": 15123843,
+    "sha256": "d1a40a5eb03c09ddfd5af5b2a5d0a6f01f745cd36f8d785989a4cbf1a1661743"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\cost_results.csv": {
+    "bytes": 178141,
+    "sha256": "f558de70b57813227db915d99c3d20663389815067865fb7ada3b0d4b8e434d1"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\gate_counts.csv": {
+    "bytes": 2977,
+    "sha256": "13ff0ddbb3417af61afc2c130cfcbd9a4178e26719a2f36b66eed07b99bd56f5"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\historical_selections.csv": {
+    "bytes": 709,
+    "sha256": "58b2f9806bb387fa4817aa5fec0b9a5ec1b31acfaacd2eac965af702d6b98f24"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\implementation_revision.json": {
+    "bytes": 539,
+    "sha256": "0edd6082d10db2d5f20508e17762941be8b77510cf4005afba6605f8b0a41936"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\independent_audit.json": {
+    "bytes": 521,
+    "sha256": "16b6e21762783f2f74037868bffc662d837197033d879407fb8d3886913c656b"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\registration.json": {
+    "bytes": 5163,
+    "sha256": "019366e6ca737857b3d3ad4453ff2c985a366012e977ff170878e2df29a08c00"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\results.csv": {
+    "bytes": 167372,
+    "sha256": "6a7154ea68fdf05d92957338af2cec559aacfe5899555d41374f361243ab0e89"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\selected_equity.csv": {
+    "bytes": 12064132,
+    "sha256": "e9b35e2096763cc56695d8451ecad9b310a862af95ad8ce6121d319515b922c3"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\selected_funding.csv": {
+    "bytes": 281376,
+    "sha256": "cfb622456888bef8ac6de52eecf9af60b329d19cfb662febdd5ef58ae8bfc0f6"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\summary.json": {
+    "bytes": 3875,
+    "sha256": "b568a5b78721d5c13decf89234bb8ec3e1db8a9d282e8f514a999232b62aa0bc"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\terminal_states.json": {
+    "bytes": 214516,
+    "sha256": "036b1800a708b0ac9697136c0d2764cbbd46d423f228547ae98119beabe5dc9c"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\verification.json": {
+    "bytes": 10998,
+    "sha256": "816fbc8a5656ae48d4094a110e0ce721357e3b7f9e580ee3369a8e742ad2d7bb"
+  },
+  "doc\\research_results\\20261007_regime_gate_length\\verification_pre_pnl.json": {
+    "bytes": 10859,
+    "sha256": "dce912b946776c4554aec3e26fe11a33e8bb29fd271aa38271a5c242851f5448"
+  },
+  "doc\\regime_gate_length_research_20261007.md": {
+    "bytes": 17802,
+    "sha256": "c61d3858b6fccdade59459fc2e9df0a6be30d812e74fcb9680ab9a98f8575ba5"
+  },
+  "backtest\\research\\audit_regime_gate_length_20261007.py": {
+    "bytes": 11104,
+    "sha256": "18eeccfcf9c9f4d185d157dea8be81c542d18a5bcc024178461bf60f1a21f8dd"
+  },
+  "backtest\\research\\regime_gate_length_20261007.py": {
+    "bytes": 39721,
+    "sha256": "f13423ca070e15d59a5f122e874c61484c93ff47c043781f3b4835e57b2f2ec5"
+  },
+  "doc\\regime_gate_length_plan_20261007.md": {
+    "bytes": 3846,
+    "sha256": "615678a9c249710c6b98eb4eb64126cadf6dfa739d79ea4dd6ba04f06e4efd9a"
+  }
+}

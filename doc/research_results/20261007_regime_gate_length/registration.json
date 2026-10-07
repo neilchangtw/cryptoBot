@@ -1,0 +1,130 @@
+{
+  "registered_at_utc": "2026-10-07T07:34:51.963816+00:00",
+  "research_date_taipei": "2026-10-07",
+  "head": "16939ae607beacab59603bbe8d03bfee9b18f433",
+  "initial_git_status": "?? backtest/research/regime_gate_length_20261007.py\n?? doc/maxhold_adaptive_learning_20260924.md\n?? doc/regime_gate_length_plan_20261007.md",
+  "lengths": [
+    10,
+    20,
+    24,
+    30,
+    40,
+    50,
+    75,
+    100,
+    125,
+    150,
+    200,
+    250,
+    300
+  ],
+  "families": [
+    "fixed_joint",
+    "fixed_gate_only",
+    "scaled_joint"
+  ],
+  "common_start_bar": 510,
+  "primary": "fixed_joint flat200 0bp full closed_pnl descending; tie price_mdd ascending",
+  "extra_cost": 5.0,
+  "slip_bps": [
+    0,
+    2,
+    5
+  ],
+  "sizing": {
+    "flat": 200,
+    "schedule": [
+      [
+        "2000-01-01",
+        200
+      ],
+      [
+        "2026-07-03",
+        300
+      ],
+      [
+        "2026-08-01",
+        500
+      ]
+    ]
+  },
+  "data": {
+    "rows": 17519,
+    "first_open": "2024-09-18 11:00:00",
+    "last_open": "2026-09-18 09:00:00",
+    "last_close": "2026-09-18 10:00:00",
+    "common_start_open": "2024-10-09 17:00:00",
+    "common_start_close": "2024-10-09 18:00:00"
+  },
+  "cost_data": {
+    "rows": 17279,
+    "funding_rows": 2160,
+    "last_close": "2026-09-08 10:00:00"
+  },
+  "blocks": [
+    {
+      "start_open": "2024-10-09 17:00:00",
+      "end_last_close": "2025-02-04 19:00:00"
+    },
+    {
+      "start_open": "2025-02-04 19:00:00",
+      "end_last_close": "2025-06-02 22:00:00"
+    },
+    {
+      "start_open": "2025-06-02 22:00:00",
+      "end_last_close": "2025-09-29 01:00:00"
+    },
+    {
+      "start_open": "2025-09-29 01:00:00",
+      "end_last_close": "2026-01-25 04:00:00"
+    },
+    {
+      "start_open": "2026-01-25 04:00:00",
+      "end_last_close": "2026-05-23 07:00:00"
+    },
+    {
+      "start_open": "2026-05-23 07:00:00",
+      "end_last_close": "2026-09-18 10:00:00"
+    }
+  ],
+  "public_input_hashes": {
+    "analysis_report.py": "fe72bc1041c3b0df50176fc61a5a74f5dc55bcd41b75f4aec71b9251a2f16793",
+    "analyze.py": "b2cfe6d21ab450fd5d16b677bbcca73e3816afce46f519587e34d073f70a1e1b",
+    "binance_trade.py": "3c920e1ffd346f28d010cf3cd0caa429bb6efd34050c75a1d050e54e4fa35ae1",
+    "check_health.py": "239ae33050eab2126b748e0fa97dd63e8d79533d478faa0fa83c4ec07808e5e5",
+    "check_signal.py": "9fb781b3d3eeb35c70770a74d72a9f282b772d934859a2566c68d7a2b5fc1592",
+    "data_feed.py": "bd79d1fa579961ef9757d2944706df3dc7caf8048210494cbe14721554fdb89a",
+    "edge_falsify.py": "c3a16c26282f28bb94676a07de33c36b4f40401a8026aa6e945908055cc32185",
+    "executor.py": "304914263b77b1db08d76f4df4edeeca1f3d5cda20c0e0f651732c4a9034c737",
+    "fetch_backtest_data.py": "0916851c33be1f6d050630c19df8c15d3c22d9f0cc47f8eaf9f849144d0a7343",
+    "labels.py": "ac59bcd68fcdfc4d336ec0da32b706328f5eb37f45442bd86dd5a1f178dabd87",
+    "live_replay.py": "94038e004625db6f7f60b0cb54ab4465263d7d60ab5b4647055c77b749f50754",
+    "main_eth.py": "e51199ab411495118903d8c6d0095a260e834d141819fa565d2b01ce061df62c",
+    "menu.py": "b409734fdf1b760c298a46f83dae5d9be4ccd1b7d67b14d92b63550f46800e5b",
+    "paths.py": "e657fb374f4ad87e3e2a302d858cf8db3f6c9e262a2f8cd7a89f9797ce8a7f06",
+    "recorder.py": "ace1e2d51bc11d4b0dcf45b4fe1d73d9ade33b0857473c94a6c4428d684149dc",
+    "refresh_viewer_backtest.py": "92e5e6b9748ece4e502ca3edfeb4703a5f3904eab6dac4d8dcaafaca61fe5026",
+    "run_backtest.py": "4b15d2427689b31787d73eaf991bd96c295038bc1dbd0f7da32a543134dd9026",
+    "signal_status.py": "867308f002cfefe99c6f8cdf09bdf2fbadf209ad9884ac3d59a110b2e45293b8",
+    "strategy.py": "4b379a8034eb9169af12b3a547f340602cf0c6efa84d6bc5ef9829e8dc5631a8",
+    "telegram_notify.py": "74a03598e39e3ae88d470b00735911b26ad6a130250ec9aa7b20ac607077b2a0",
+    "trade_viewer.py": "64d4b68c732438123d3f9bfdcb7a8fd648f131eb456056c9c38d7d6b856cbbec",
+    "verify_mainnet.py": "1d579424ac7285e78544c942dbed16fcd6d2edaacaf5f71c72c19da42e9f17e8",
+    "vps_viewer.py": "dfb77c9c4a0f068bf311751a06edcdfec3aeb92ded7959d1c10e0d6e3110f925",
+    "AGENTS.md": "4bf9667628be8da25821febceda0b7730520422035a7fbc1f8c38f00cb144042",
+    "backtest\\research\\v14_export_trades.py": "812c269f56f2dc24a2512b068f1c0c2dbfe0e8de5a81cf943745892bc2ab15d7",
+    "data\\ETHUSDT_1h_latest730d.csv": "d0a65a2e870e1be3678421994de2f720751da6dbbd3fd4671ac86225c294c936",
+    "data\\public_cost_history_20260908\\mark_1h_full.csv": "3f9586a44ad530cb63df07a63c749de479953ae2e9ab4f25d81c19e47f0929cb",
+    "data\\public_cost_history_20260908\\funding_full.csv": "148be5e74fe66f6dff6e54fac228022707b9073b68db1b6277df216b3e6ceb77",
+    "doc\\maxhold_adaptive_learning_20260924.md": "6f84771d1cef116d308a20d41a092a2039f573991010c12bc7face9b79b44fdb"
+  },
+  "script_sha256": "ac8bc13c418bed333018e14c9fc7e5c241dfdf1ae0984d9c0f9e376f60f0ccfd",
+  "plan_sha256": "615678a9c249710c6b98eb4eb64126cadf6dfa739d79ea4dd6ba04f06e4efd9a",
+  "runtime": {
+    "python": "3.13.3",
+    "pandas": "3.0.3",
+    "numpy": "2.5.0"
+  },
+  "no_network": true,
+  "status": "registered before candidate PnL"
+}

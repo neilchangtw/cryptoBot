@@ -4,3 +4,8 @@ backtest/research/*_2026091[12].py -text whitespace=blank-at-eol,blank-at-eof,sp
 tests/test_*_2026091[12].py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 doc/*2026091[12]*.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 doc/research_results/2026091[12]_*/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# 保留 2026-10-07 Regime gate 研究腳本、報告及結果的原始 SHA256 證據。
+backtest/research/*regime_gate*_20261007.py -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+doc/regime_gate_*_20261007.md -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+doc/research_results/20261007_regime_gate_*/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

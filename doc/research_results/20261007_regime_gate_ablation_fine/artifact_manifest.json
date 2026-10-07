@@ -1,0 +1,58 @@
+{
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\all_trades.csv": {
+    "bytes": 10974000,
+    "sha256": "9bd55bb887aab160eabbae39f4356b73512775705e0491ddf7a1f76cb28dbd07"
+  },
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\cost_results.csv": {
+    "bytes": 116684,
+    "sha256": "5da39cdf10612683fa5c56225697437eda8c920ff59600a3202a2b10a8b7582b"
+  },
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\gate_changed_events.csv": {
+    "bytes": 75205,
+    "sha256": "68c6d0e7920cecf172bd4c6302df19da8996edbd9a3dc96659c748656be21124"
+  },
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\gate_counts.csv": {
+    "bytes": 1773,
+    "sha256": "07e22a3d5b949f3f59e79b260dcb6d70a130e28f7dfb1909b2a957c270cef185"
+  },
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\independent_audit.json": {
+    "bytes": 358,
+    "sha256": "2bea149328f4f4e84f0960d0a5015e00c1465725cf3830132531e8c437e48449"
+  },
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\registration.json": {
+    "bytes": 9907,
+    "sha256": "14dd0d8d9ea04e34c3e47086006e53bf7b1e2e8d7bd547f21ca2fb06802a2bed"
+  },
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\results.csv": {
+    "bytes": 111111,
+    "sha256": "a15e7af3ada63ce3f165d4f16950da457587992855113e8f53731db9b61b6f6f"
+  },
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\summary.json": {
+    "bytes": 8072,
+    "sha256": "b6151791fd7043a9213014fad8ce7d33b190094dd0f95d3b22e6d921112be019"
+  },
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\terminal_states.json": {
+    "bytes": 136421,
+    "sha256": "a556ab0fcbf9008f3f2f59f9915349281f143fa527729d784d231d6ae119b264"
+  },
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\verification.json": {
+    "bytes": 20403,
+    "sha256": "30f22f81b1fce309f436e28d972a19d13d8a65172557cd48b314d89d1b537c8e"
+  },
+  "doc\\research_results\\20261007_regime_gate_ablation_fine\\verification_pre_pnl.json": {
+    "bytes": 3081,
+    "sha256": "81033486ae5def6a4c5a8bde7de8c591846ef4683b19efcd77be98819804ea3e"
+  },
+  "backtest\\research\\regime_gate_ablation_fine_20261007.py": {
+    "bytes": 27622,
+    "sha256": "4928ef2d2577afec7a685734648b1166f3366ded238afcf082972d1addf0c4dd"
+  },
+  "doc\\regime_gate_ablation_fine_plan_20261007.md": {
+    "bytes": 2911,
+    "sha256": "31277f2a48176fa681085303de6c126a2073bfa707526531d0c9e75686993563"
+  },
+  "doc\\regime_gate_ablation_fine_research_20261007.md": {
+    "bytes": 14618,
+    "sha256": "bd8f6e7864dd55d51e08da45edd03674dc7ae7d516ea8119b131f572570a240f"
+  }
+}

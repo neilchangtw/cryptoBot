@@ -1,0 +1,487 @@
+{
+  "no_op": [
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 310,
+      "sizing": "flat",
+      "slip": 0,
+      "trades": 264,
+      "closed_pnl": 6537.745530421207,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 310,
+      "sizing": "flat",
+      "slip": 2,
+      "trades": 259,
+      "closed_pnl": 6179.307655225013,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 310,
+      "sizing": "flat",
+      "slip": 5,
+      "trades": 261,
+      "closed_pnl": 5716.12644782574,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 310,
+      "sizing": "schedule",
+      "slip": 0,
+      "trades": 264,
+      "closed_pnl": 6368.196815177746,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 310,
+      "sizing": "schedule",
+      "slip": 2,
+      "trades": 259,
+      "closed_pnl": 5977.722394451155,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 310,
+      "sizing": "schedule",
+      "slip": 5,
+      "trades": 261,
+      "closed_pnl": 5473.812943175013,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 510,
+      "sizing": "flat",
+      "slip": 0,
+      "trades": 264,
+      "closed_pnl": 6589.788945307804,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 510,
+      "sizing": "flat",
+      "slip": 2,
+      "trades": 259,
+      "closed_pnl": 6231.331266699377,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 510,
+      "sizing": "flat",
+      "slip": 5,
+      "trades": 263,
+      "closed_pnl": 5761.935715932777,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 510,
+      "sizing": "schedule",
+      "slip": 0,
+      "trades": 264,
+      "closed_pnl": 6420.240230064343,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 510,
+      "sizing": "schedule",
+      "slip": 2,
+      "trades": 259,
+      "closed_pnl": 6029.746005925519,
+      "open_positions": 0,
+      "status": "PASS"
+    },
+    {
+      "check": "no_op_all_trade_columns",
+      "warmup": 510,
+      "sizing": "schedule",
+      "slip": 5,
+      "trades": 263,
+      "closed_pnl": 5519.622211282051,
+      "open_positions": 0,
+      "status": "PASS"
+    }
+  ],
+  "prefix": [
+    {
+      "family": "fixed_joint",
+      "length": 30,
+      "cut_bar": 515,
+      "closed_trades": 0,
+      "L_active": false,
+      "S_active": true,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 30,
+      "cut_bar": 8759,
+      "closed_trades": 111,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 30,
+      "cut_bar": 13139,
+      "closed_trades": 178,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 30,
+      "cut_bar": 17507,
+      "closed_trades": 231,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 50,
+      "cut_bar": 515,
+      "closed_trades": 0,
+      "L_active": false,
+      "S_active": true,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 50,
+      "cut_bar": 8759,
+      "closed_trades": 123,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 50,
+      "cut_bar": 13139,
+      "closed_trades": 200,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 50,
+      "cut_bar": 17507,
+      "closed_trades": 257,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 100,
+      "cut_bar": 515,
+      "closed_trades": 0,
+      "L_active": false,
+      "S_active": true,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 100,
+      "cut_bar": 8759,
+      "closed_trades": 121,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 100,
+      "cut_bar": 13139,
+      "closed_trades": 208,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 100,
+      "cut_bar": 17507,
+      "closed_trades": 264,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 150,
+      "cut_bar": 515,
+      "closed_trades": 0,
+      "L_active": false,
+      "S_active": true,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 150,
+      "cut_bar": 8759,
+      "closed_trades": 112,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 150,
+      "cut_bar": 13139,
+      "closed_trades": 197,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 150,
+      "cut_bar": 17507,
+      "closed_trades": 259,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 300,
+      "cut_bar": 515,
+      "closed_trades": 0,
+      "L_active": false,
+      "S_active": true,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 300,
+      "cut_bar": 8759,
+      "closed_trades": 110,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 300,
+      "cut_bar": 13139,
+      "closed_trades": 198,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "fixed_joint",
+      "length": 300,
+      "cut_bar": 17507,
+      "closed_trades": 256,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 30,
+      "cut_bar": 515,
+      "closed_trades": 0,
+      "L_active": false,
+      "S_active": true,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 30,
+      "cut_bar": 8759,
+      "closed_trades": 125,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 30,
+      "cut_bar": 13139,
+      "closed_trades": 209,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 30,
+      "cut_bar": 17507,
+      "closed_trades": 270,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 50,
+      "cut_bar": 515,
+      "closed_trades": 0,
+      "L_active": false,
+      "S_active": true,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 50,
+      "cut_bar": 8759,
+      "closed_trades": 123,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 50,
+      "cut_bar": 13139,
+      "closed_trades": 210,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 50,
+      "cut_bar": 17507,
+      "closed_trades": 272,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 100,
+      "cut_bar": 515,
+      "closed_trades": 0,
+      "L_active": false,
+      "S_active": true,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 100,
+      "cut_bar": 8759,
+      "closed_trades": 121,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 100,
+      "cut_bar": 13139,
+      "closed_trades": 208,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 100,
+      "cut_bar": 17507,
+      "closed_trades": 264,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 150,
+      "cut_bar": 515,
+      "closed_trades": 0,
+      "L_active": false,
+      "S_active": true,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 150,
+      "cut_bar": 8759,
+      "closed_trades": 115,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 150,
+      "cut_bar": 13139,
+      "closed_trades": 200,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 150,
+      "cut_bar": 17507,
+      "closed_trades": 257,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 300,
+      "cut_bar": 515,
+      "closed_trades": 0,
+      "L_active": false,
+      "S_active": true,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 300,
+      "cut_bar": 8759,
+      "closed_trades": 113,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 300,
+      "cut_bar": 13139,
+      "closed_trades": 193,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    },
+    {
+      "family": "scaled_joint",
+      "length": 300,
+      "cut_bar": 17507,
+      "closed_trades": 258,
+      "L_active": false,
+      "S_active": false,
+      "status": "PASS"
+    }
+  ],
+  "status": "PASS before candidate ranking"
+}
