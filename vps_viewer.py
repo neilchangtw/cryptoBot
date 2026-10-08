@@ -1205,9 +1205,32 @@ class DataStore:
                 breakout_counts["Long"] += 1
             if str(raw.get("breakout_short", "")).lower() in {"true", "1", "yes"}:
                 breakout_counts["Short"] += 1
-        if len(gk_series) > 1000:
-            step = max(1, len(gk_series) // 1000)
-            gk_series = gk_series[::step]
+        gk_stats = {}
+        for key, threshold in (("long", 25.0), ("short", 35.0)):
+            values = [point[key] for point in gk_series if point[key] is not None]
+            gk_stats[f"{key}_rate"] = sum(value < threshold for value in values) / len(values) * 100 if values else None
+            gk_stats[f"{key}_latest"] = values[-1] if values else None
+        # 長區間不再跳點抽樣（會漏掉短暫壓縮）：每桶保留最小／最大值與低於門檻的根數。
+        max_points = 1500
+        if len(gk_series) > max_points:
+            size = -(-len(gk_series) // max_points)
+            buckets = []
+            for index in range(0, len(gk_series), size):
+                chunk = gk_series[index:index + size]
+                item = {
+                    "time_utc": chunk[0]["time_utc"],
+                    "time_display": chunk[0]["time_display"],
+                    "time_end_utc": chunk[-1]["time_utc"],
+                    "bars": len(chunk),
+                }
+                for key, threshold in (("long", 25.0), ("short", 35.0)):
+                    values = [point[key] for point in chunk if point[key] is not None]
+                    item[key] = round(sum(values) / len(values), 3) if values else None
+                    item[f"{key}_min"] = min(values) if values else None
+                    item[f"{key}_max"] = max(values) if values else None
+                    item[f"{key}_below"] = sum(value < threshold for value in values)
+                buckets.append(item)
+            gk_series = buckets
 
         def no_trade_reasons(rows, side):
             """用 bar snapshot 的已保存 gate 統計未開單原因；不推估未保存風控。"""
@@ -1342,6 +1365,7 @@ class DataStore:
                     "rows": len(snapshot_rows),
                     "error": snapshot_error,
                     "gk_series": gk_series,
+                    "gk_stats": gk_stats,
                     "breakout_counts": breakout_counts,
                     "no_trade_reasons": no_trade,
                 },
@@ -1532,10 +1556,18 @@ class DataStore:
         # V29 健康度：實戰以機器人狀態檔為準；回測（或狀態檔缺值）以同公式回放。
         replay = 0.0
         series = []
+        red_episodes = 0
+        replay_level = "green"
+        level_since = None
         for row in rows:
             if row.get("pnl_200u") is None:
                 continue
             replay = max(0.0, replay + (cusum_k - float(row["pnl_200u"])))
+            next_level = "red" if replay > thresholds["red"] else "yellow" if replay > thresholds["yellow"] else "green"
+            if next_level != replay_level:
+                red_episodes += next_level == "red"
+                replay_level = next_level
+                level_since = row.get("exit_time_display")
             series.append({
                 "time_display": row.get("exit_time_display"),
                 "pct": round(max(0.0, (thresholds["red"] - replay) / thresholds["red"] * 100), 1),
@@ -1559,6 +1591,8 @@ class DataStore:
             "server_time_display": _display_time(datetime.now(timezone.utc)),
             "recent_window": EDGE_RECENT_TRADES,
             "current": current,
+            # 回測報告（run_backtest.py）的證偽檢查是看整段交易；健康度卡片看最近 30 筆，兩者並列避免誤讀。
+            "full_window": evaluate(rows) if source == "backtest" else None,
             "monthly": monthly,
             "non_green_streak": streak,
             "freeze_rule": "連續兩個月 🟡（或更差）→ 凍結加碼；🔴 → 檢視是否退回 200U／暫停（V29 SOP）",
@@ -1568,6 +1602,8 @@ class DataStore:
                 "cusum": round(cusum, 2),
                 "cusum_source": cusum_source,
                 "replay_pct": round(max(0.0, (thresholds["red"] - replay) / thresholds["red"] * 100), 1),
+                "replay_level_since": level_since if replay_level != "green" else None,
+                "replay_red_episodes": red_episodes,
                 "yellow_pct": round(yellow_pct, 1),
                 "min_recent_pct": min((point["pct"] for point in recent_series), default=None),
                 "series": recent_series,

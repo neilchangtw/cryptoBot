@@ -2,6 +2,7 @@ import csv
 import json
 import os
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -96,6 +97,23 @@ class VpsViewerHealthTest(unittest.TestCase):
         self.assertEqual(2, payload["current"]["trades"])
         self.assertEqual(6, len(payload["monthly"]))
         self.assertIn(payload["current"]["overall_light"], {"green", "yellow", "red"})
+        # 整段回測對照只在回測模式提供
+        self.assertIsNone(payload["full_window"])
+
+    def test_long_gk_series_is_bucketed_without_dropping_compression(self):
+        path = self.root / "data_live" / "bar_snapshots.csv"
+        lines = ["bar_time_utc8,gk_pctile,gk_pctile_s"]
+        for hour in range(3000):
+            stamp = datetime(2026, 6, 2) + timedelta(hours=hour)
+            # 每 50 根只有 1 根壓縮：跳點抽樣容易漏掉，分桶必須保留 below 計數
+            gk = 5.0 if hour % 50 == 7 else 80.0
+            lines.append(f"{stamp:%Y-%m-%d %H:%M:%S},{gk},{gk}")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        payload = self.store.analysis("live", start_date="2026-06-02", end_date="2026-10-07")
+        snap = payload["evidence"]["bar_snapshots"]
+        self.assertLessEqual(len(snap["gk_series"]), 1500)
+        self.assertEqual(60, sum(item["long_below"] for item in snap["gk_series"]))
+        self.assertAlmostEqual(2.0, snap["gk_stats"]["long_rate"])
 
     def test_rolling_metrics_cover_full_history(self):
         rolling = self.store._rolling_metrics("live")
