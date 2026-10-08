@@ -243,6 +243,42 @@
     }
     @media (max-width:360px) { .market-price-meta { font-size:9px; } .position-grid { grid-template-columns:1fr; } .gate-row { grid-template-columns:16px 76px minmax(0,1fr); gap:4px; font-size:10px; } .chart-controls #resetChartView { min-width:54px; font-size:10px; } }
     @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.01ms !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; } }
+    /* 策略健康度、滾動 MFE、實戰 vs 回測（2026-10 新增；窄螢幕全部單欄） */
+    .edge-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,1.15fr); gap:12px; margin-top:10px; }
+    .edge-card { min-width:0; padding:13px; border:1px solid var(--line-soft); border-radius:11px; background:linear-gradient(145deg,var(--surface),var(--panel)); }
+    .edge-card h3 { margin:0 0 8px; font-size:13px; font-weight:600; }
+    .edge-big { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+    .edge-big b { font-size:clamp(26px,3vw,34px); font-weight:650; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+    .edge-big span { color:var(--muted); font-size:12px; }
+    .edge-card canvas { width:100%; height:64px; margin-top:8px; background:transparent; cursor:default; }
+    .edge-sub { margin-top:6px; color:var(--muted); font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+    .light-dot { display:inline-block; flex:none; width:10px; height:10px; border-radius:50%; background:var(--line-strong); vertical-align:middle; }
+    .light-green { background:var(--green); } .light-yellow { background:var(--orange); } .light-red { background:var(--red); }
+    .text-green { color:var(--green); } .text-yellow { color:var(--orange); } .text-red { color:var(--red); }
+    .edge-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:2px 8px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line-soft); }
+    .edge-item:last-of-type { border-bottom:0; }
+    .edge-item b { font-size:13px; font-weight:550; } .edge-item strong { font-size:13px; font-variant-numeric:tabular-nums; }
+    .edge-item small { grid-column:2/-1; color:var(--muted); font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
+    .edge-verdict { margin-top:9px; padding:8px 10px; border-radius:8px; background:var(--metric); font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+    .edge-verdict.is-yellow { background:var(--orange-wash); color:var(--orange-strong); } .edge-verdict.is-red { background:var(--red-wash); color:var(--red); } .edge-verdict.is-green { background:var(--green-wash); }
+    .month-chips { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:6px; }
+    .month-chip { min-width:0; padding:7px 3px; border:1px solid var(--line-soft); border-radius:8px; background:var(--metric); text-align:center; font-size:11px; line-height:1.35; }
+    .month-chip .light-dot { display:block; margin:3px auto; }
+    .month-chip small { display:block; color:var(--muted); font-size:10px; }
+    .month-chip.is-current { border-style:dashed; }
+    .analysis-card.wide canvas.compact-chart { height:240px; }
+    .compare-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin-top:10px; }
+    .compare-stats div { min-width:0; padding:8px 10px; border-radius:8px; background:var(--metric); }
+    .compare-stats span { display:block; color:var(--muted); font-size:11px; } .compare-stats b { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+    .compare-detail { margin-top:8px; font-size:12px; } .compare-detail summary { cursor:pointer; color:var(--blue); padding:4px 0; }
+    .compare-detail ul { margin:6px 0 0; padding-left:18px; color:var(--muted); line-height:1.7; }
+    .chart-legend-inline { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:6px; color:var(--muted); font-size:12px; }
+    .chart-legend-inline i { display:inline-block; width:14px; height:0; margin-right:5px; border-top:2px solid var(--blue); vertical-align:middle; }
+    .chart-legend-inline i.dash { border-top-style:dashed; } .chart-legend-inline i.green { border-color:var(--green); } .chart-legend-inline i.red { border-color:var(--red); } .chart-legend-inline i.orange { border-color:var(--orange); } .chart-legend-inline i.muted { border-color:var(--muted); }
+    #edgeHealth { scroll-margin-top:72px; }
+    @media (max-width:1100px) { .edge-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .edge-grid .edge-months { grid-column:1/-1; } }
+    @media (max-width:640px) { .edge-grid { grid-template-columns:1fr; } .edge-grid .edge-months { grid-column:auto; } .analysis-card.wide canvas.compact-chart { height:220px; } }
+    @media (max-width:420px) { .month-chips { grid-template-columns:repeat(3,minmax(0,1fr)); } }
   </style>
 </head>
 <body>
@@ -265,23 +301,33 @@
         <button id="applyDateRange" type="button">套用日期</button>
         <span id="dateRangeHint" class="date-range-hint" aria-live="polite"></span>
       </div>
-      <select id="side"><option value="ALL">全部方向</option><option value="L">Long</option><option value="S">Short</option></select>
+      <select id="side" aria-label="方向"><option value="ALL">全部方向</option><option value="L">Long</option><option value="S">Short</option></select>
+      <select id="basis" aria-label="金額基準" title="200U 基準：每筆 PnL × $4,000 ÷ 當筆名目，排除保證金 200→300→500U 的放大效果"><option value="actual">實際金額</option><option value="200u">200U 基準</option></select>
       <button id="refresh">重新整理</button><span id="updated" class="muted"></span><span id="loadStatus" class="load-status" role="status" aria-live="polite" aria-atomic="true"></span>
     </div>
     </div>
   </header>
-  <nav class="section-nav" aria-label="頁面區段導覽"><div class="section-nav-inner"><a href="#overview">總覽</a><a href="#liveStatus">即時狀態</a><a href="#analysis">績效分析</a><a href="#marketChart">K 線圖</a><a href="#recentTrades">最近交易</a></div></nav>
+  <nav class="section-nav" aria-label="頁面區段導覽"><div class="section-nav-inner"><a href="#overview">總覽</a><a href="#edgeHealth">策略健康度</a><a href="#liveStatus">即時狀態</a><a href="#analysis">績效分析</a><a href="#marketChart">K 線圖</a><a href="#recentTrades">最近交易</a></div></nav>
   <main>
     <div id="error" class="error"></div>
     <div id="staleNotice" class="stale-notice" role="status" hidden></div>
     <div class="stats" id="overview" aria-label="區間績效總覽">
       <div class="stat"><span class="muted">已平倉筆數</span><b id="tradeCount">-</b></div>
       <div class="stat"><span class="muted">勝率</span><b id="winRate">-</b></div>
-      <div class="stat"><span class="muted">區間淨損益</span><b id="pnl">-</b></div>
+      <div class="stat"><span class="muted" id="pnlLabel">區間淨損益</span><b id="pnl">-</b></div>
       <div class="stat"><span class="muted">目前持倉</span><b id="positionCount">-</b></div>
       <div class="stat"><span class="muted">獲利因子 PF</span><b id="profitFactor">-</b></div>
       <div class="stat"><span class="muted">最大回撤</span><b id="maxDrawdown">-</b></div>
     </div>
+    <section class="panel" id="edgeHealth" aria-labelledby="edgeTitle">
+      <div class="section-head"><h2 id="edgeTitle">策略健康度</h2><span id="edgeUpdated" class="muted"></span></div>
+      <div id="edgeNote" class="analysis-note">讀取中…</div>
+      <div class="edge-grid">
+        <article class="edge-card" id="edgeV29" aria-live="polite"><h3>V29 策略健康度</h3><div class="signal-empty">讀取中…</div></article>
+        <article class="edge-card" id="edgeChecks"><h3>證偽檢查</h3><div class="signal-empty">讀取中…</div></article>
+        <article class="edge-card edge-months" id="edgeMonths"><h3>月度燈號</h3><div class="signal-empty">讀取中…</div></article>
+      </div>
+    </section>
     <section class="panel" id="liveStatus" style="margin-top:14px" aria-labelledby="signalTitle">
       <div class="section-head"><h2 id="signalTitle">即時開單條件與風控狀態</h2><span id="signalUpdated" class="muted"></span></div>
       <div class="signal-positions">
@@ -298,6 +344,8 @@
       <div class="analysis-grid" style="margin-top:10px">
         <div class="analysis-card wide"><h3>累積 PnL × 交易風險 × 進場 GK</h3><canvas id="riskPnlChart" role="img" aria-label="累積損益、每筆交易 MAE MFE 與實際方向進場 GK 百分位對照圖"></canvas><div id="equitySummary" class="chart-summary"></div><div id="gkRiskSummary" class="chart-summary"></div><div class="chart-summary">判讀順序：累積 PnL 看結果、MAE／MFE 看持倉過程、GK 看進場壓縮強度。GK 點越低且低於該方向門檻越多，代表壓縮越強；每筆只顯示實際交易方向，點擊線柱或圓點可查看該筆交易。</div><div class="metric-guide" aria-label="MAE與MFE說明"><div class="guide-mfe"><b class="profit">MFE ↑ 有利波動</b><span>持倉期間價格最有利曾走到的幅度。越高，代表曾有更多獲利空間。</span></div><div class="guide-mae"><b class="loss">MAE ↓ 不利波動</b><span>持倉期間價格最不利曾走到的幅度。越深，代表曾承受更大逆風。</span></div><div><b>交易員判讀</b><span>MFE 高但實現 PnL 低，常見於獲利回吐；MAE 深但最後獲利，表示曾承受逆風。兩者是價格波動百分比，最終 PnL 另受出場價格、手續費與滑價影響。</span></div></div></div>
         <div class="analysis-card wide drawdown-card"><h3>回撤曲線與水下圖</h3><canvas id="equityChart" role="img" aria-label="累積損益與歷史峰值"></canvas><canvas id="drawdownChart" role="img" aria-label="從歷史峰值回撤的水下圖"></canvas><div id="drawdownSummary" class="chart-summary"></div></div>
+        <div class="analysis-card wide"><h3>近 20 筆滾動 MFE／MAE（轉弱早期訊號）</h3><canvas id="rollingChart" class="compact-chart" role="img" aria-label="近 20 筆交易的平均最大有利與不利波動"></canvas><div class="chart-legend-inline"><span><i class="green"></i>滾動平均 MFE</span><span><i class="red"></i>滾動平均 MAE</span><span><i class="muted dash"></i>全歷史滾動 MFE 中位數</span></div><div id="rollingSummary" class="chart-summary"></div></div>
+        <div class="analysis-card wide" id="compareCard"><h3>實戰 vs 回測（同期間累積 PnL）</h3><canvas id="compareChart" class="compact-chart" role="img" aria-label="同期間實戰與回測累積損益對照"></canvas><div class="chart-legend-inline"><span><i></i>實戰</span><span><i class="orange dash"></i>回測快照</span></div><div id="compareStats" class="compare-stats"></div><div id="compareSummary" class="chart-summary"></div><div id="compareDetail" class="compare-detail"></div></div>
         <div class="analysis-card"><h3>月度 PnL（按平倉月份）</h3><canvas id="monthlyChart" role="img" aria-label="按平倉月份的月度損益圖"></canvas><div id="monthlySummary" class="chart-summary"></div></div>
         <div class="analysis-card wide"><h3>日曆 PnL 熱圖</h3><div id="calendarHeatmap" role="img" aria-label="每日平倉損益日曆熱圖"></div><div id="calendarSummary" class="chart-summary"></div></div>
         <div class="analysis-card wide"><h3>歷史未開單原因</h3><div id="noTradeReasons" class="no-trade-grid"></div><div id="noTradeSummary" class="chart-summary"></div></div>
@@ -324,7 +372,7 @@
     </div>
     <section class="panel" id="recentTrades" style="margin-top:14px">
       <h2>最近交易</h2>
-      <div class="table-wrap"><table><thead><tr><th>編號</th><th>方向</th><th>成交進場</th><th>成交出場</th><th>原因</th><th>PnL</th><th>持倉</th><th>Regime</th></tr></thead><tbody id="trades"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>編號</th><th>方向</th><th>成交進場</th><th>成交出場</th><th>原因</th><th id="pnlHeader">PnL</th><th>保證金</th><th>持倉</th><th>Regime</th></tr></thead><tbody id="trades"></tbody></table></div>
       <div class="sub" style="margin-top:8px">點擊交易列可在圖表中查看該筆交易。圖表標記與表格時間都是實際成交時間；訊號 K 棒開盤時間會在明細中另外列出。</div>
     </section>
   </main>
@@ -335,7 +383,7 @@
     <div id="drawerBody" class="drawer-section">讀取中…</div>
   </aside>
   <script>
-    const state = { source:'live', side:'ALL', sourceBounds:{}, dateRanges:{}, startDate:'', endDate:'', data:null, analysis:null, signal:null, marketPrice:null, marketPricePending:false, highlightedTradeId:null, hits:[], analysisHits:[], gkHits:[], view:null, gesture:null, dragged:false, loading:false, pendingLoad:false, pendingResetView:false, appliedSelection:null, viewFrame:0, pendingView:null };
+    const state = { source:'live', side:'ALL', basis:'actual', edge:null, sourceBounds:{}, dateRanges:{}, startDate:'', endDate:'', data:null, analysis:null, signal:null, marketPrice:null, marketPricePending:false, highlightedTradeId:null, hits:[], analysisHits:[], gkHits:[], view:null, gesture:null, dragged:false, loading:false, pendingLoad:false, pendingResetView:false, appliedSelection:null, viewFrame:0, pendingView:null };
     const $ = id => document.getElementById(id);
     const money = value => { const number=numeric(value); return number===null?'-':`${number>=0?'+':''}$${number.toFixed(2)}`; };
     const numeric = value => { if(value==null||String(value).trim()==='')return null; const number=Number(value); return Number.isFinite(number)?number:null; };
@@ -432,11 +480,12 @@
       const s=a.summary||{},streak=a.streaks||{},snap=a.evidence?.bar_snapshots||{},life=a.evidence?.position_lifecycle||{},equity=a.equity||[],monthly=a.monthly||[];
       $('profitFactor').textContent=s.profit_factor==null?'-':Number(s.profit_factor).toFixed(2);$('maxDrawdown').textContent=money(-(Number(s.max_drawdown)||0));
       const period=state.appliedSelection?`${state.appliedSelection.startDate} → ${state.appliedSelection.endDate}（Asia/Taipei）`:'';
-      $('analysisNote').textContent=`${a.source_label||state.source}｜${period}｜樣本 ${s.trades||0} 筆｜勝率 ${(Number(s.win_rate)||0).toFixed(1)}%｜PF ${Number(s.profit_factor||0).toFixed(2)}｜最大回撤 ${money(-(Number(s.max_drawdown)||0))}｜最長連勝 ${streak.max_win||0}／連敗 ${streak.max_loss||0}${snap.available?'｜GK／breakout 已讀取':'｜bar snapshot 不可用'}${life.available?'｜lifecycle 已讀取':'｜lifecycle 不可用'}`;
+      $('analysisNote').textContent=`${a.source_label||state.source}${a.basis==='200u'?'（金額換算 200U 基準）':''}｜${period}｜樣本 ${s.trades||0} 筆｜勝率 ${(Number(s.win_rate)||0).toFixed(1)}%｜PF ${Number(s.profit_factor||0).toFixed(2)}｜最大回撤 ${money(-(Number(s.max_drawdown)||0))}｜最長連勝 ${streak.max_win||0}／連敗 ${streak.max_loss||0}${snap.available?'｜GK／breakout 已讀取':'｜bar snapshot 不可用'}${life.available?'｜lifecycle 已讀取':'｜lifecycle 不可用'}`;
       drawRiskPnl('riskPnlChart',equity);renderGkRiskSummary(equity);
       const drawdown=a.drawdown||equity;drawSeriesChart('equityChart',drawdown,[{key:'cumulative_pnl',color:chartColors().blue},{key:'peak_pnl',color:chartColors().muted}],'$');drawSeriesChart('drawdownChart',drawdown,[{key:'drawdown',color:chartColors().red}],'$');const deepest=drawdown.reduce((worst,p)=>Number(p.drawdown)<Number(worst?.drawdown??0)?p:worst,null);$('drawdownSummary').textContent=deepest?`最深回撤 ${money(deepest.drawdown)}（${deepest.time_display||'-'}），藍線為累積 PnL，灰線為歷史峰值；水下圖低於 0 代表仍在回撤。`:'目前沒有回撤資料';
       const peak=equity.reduce((best,p)=>Number(p.cumulative_pnl)>Number(best?.cumulative_pnl??-Infinity)?p:best,null),last=equity[equity.length-1];
       const grouping=state.analysisGrouping||{};$('equitySummary').textContent=peak&&last?`逐筆平倉後的累積淨損益：峰值 ${money(peak.cumulative_pnl)}（第 ${peak.number||'-'} 筆），期末 ${money(last.cumulative_pnl)}。峰值不等於期末；月度 PnL 是按平倉月份彙總。${grouping.grouped?`風險／GK 圖目前每 ${grouping.binSize} 筆聚合顯示，原始 ${grouping.rawCount} 筆仍保留在交易明細。`:''}`:'目前沒有累積 PnL 資料';
+      drawRolling('rollingChart',equity,a.rolling||{});renderCompare(a.comparison,a.source);
       drawBars('monthlyChart',monthly,'pnl','$','blue',{grow:true});
       const monthlyTotal=monthly.reduce((sum,item)=>sum+(Number(item.pnl)||0),0);$('monthlySummary').textContent=monthly.length?`${monthly.length} 個平倉月份｜合計 ${money(monthlyTotal)}。正數為該月淨利，負數為該月淨損。`: '目前沒有月度資料';
       renderCalendar(a.daily||[]);
@@ -444,6 +493,67 @@
       drawWinRate('sideChart',a.by_side||[]);drawBars('reasonChart',a.by_exit_reason||[],'pnl','$','blue');drawBars('regimeChart',a.by_regime||[],'pnl','$','orange');drawWinRate('holdChart',a.hold_distribution||[]);
       const gk=drawCompressionHeatmap('gkChart',snap.gk_series||[]);$('gkSummary').textContent=gk.longRate==null&&gk.shortRate==null?'目前沒有有效 GK 快照資料':`L 低於 25%：${gk.longRate==null?'-':`${gk.longRate.toFixed(0)}% 時段`}｜最新 ${gk.longLatest==null?'-':gk.longLatest.toFixed(1)+'%'}　・　S 低於 35%：${gk.shortRate==null?'-':`${gk.shortRate.toFixed(0)}% 時段`}｜最新 ${gk.shortLatest==null?'-':gk.shortLatest.toFixed(1)+'%'}`;
       const lifeSeries=life.series||[];drawLifecycle('lifecycleChart',lifeSeries);if(lifeSeries.length){const lifeValues=lifeSeries.map(item=>numeric(item.avg_unrealized_pnl_pct)).filter(value=>value!==null),lifeMin=Math.min(...lifeValues),lifeMax=Math.max(...lifeValues),firstCount=numeric(lifeSeries[0].observations),lastCount=numeric(lifeSeries[lifeSeries.length-1].observations);$('lifecycleSummary').textContent=`X 軸是持倉第幾根 1h K 線；平均浮盈最高 ${lifeMax>=0?'+':''}${lifeMax.toFixed(2)}%，平均浮虧最深 ${lifeMin.toFixed(2)}%。樣本數：第 1 根 ${firstCount??'-'} 筆，最後顯示 ${lastCount??'-'} 筆。`;}else{$('lifecycleSummary').textContent='目前沒有持倉生命週期資料';}
+    }
+
+    const lightName={green:'🟢 綠燈',yellow:'🟡 黃燈',red:'🔴 紅燈'};
+    const lightDot=light=>`<span class="light-dot ${light?`light-${light}`:''}" aria-hidden="true"></span>`;
+    function drawSpark(id,points,threshold){
+      const canvas=$(id);if(!canvas)return;const c=chartCanvas(id),{ctx,width,height,colors}=c;
+      if(!points?.length){ctx.fillStyle=colors.muted;ctx.font='11px system-ui';ctx.fillText('尚無回放資料',4,height/2);return;}
+      const pad=4,x=i=>pad+(width-pad*2)*(points.length===1?.5:i/(points.length-1)),y=v=>pad+(100-Math.max(0,Math.min(100,v)))/100*(height-pad*2);
+      ctx.strokeStyle=colors.orange;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(pad,y(threshold));ctx.lineTo(width-pad,y(threshold));ctx.stroke();ctx.setLineDash([]);
+      ctx.strokeStyle=colors.blue;ctx.lineWidth=2;ctx.beginPath();points.forEach((p,i)=>{const yy=y(Number(p.pct)||0);if(i)ctx.lineTo(x(i),yy);else ctx.moveTo(x(i),yy);});ctx.stroke();
+      const last=points[points.length-1],lv=Number(last.pct)||0;ctx.fillStyle=lv<=0?colors.red:lv<=threshold?colors.orange:colors.green;ctx.beginPath();ctx.arc(x(points.length-1),y(lv),3.5,0,Math.PI*2);ctx.fill();
+    }
+    function renderEdge(payload,error=''){
+      state.edge=payload||null;
+      const v29Card=$('edgeV29'),checks=$('edgeChecks'),months=$('edgeMonths');
+      if(!payload){$('edgeNote').textContent=error||'目前沒有策略健康度資料';[v29Card,checks,months].forEach(card=>{card.innerHTML=`<h3>${esc(card.querySelector('h3')?.textContent||'')}</h3><div class="signal-empty">暫時無法讀取。</div>`;});$('edgeUpdated').textContent='';return;}
+      const v=payload.v29||{},cur=payload.current,level=v.level||'green',pct=Number(v.pct)||0;
+      $('edgeUpdated').textContent=`計算 ${payload.server_time_display||'-'} Asia/Taipei`;
+      $('edgeNote').textContent=`${payload.source_label||''}｜不受上方日期與方向篩選影響，一律看全部已平倉交易｜${payload.basis_note||''}`;
+      v29Card.innerHTML=`<h3>V29 策略健康度</h3><div class="edge-big"><b class="text-${level}">${pct.toFixed(0)}%</b><span>${lightName[level]||''}</span></div><canvas id="edgeSpark" role="img" aria-label="近 ${(v.series||[]).length} 筆交易後的健康度變化"></canvas><div class="edge-sub">虛線 ${Number(v.yellow_pct||25).toFixed(0)}%＝黃燈（凍結加碼），0%＝紅燈（退回 200U）。曲線為近 ${(v.series||[]).length} 筆出場後的回放值${v.min_recent_pct!=null?`，期間最低 ${Number(v.min_recent_pct).toFixed(0)}%`:''}。目前數值來源：${esc(v.cusum_source||'-')}（CUSUM ${Number(v.cusum||0).toFixed(1)}）。${v.replay_pct!=null&&Math.abs(Number(v.replay_pct)-pct)>=5?`曲線是用交易紀錄重算的 ${Number(v.replay_pct).toFixed(0)}%，與機器人狀態檔不同，以大字（狀態檔）為準。`:''}</div>`;
+      drawSpark('edgeSpark',v.series||[],Number(v.yellow_pct)||25);
+      if(!cur){checks.innerHTML='<h3>證偽檢查</h3><div class="signal-empty">已平倉交易不足，無法評估。</div>';}
+      else{
+        const verdict=cur.overall_light==='green'?'無證偽訊號':cur.overall_light==='yellow'?'有弱化訊號，持續觀察（連續兩個月 🟡 → 凍結加碼）':'證偽警報：檢視是否退回 200U／暫停（V29 SOP）';
+        checks.innerHTML=`<h3>證偽檢查｜最近 ${cur.trades} 筆</h3>${(cur.items||[]).map(item=>`<div class="edge-item">${lightDot(item.light)}<b>${esc(item.name)}</b><strong class="${item.light?`text-${item.light}`:'muted'}">${item.hp==null?'跳過':`${Number(item.hp).toFixed(0)}%`}</strong><small>${esc(item.note)}</small></div>`).join('')}<div class="edge-item">${lightDot(null)}<b>實盤貼合</b><strong class="muted">另看</strong><small>${esc(payload.fidelity_note||'')}</small></div><div class="edge-verdict is-${cur.overall_light}">總評 ${lightName[cur.overall_light]||''}：${esc(verdict)}；平均每筆 ${money(cur.avg_pnl_200u)}（200U）vs 基準 ${money(cur.baseline_avg_pnl_200u)}</div>`;
+      }
+      const streak=Number(payload.non_green_streak)||0,list=payload.monthly||[],latest=list[list.length-1];
+      const streakText=streak>=2?`已連續 ${streak} 個月非綠燈：達到凍結加碼條件`:streak===1?`連續 1 個月非綠燈：下個月仍非綠燈就凍結加碼`:'目前沒有連續非綠燈月份';
+      months.innerHTML=`<h3>月度燈號（每月底回看最近 ${payload.recent_window||30} 筆）</h3><div class="month-chips">${list.map(item=>`<div class="month-chip ${item.in_progress?'is-current':''}" title="${esc(`${item.month}｜${item.light?lightName[item.light]:'樣本不足'}｜當月平倉 ${item.closed_in_month} 筆`)}"><span>${esc(item.month.slice(2).replace('-','/'))}</span>${lightDot(item.light)}<small>${item.overall_hp==null?'不足':`${Number(item.overall_hp).toFixed(0)}%`}</small></div>`).join('')}</div><div class="edge-verdict is-${streak>=2?'red':streak===1?'yellow':'green'}">${esc(streakText)}${latest?.in_progress?'（虛線框為本月，至今為止）':''}</div><div class="edge-sub">${esc(payload.freeze_rule||'')}</div>`;
+    }
+    function drawRolling(id,points,meta){
+      const values=(points||[]).flatMap(p=>[numeric(p.rolling_mfe),numeric(p.rolling_mae)]).filter(v=>v!==null);
+      if(!values.length){chartEmpty(id,state.source==='backtest'?'回測逐筆指標尚未產生（需執行 refresh_viewer_backtest.py）':'這段期間沒有 MAE／MFE 資料');$('rollingSummary').textContent='';return;}
+      const median=numeric(meta.history_median_mfe),all=median===null?values:[...values,median],min=Math.min(0,...all),max=Math.max(0,...all),c=chartCanvas(id),frame=chartFrame(c,min,max,'%'),{ctx,pad,colors}=c,n=points.length,x=i=>pad.l+frame.innerW*(n===1?.5:i/(n-1));
+      ctx.strokeStyle=colors.text;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,frame.y(0));ctx.lineTo(c.width-pad.r,frame.y(0));ctx.stroke();
+      if(median!==null){ctx.strokeStyle=colors.muted;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(pad.l,frame.y(median));ctx.lineTo(c.width-pad.r,frame.y(median));ctx.stroke();ctx.setLineDash([]);}
+      [['rolling_mfe',colors.green],['rolling_mae',colors.red]].forEach(([key,color])=>{ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();let started=false;points.forEach((p,i)=>{const v=numeric(p[key]);if(v===null){started=false;return;}if(started)ctx.lineTo(x(i),frame.y(v));else{ctx.moveTo(x(i),frame.y(v));started=true;}});ctx.stroke();});
+      ctx.fillStyle=colors.muted;ctx.fillText(String(points[0].time_display||'').slice(0,10),pad.l,c.height-10);ctx.textAlign='right';ctx.fillText(String(points[n-1].time_display||'').slice(0,10),c.width-pad.r,c.height-10);ctx.textAlign='left';
+      const first=numeric(meta.range_first_mfe),last=numeric(meta.range_last_mfe),low=numeric(meta.range_min_mfe),pctText2=v=>v===null?'-':`${v.toFixed(2)}%`;
+      const ratio=median&&last!==null?last/median*100:null;
+      $('rollingSummary').textContent=`每點是「到這筆為止最近 ${meta.window||20} 筆」的平均。區間開頭 ${pctText2(first)} → 期末 ${pctText2(last)}，區間最低 ${pctText2(low)}；全歷史中位數 ${pctText2(median)}${ratio===null?'':`，期末約為中位數的 ${ratio.toFixed(0)}%`}。MFE 持續走低代表突破後的延續變弱，通常比 PnL 更早反映。`;
+    }
+    function drawCompare(id,comp){
+      const live=comp.live?.curve||[],bt=comp.backtest?.curve||[],all=[...live,...bt];
+      if(!all.length){chartEmpty(id,'這段期間兩邊都沒有平倉交易');return;}
+      const times=all.map(p=>Date.parse(p.time_utc||'')).filter(Number.isFinite),t0=Math.min(...times),t1=Math.max(...times),vals=all.map(p=>numeric(p.cumulative_pnl)).filter(v=>v!==null),min=Math.min(0,...vals),max=Math.max(0,...vals),c=chartCanvas(id),frame=chartFrame(c,min,max,'$'),{ctx,pad,colors}=c,x=t=>pad.l+frame.innerW*(t1>t0?(t-t0)/(t1-t0):.5);
+      ctx.strokeStyle=colors.text;ctx.beginPath();ctx.moveTo(pad.l,frame.y(0));ctx.lineTo(c.width-pad.r,frame.y(0));ctx.stroke();
+      const step=(series,color,dashed)=>{if(!series.length)return;ctx.strokeStyle=color;ctx.lineWidth=2;ctx.setLineDash(dashed?[6,4]:[]);ctx.beginPath();let prev=0;ctx.moveTo(x(t0),frame.y(0));series.forEach(p=>{const t=Date.parse(p.time_utc||''),v=numeric(p.cumulative_pnl);if(!Number.isFinite(t)||v===null)return;ctx.lineTo(x(t),frame.y(prev));ctx.lineTo(x(t),frame.y(v));prev=v;});ctx.lineTo(x(t1),frame.y(prev));ctx.stroke();ctx.setLineDash([]);};
+      step(bt,colors.orange,true);step(live,colors.blue,false);
+      const fmt=new Intl.DateTimeFormat('zh-TW',{timeZone:'Asia/Taipei',month:'2-digit',day:'2-digit'});ctx.fillStyle=colors.muted;ctx.fillText(fmt.format(new Date(t0)),pad.l,c.height-10);ctx.textAlign='right';ctx.fillText(fmt.format(new Date(t1)),c.width-pad.r,c.height-10);ctx.textAlign='left';
+    }
+    function renderCompare(comp,source){
+      const card=$('compareCard');card.hidden=source!=='live';if(source!=='live')return;
+      if(!comp||!comp.available){chartEmpty('compareChart',comp?.reason||'沒有回測快照可對照');$('compareStats').innerHTML='';$('compareSummary').textContent=comp?.reason||'';$('compareDetail').innerHTML='';return;}
+      drawCompare('compareChart',comp);
+      const gap=numeric(comp.live?.pnl)-numeric(comp.backtest?.pnl),matchBase=Math.max(comp.live?.trades||0,comp.backtest?.trades||0);
+      $('compareStats').innerHTML=`<div><span>實戰</span><b class="${numeric(comp.live?.pnl)>=0?'profit':'loss'}">${esc(money(comp.live?.pnl))}</b><span>${comp.live?.trades||0} 筆</span></div><div><span>回測快照</span><b class="${numeric(comp.backtest?.pnl)>=0?'profit':'loss'}">${esc(money(comp.backtest?.pnl))}</b><span>${comp.backtest?.trades||0} 筆</span></div><div><span>差距（實戰 − 回測）</span><b class="${gap>=0?'profit':'loss'}">${esc(money(gap))}</b><span>吻合筆數的成交差 ${esc(money(comp.matched_pnl_gap))}</span></div><div><span>逐筆吻合</span><b>${comp.matched}/${matchBase}</b><span>出場原因不同 ${comp.exit_reason_mismatch||0} 筆</span></div>`;
+      $('compareSummary').textContent=`同一日期與方向篩選下，兩邊都按平倉時間累積。吻合＝方向與進場成交時刻相同；「成交差」只算吻合的交易，反映滑價、手續費與出場價差。${comp.coverage_note?`${comp.coverage_note}。`:''}`;
+      const item=t=>`<li>#${esc(t.number)} ${t.side==='L'?'Long':'Short'} ${esc(t.entry_time_display)}｜${esc(t.exit_reason)}｜${esc(money(t.pnl))}</li>`;
+      const parts=[];if(comp.live_only?.length)parts.push(`<details><summary>只有實戰有的交易（${comp.live_only.length}）</summary><ul>${comp.live_only.map(item).join('')}</ul></details>`);if(comp.backtest_only?.length)parts.push(`<details><summary>只有回測有的交易（${comp.backtest_only.length}）：實盤可能漏單或被風控擋下</summary><ul>${comp.backtest_only.map(item).join('')}</ul></details>`);
+      $('compareDetail').innerHTML=parts.join('');
     }
     function viewRange() {
       const count = state.data?.candles?.length || 0;
@@ -557,7 +667,7 @@
         tag.y=chosen;placedTags.push(tag);drawTradeTag(ctx,tag);state.hits.push({x:tag.x,y:tag.y,w:tag.width,h:tag.height,tr:tag.trade});
       });
     }
-    function tradeHtml(tr){ const pnl=tr.pnl==null?'<span class="muted">進行中</span>':`<span class="${Number(tr.pnl)>=0?'profit':'loss'}">${esc(money(tr.pnl))}</span>`; return `<tr class="clickable" data-trade="${esc(tr.id)}"><td>${esc(tr.number)}</td><td>${tr.side==='L'?'Long':'Short'}</td><td>${esc(tr.entry_time_display)}</td><td>${esc(tr.exit_time_display||'-')}</td><td>${esc(tr.exit_reason)}</td><td>${pnl}</td><td>${esc(tr.hold_hours!=null?`${tr.hold_hours}h`:tr.hold_bars!=null?`${tr.hold_bars} bars`:'-')}</td><td>${esc(tr.regime)}</td></tr>`; }
+    function tradeHtml(tr){ const pnl=tr.pnl==null?'<span class="muted">進行中</span>':`<span class="${Number(tr.pnl)>=0?'profit':'loss'}">${esc(money(tr.pnl))}</span>`; return `<tr class="clickable" data-trade="${esc(tr.id)}"><td>${esc(tr.number)}</td><td>${tr.side==='L'?'Long':'Short'}</td><td>${esc(tr.entry_time_display)}</td><td>${esc(tr.exit_time_display||'-')}</td><td>${esc(tr.exit_reason)}</td><td>${pnl}</td><td>${esc(tr.margin!=null?`${Number(tr.margin).toFixed(0)}U`:'-')}</td><td>${esc(tr.hold_hours!=null?`${tr.hold_hours}h`:tr.hold_bars!=null?`${tr.hold_bars} bars`:'-')}</td><td>${esc(tr.regime)}</td></tr>`; }
     const priceText=value=>numeric(value)!==null?`$${numeric(value).toFixed(2)}`:'-';
     const pctText=value=>numeric(value)!==null?`${numeric(value)>=0?'+':''}${numeric(value).toFixed(2)}%`:'-';
     function renderMarketPrice(data){
@@ -599,8 +709,9 @@
     function render(){
       const d=state.data, s=d.stats||{}, pnl=numeric(s.pnl), tradeCount=Number(s.trades)||0, wins=Number(s.wins)||0, winRate=tradeCount?wins/tradeCount*100:null;
       updatePageTitle(winRate);
+      const basisLabel=d.basis==='200u'?'（200U 基準）':'';$('pnlLabel').textContent=`區間淨損益${basisLabel}`;$('pnlHeader').textContent=d.basis==='200u'?'PnL（200U）':'PnL';
       $('tradeCount').textContent=s.trades??'-'; $('winRate').textContent=winRate===null?'-':`${winRate.toFixed(1)}%`; $('pnl').textContent=money(s.pnl); $('pnl').className=pnl!==null?(pnl>=0?'profit':'loss'):''; $('positionCount').textContent=(d.positions||[]).length;
-      $('trades').innerHTML=(d.trades||[]).slice().reverse().map(tradeHtml).join('')||'<tr><td colspan="8" class="empty">目前沒有符合條件的交易</td></tr>';
+      $('trades').innerHTML=(d.trades||[]).slice().reverse().map(tradeHtml).join('')||'<tr><td colspan="9" class="empty">目前沒有符合條件的交易</td></tr>';
       [...document.querySelectorAll('[data-trade]')].forEach(row=>row.addEventListener('click',()=>{ const tr=(d.trades||[]).find(x=>x.id===row.dataset.trade); if(tr) showTrade(tr,true); }));
       const st=d.state||{}; renderPositions(d.positions||[],state.signal?.positions||[]); $('updated').textContent=`更新 ${shortTime(d.server_time_display)} Asia/Taipei`; draw(); renderChartCoverage(d); renderHealth(st,d);
     }
@@ -621,7 +732,7 @@
     }
     function renderCalendar(daily){ const root=$('calendarHeatmap'),summary=$('calendarSummary'); if(!daily?.length){root.innerHTML='<div class="signal-empty">目前沒有每日平倉 PnL 資料。</div>';summary.textContent='';return;} const byDay=new Map(daily.map(item=>[String(item.period),item])),periods=daily.map(item=>String(item.period)).sort(),startParts=periods[0].split('-').map(Number),endParts=periods[periods.length-1].split('-').map(Number),start=new Date(Date.UTC(startParts[0],startParts[1]-1,startParts[2])),end=new Date(Date.UTC(endParts[0],endParts[1]-1,endParts[2])),startOffset=(start.getUTCDay()+6)%7,totalDays=Math.round((end-start)/86400000)+1,maxAbs=Math.max(1,...daily.map(item=>Math.abs(Number(item.pnl)||0)));let cells='';for(let i=0;i<startOffset+totalDays;i++){if(i<startOffset){cells+='<span aria-hidden="true"></span>';continue;}const date=new Date(start.getTime()+(i-startOffset)*86400000),key=date.toISOString().slice(0,10),item=byDay.get(key),day=date.getUTCDate();if(!item){cells+=`<span class="calendar-cell" aria-label="${key} 無交易"><strong>${day}</strong></span>`;continue;}const pnl=Number(item.pnl)||0,heat=(.22+.78*Math.abs(pnl)/maxAbs).toFixed(2),kind=pnl>=0?'profit':'loss';cells+=`<span class="calendar-cell ${kind}" style="--heat:${heat}" title="${esc(`${key}｜${money(pnl)}｜${item.trades||0} 筆`)}" aria-label="${esc(`${key} ${money(pnl)} ${item.trades||0} 筆`)}"><strong>${day}</strong><small>${esc(money(pnl))}</small></span>`;}root.innerHTML=`<div class="calendar-head"><span>${esc(periods[0])} → ${esc(periods[periods.length-1])}</span><span>綠＝獲利　紅＝虧損　灰＝無平倉</span></div><div class="calendar-weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div><div class="calendar-grid">${cells}</div>`;const total=daily.reduce((sum,item)=>sum+(Number(item.pnl)||0),0),wins=daily.reduce((sum,item)=>sum+(Number(item.wins)||0),0),trades=daily.reduce((sum,item)=>sum+(Number(item.trades)||0),0);summary.textContent=`${daily.length} 個有平倉的交易日｜${trades} 筆交易｜勝率 ${trades?(wins/trades*100).toFixed(1):'0.0'}%｜合計 ${money(total)}。點擊或滑過日期可查看當日 PnL。`; }
     function renderNoTradeReasons(data){ const root=$('noTradeReasons'),summary=$('noTradeSummary'); if(!data){root.innerHTML='<div class="signal-empty">目前沒有 bar snapshot，無法統計歷史未開單原因。</div>';summary.textContent='';return;} const sides=state.side==='ALL'?['L','S']:[state.side],labels={L:'Long 做多',S:'Short 做空'};root.innerHTML=sides.map(side=>{const item=data[side]||{},rows=item.reasons||[],max=Math.max(1,...rows.map(row=>Number(row.count)||0));return `<div class="no-trade-side"><h4>${labels[side]}｜${item.blocked_bars||0} 次未開單／${item.sample_bars||0} 根快照</h4>${rows.length?rows.map(row=>`<div class="no-trade-row"><span class="no-trade-label">${esc(row.label)}</span><div class="no-trade-track"><div class="no-trade-fill" style="width:${Math.max(1,(Number(row.count)||0)/max*100).toFixed(1)}%"></div></div><b class="no-trade-count">${Number(row.count)||0} 次</b></div>`).join(''):'<div class="signal-empty">沒有未開單資料</div>'}</div>`;}).join('');const notes=sides.map(side=>data[side]?.note).filter(Boolean);summary.textContent=notes[0]||'統計範圍依目前日期與方向篩選。'; }
-    function renderTradeDrawer(payload){ const tr=payload?.trade||{}; $('drawerTitle').textContent=`${tr.direction||'-'} #${tr.number||'-'}`; $('drawerSubtitle').textContent=`${payload?.source_label||state.source}｜${tr.exit_reason||'進行中'}`; const lifecycle=payload?.lifecycle||[];const detailRows=[['進場成交',`${tr.entry_time_display||'-'} @ ${tr.entry_price??'-'}`],['進場訊號 K 棒',tr.entry_signal_time_display||'-'],['平倉成交',`${tr.exit_time_display||'進行中'} @ ${tr.exit_price??'-'}`],['平倉訊號 K 棒',tr.exit_signal_time_display||'-'],['方向',tr.direction||'-'],['PnL',money(tr.pnl)],['PnL %',tr.pnl_pct==null?'-':`${Number(tr.pnl_pct).toFixed(2)}%`],['持倉時間',tr.hold_hours!=null?`${tr.hold_hours} 小時`:tr.hold_bars!=null?`${tr.hold_bars} bars`:'-'],['出場原因',tr.exit_reason||'-'],['Regime',tr.regime||'-'],['進場 GK L',tr.gk_pctile==null?'-':`${Number(tr.gk_pctile).toFixed(1)}%`],['進場 GK S',tr.gk_pctile_s==null?'-':`${Number(tr.gk_pctile_s).toFixed(1)}%`],['突破強度',tr.breakout_strength_pct==null?'-':`${Number(tr.breakout_strength_pct).toFixed(2)}%`],['MAE',tr.mae_pct==null?'-':`${Number(tr.mae_pct).toFixed(2)}%`],['MFE',tr.mfe_pct==null?'-':`${Number(tr.mfe_pct).toFixed(2)}%`]];let html=`<dl class="kv">${detailRows.map(([label,value])=>`<dt>${esc(label)}</dt><dd class="${label==='PnL'?(Number(tr.pnl)>=0?'profit':'loss'):''}">${esc(value)}</dd>`).join('')}</dl>`;if(payload?.lifecycle_available&&lifecycle.length){html+=`<div class="drawer-section"><h3>持倉生命週期</h3><div class="drawer-table-wrap"><table class="drawer-table"><thead><tr><th>Bar</th><th>時間</th><th>浮動 PnL</th><th>MAE</th><th>MFE</th><th>出場</th></tr></thead><tbody>${lifecycle.map(row=>`<tr><td>${esc(row.bar??'-')}</td><td>${esc(row.time_display||'-')}</td><td>${esc(row.unrealized_pnl_usd==null?'-':money(row.unrealized_pnl_usd))}</td><td>${esc(row.max_adverse_so_far==null?'-':`${Number(row.max_adverse_so_far).toFixed(2)}%`)}</td><td>${esc(row.max_favorable_so_far==null?'-':`${Number(row.max_favorable_so_far).toFixed(2)}%`)}</td><td>${esc(row.exit_type||'')}</td></tr>`).join('')}</tbody></table></div></div>`;}else{html+=`<div class="drawer-section drawer-note">${payload?.lifecycle_error?`生命週期資料讀取失敗：${esc(payload.lifecycle_error)}`:'目前沒有這筆交易的生命週期資料。'}</div>`;}$('drawerBody').innerHTML=html;}
+    function renderTradeDrawer(payload){ const tr=payload?.trade||{}; $('drawerTitle').textContent=`${tr.direction||'-'} #${tr.number||'-'}`; $('drawerSubtitle').textContent=`${payload?.source_label||state.source}｜${tr.exit_reason||'進行中'}`; const lifecycle=payload?.lifecycle||[];const detailRows=[['進場成交',`${tr.entry_time_display||'-'} @ ${tr.entry_price??'-'}`],['進場訊號 K 棒',tr.entry_signal_time_display||'-'],['平倉成交',`${tr.exit_time_display||'進行中'} @ ${tr.exit_price??'-'}`],['平倉訊號 K 棒',tr.exit_signal_time_display||'-'],['方向',tr.direction||'-'],['PnL',money(tr.pnl)],['PnL（200U 基準）',money(tr.pnl_200u)],['保證金',tr.margin==null?'-':`${Number(tr.margin).toFixed(0)}U（${tr.size_source||'-'}）`],['PnL %',tr.pnl_pct==null?'-':`${Number(tr.pnl_pct).toFixed(2)}%`],['持倉時間',tr.hold_hours!=null?`${tr.hold_hours} 小時`:tr.hold_bars!=null?`${tr.hold_bars} bars`:'-'],['出場原因',tr.exit_reason||'-'],['Regime',tr.regime||'-'],['進場 GK L',tr.gk_pctile==null?'-':`${Number(tr.gk_pctile).toFixed(1)}%`],['進場 GK S',tr.gk_pctile_s==null?'-':`${Number(tr.gk_pctile_s).toFixed(1)}%`],['突破強度',tr.breakout_strength_pct==null?'-':`${Number(tr.breakout_strength_pct).toFixed(2)}%`],['MAE',tr.mae_pct==null?'-':`${Number(tr.mae_pct).toFixed(2)}%`],['MFE',tr.mfe_pct==null?'-':`${Number(tr.mfe_pct).toFixed(2)}%`]];let html=`<dl class="kv">${detailRows.map(([label,value])=>`<dt>${esc(label)}</dt><dd class="${label==='PnL'?(Number(tr.pnl)>=0?'profit':'loss'):''}">${esc(value)}</dd>`).join('')}</dl>`;if(payload?.lifecycle_available&&lifecycle.length){html+=`<div class="drawer-section"><h3>持倉生命週期</h3><div class="drawer-table-wrap"><table class="drawer-table"><thead><tr><th>Bar</th><th>時間</th><th>浮動 PnL</th><th>MAE</th><th>MFE</th><th>出場</th></tr></thead><tbody>${lifecycle.map(row=>`<tr><td>${esc(row.bar??'-')}</td><td>${esc(row.time_display||'-')}</td><td>${esc(row.unrealized_pnl_usd==null?'-':money(row.unrealized_pnl_usd))}</td><td>${esc(row.max_adverse_so_far==null?'-':`${Number(row.max_adverse_so_far).toFixed(2)}%`)}</td><td>${esc(row.max_favorable_so_far==null?'-':`${Number(row.max_favorable_so_far).toFixed(2)}%`)}</td><td>${esc(row.exit_type||'')}</td></tr>`).join('')}</tbody></table></div></div>`;}else{html+=`<div class="drawer-section drawer-note">${payload?.lifecycle_error?`生命週期資料讀取失敗：${esc(payload.lifecycle_error)}`:'目前沒有這筆交易的生命週期資料。'}</div>`;}$('drawerBody').innerHTML=html;}
     function closeTradeDrawer(){ $('tradeDrawer').hidden=true;$('tradeDrawerBackdrop').hidden=true; }
     async function showTrade(tr,focusChart=false){ const source=state.appliedSelection?.source||state.source;state.highlightedTradeId=String(tr.id);if(focusChart){const entry=Date.parse(tr.entry_time_utc||''),exit=Date.parse(tr.exit_time_utc||'');if(Number.isFinite(entry))focusKline(entry,Number.isFinite(exit)?exit:entry+3600000);else if(Number.isFinite(exit))focusKline(exit-3600000,exit);}else draw();$('tradeDrawer').hidden=false;$('tradeDrawerBackdrop').hidden=false;$('drawerTitle').textContent=`${tr.direction||'-'} #${tr.number||'-'}`;$('drawerSubtitle').textContent='讀取交易詳細…';$('drawerBody').innerHTML='<div class="signal-empty">正在讀取交易與持倉生命週期…</div>';try{const res=await fetch(`/api/trade?source=${encodeURIComponent(source)}&id=${encodeURIComponent(tr.id)}`,{cache:'no-store'}),payload=await res.json();if(!res.ok)throw new Error(payload.error||`HTTP ${res.status}`);renderTradeDrawer(payload);}catch(err){$('drawerSubtitle').textContent='讀取失敗';$('drawerBody').innerHTML=`<div class="error">交易詳細讀取失敗：${esc(err.message)}</div>`;}}
     function showAnalysisGroup(group){ const text=`交易區段 #${group.fromNumber}～#${group.toNumber}（${group.count} 筆）\n期間：${group.firstTime||'-'} → ${group.lastTime||'-'}\n區段淨 PnL：${money(group.pnl)}\n最深 MAE：${group.maeMin==null?'-':group.maeMin.toFixed(2)+'%'}\n最高 MFE：${group.mfeMax==null?'-':group.mfeMax.toFixed(2)+'%'}\n平均 L GK：${group.gkLong==null?'-':group.gkLong.toFixed(1)+'%'}\n平均 S GK：${group.gkShort==null?'-':group.gkShort.toFixed(1)+'%'}`; const tip=$('tooltip');tip.textContent=text;tip.style.display='block';tip.style.left='20px';tip.style.bottom='20px';setTimeout(()=>tip.style.display='none',7000); }
@@ -629,7 +740,7 @@
       state.loading=loading;const button=$('refresh'),status=$('loadStatus');button.disabled=loading;button.textContent=loading?'更新中…':'重新整理';document.querySelector('main').setAttribute('aria-busy',loading?'true':'false');status.classList.toggle('is-loading',loading);status.classList.toggle('is-error',!loading&&result==='更新失敗');status.textContent=loading?'正在更新 K 線、交易紀錄與分析…':result;
       if(!loading&&result&&result!=='更新失敗')setTimeout(()=>{if(!state.loading&&status.textContent===result)status.textContent='';},3500);
     }
-    function selectionMatches(selection){return selection.source===state.source&&selection.startDate===state.startDate&&selection.endDate===state.endDate&&selection.side===state.side;}
+    function selectionMatches(selection){return selection.source===state.source&&selection.startDate===state.startDate&&selection.endDate===state.endDate&&selection.side===state.side&&selection.basis===state.basis;}
     function showStaleNotice(){
       const notice=$('staleNotice'),selection=state.appliedSelection;
       if(!state.data||!selection){notice.hidden=true;return;}
@@ -638,12 +749,13 @@
     }
     async function load(resetView=false){
       if(state.loading){state.pendingLoad=true;state.pendingResetView=state.pendingResetView||resetView;return;}
-      const selection={source:state.source,startDate:state.startDate,endDate:state.endDate,side:state.side};let result='更新完成';
+      const selection={source:state.source,startDate:state.startDate,endDate:state.endDate,side:state.side,basis:state.basis};let result='更新完成';
       setLoading(true);setError('');renderSignal(null,'loading');
       try{
-        const query=`source=${encodeURIComponent(selection.source)}&start=${encodeURIComponent(selection.startDate)}&end=${encodeURIComponent(selection.endDate)}&side=${selection.side}`;
+        const query=`source=${encodeURIComponent(selection.source)}&start=${encodeURIComponent(selection.startDate)}&end=${encodeURIComponent(selection.endDate)}&side=${selection.side}&basis=${selection.basis}`;
         const signalRequest=selection.source==='live'?fetch('/api/signal?source=live',{cache:'no-store'}).then(async response=>({response,body:await response.json()})).catch(error=>({error})):Promise.resolve(null);
-        const [dataRes,analysisRes,signalResult]=await Promise.all([fetch(`/api/data?${query}`,{cache:'no-store'}),fetch(`/api/analysis?${query}`,{cache:'no-store'}),signalRequest]);
+        const edgeRequest=fetch(`/api/edge?source=${encodeURIComponent(selection.source)}`,{cache:'no-store'}).then(async response=>({response,body:await response.json()})).catch(error=>({error}));
+        const [dataRes,analysisRes,signalResult,edgeResult]=await Promise.all([fetch(`/api/data?${query}`,{cache:'no-store'}),fetch(`/api/analysis?${query}`,{cache:'no-store'}),signalRequest,edgeRequest]);
         const payload=await dataRes.json(),analysis=await analysisRes.json();
         if(!dataRes.ok)throw new Error(payload.error||`HTTP ${dataRes.status}`);
         if(!analysisRes.ok)throw new Error(analysis.error||`分析 HTTP ${analysisRes.status}`);
@@ -655,7 +767,8 @@
         state.appliedSelection=selection;state.data=payload;state.analysis=analysis;state.signal=signal;$('staleNotice').hidden=true;
         const trades=payload.trades||[];if(resetView||!trades.some(tr=>String(tr.id)===String(state.highlightedTradeId)))state.highlightedTradeId=trades.length?String(trades[trades.length-1].id):null;
         if(resetView&&state.highlightedTradeId){const selected=trades.find(tr=>String(tr.id)===state.highlightedTradeId),entry=Date.parse(selected?.entry_time_utc||''),exit=Date.parse(selected?.exit_time_utc||'');if(Number.isFinite(entry))focusKline(entry,Number.isFinite(exit)?exit:entry+3600000,false);else if(Number.isFinite(exit))focusKline(exit-3600000,exit,false);}
-        render();renderAnalysis(analysis);renderSignal(signal,signalError);
+        let edgeError='';if(edgeResult?.error)edgeError=`策略健康度讀取失敗：${edgeResult.error.message}`;else if(!edgeResult.response.ok)edgeError=edgeResult.body?.error||`HTTP ${edgeResult.response.status}`;
+        render();renderAnalysis(analysis);renderSignal(signal,signalError);renderEdge(edgeError?null:edgeResult.body,edgeError);
       }catch(err){
         if(selectionMatches(selection)){setError(`資料讀取失敗：${err.message}`);renderSignal(null,`資料更新失敗：${err.message}`);showStaleNotice();result='更新失敗';}
         else{state.pendingLoad=true;state.pendingResetView=state.pendingResetView||resetView;result='篩選已變更，正在套用最新條件…';}
@@ -698,10 +811,11 @@
     $('endDate').addEventListener('change',e=>{if(e.target.value){$('days').value='custom';$('startDate').max=e.target.value;if($('startDate').value>e.target.value)$('startDate').value=e.target.value;}});
     $('source').addEventListener('change',e=>{state.source=e.target.value;setDateRangeForSource(state.source);load(true);});
     $('side').addEventListener('change',e=>{state.side=e.target.value;load(true);});
+    $('basis').addEventListener('change',e=>{state.basis=e.target.value;load(false);});
     $('refresh').addEventListener('click',()=>load(false));
     $('drawerClose').addEventListener('click',closeTradeDrawer); $('tradeDrawerBackdrop').addEventListener('click',closeTradeDrawer); document.addEventListener('keydown',event=>{if(event.key==='Escape')closeTradeDrawer();});
     let resizeFrame=0,lastViewportWidth=window.innerWidth;
-    window.addEventListener('resize',()=>{const width=window.innerWidth;if(Math.abs(width-lastViewportWidth)<2)return;lastViewportWidth=width;if(resizeFrame)cancelAnimationFrame(resizeFrame);resizeFrame=requestAnimationFrame(()=>{resizeFrame=0;if(state.data)draw();if(state.analysis)renderAnalysis(state.analysis);});});
+    window.addEventListener('resize',()=>{const width=window.innerWidth;if(Math.abs(width-lastViewportWidth)<2)return;lastViewportWidth=width;if(resizeFrame)cancelAnimationFrame(resizeFrame);resizeFrame=requestAnimationFrame(()=>{resizeFrame=0;if(state.data)draw();if(state.analysis)renderAnalysis(state.analysis);if(state.edge)renderEdge(state.edge);});});
     const canvas=$('chart'), pointers=new Map();
     $('riskPnlChart').addEventListener('click',event=>{const point=localPoint($('riskPnlChart'),event);let best=null,dist=1e9;state.analysisHits.forEach(hit=>{const distance=Math.hypot(hit.x-point.x,hit.y-point.y);if(distance<hit.r&&distance<dist){best=hit;dist=distance;}});if(best){if(best.group){showAnalysisGroup(best.group);}else{const tr=(state.data?.trades||[]).find(row=>String(row.number)===String(best.number));if(tr)showTrade(tr,true);}}});
     $('gkChart').addEventListener('click',event=>{const point=localPoint($('gkChart'),event),hit=state.gkHits.find(item=>point.x>=item.x&&point.x<=item.x+item.w&&point.y>=item.y&&point.y<=item.y+item.h);if(hit&&Number.isFinite(hit.startMs)){focusKline(hit.startMs,hit.endMs);$('gkSummary').textContent=`已聚焦 ${hit.label} 時段｜L ${hit.long==null?'-':hit.long.toFixed(1)}%｜S ${hit.short==null?'-':hit.short.toFixed(1)}%｜請查看下方 K 線突破與交易結果`;}});

@@ -97,6 +97,8 @@ def load_text_trades(path: Path) -> list[dict]:
             "exit_reason": _clean_label(item["exit_reason"]),
             "hold": int(item["hold"]),
             "pnl": _number(tail_item["pnl"]),
+            # 回測明細的 Mgn(U) 欄；實戰文字明細沒有此欄時為 None。
+            "margin": _number(tail_item["margin"]) if tail_item.get("margin") else None,
             "regime": _clean_label(tail_item["regime"]),
         })
     if not rows:

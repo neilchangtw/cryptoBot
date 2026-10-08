@@ -3,6 +3,8 @@
 此服務與交易機器人完全分離，只讀取：
   - INSTANCE_DIR/data_live/trades.csv
   - data/backtest_trades.txt（由 run_backtest.py -t 輸出的回測快照）
+  - data/backtest_trade_metrics.csv（回測逐筆 MAE／MFE／進場 GK，由 refresh_viewer_backtest.py 產生）
+  - run_backtest.py 的 MARGIN_SCHEDULE、strategy.py 的 V29 門檻常數（以 ast 讀取字面值，不執行、不匯入）
   - INSTANCE_DIR/eth_state_live.json
   - INSTANCE_DIR/logs/
   - Binance Futures 公開 ETHUSDT 1h K 線（不需要 API key）
@@ -16,6 +18,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
 import json
 import os
@@ -46,6 +49,9 @@ SHARED_KLINE_PATH = ROOT / "cache" / "ETHUSDT_1h.csv"
 DEFAULT_BACKTEST_PATH = ROOT / "data" / "backtest_trades.txt"
 DEFAULT_BACKTEST_SNAPSHOT_PATH = ROOT / "data" / "backtest_bar_snapshots.csv"
 DEFAULT_BACKTEST_LIFECYCLE_PATH = ROOT / "data" / "backtest_position_lifecycle.csv"
+DEFAULT_BACKTEST_METRICS_PATH = ROOT / "data" / "backtest_trade_metrics.csv"
+RUN_BACKTEST_PATH = ROOT / "run_backtest.py"
+STRATEGY_PATH = ROOT / "strategy.py"
 BINANCE_KLINES_URL = "https://fapi.binance.com/fapi/v1/klines"
 BINANCE_PRICE_URL = "https://fapi.binance.com/fapi/v1/ticker/price"
 KLINE_TTL_SECONDS = 55
@@ -56,6 +62,14 @@ SIGNAL_TIMEOUT_SECONDS = 20
 MAX_KLINES = 1000
 MAX_RANGE_KLINES = 30000
 UTC8 = timezone(timedelta(hours=8))
+# 200U × 20x 研究基準名目；「200U 基準」PnL = 實際 PnL × 4000 ÷ 當筆名目（與 edge_falsify 相同換算）
+BASELINE_MARGIN = 200.0
+LEVERAGE = 20.0
+BASELINE_NOTIONAL = BASELINE_MARGIN * LEVERAGE
+ROLLING_WINDOW = 20
+EDGE_RECENT_TRADES = 30
+EDGE_MONTHS = 6
+BASES = {"actual", "200u"}
 
 
 def _number(value, default=None):
@@ -218,6 +232,7 @@ def _trade_row(raw: dict, index: int) -> dict | None:
         "hold_bars": _int(raw.get("hold_bars"), None),
         "hold_hours": _number(raw.get("hold_hours"), None),
         "pnl": pnl,
+        "gross_pnl": _number(raw.get("gross_pnl_usd"), None),
         "pnl_pct": _number(raw.get("net_pnl_pct"), None),
         "mae_pct": _first_number(raw, "max_adverse_excursion_pct", "mae_pct"),
         "mfe_pct": _first_number(raw, "max_favorable_excursion_pct", "mfe_pct"),
@@ -272,6 +287,7 @@ def _backtest_text_rows(path: Path) -> list[dict]:
             "hold_bars": _int(raw.get("hold"), None),
             "hold_hours": _number(raw.get("hold"), None),
             "pnl": _number(raw.get("pnl"), None),
+            "backtest_margin": raw.get("margin"),
             "pnl_pct": None,
             "mae_pct": None,
             "mfe_pct": None,
@@ -333,6 +349,108 @@ def _parse_local_klines(path: Path):
     return rows
 
 
+def _literal_constants(path: Path, names: set[str]) -> dict:
+    """只用 ast 讀模組頂層的字面值常數；不執行、不匯入該模組。"""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, ValueError):
+        return {}
+    found = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if isinstance(target, ast.Name) and target.id in names:
+            try:
+                found[target.id] = ast.literal_eval(node.value)
+            except ValueError:
+                continue
+    return found
+
+
+def _margin_schedule() -> list[tuple[str, float]]:
+    """run_backtest.MARGIN_SCHEDULE（單一來源）；讀不到時視為全程 200U。"""
+    value = _literal_constants(RUN_BACKTEST_PATH, {"MARGIN_SCHEDULE"}).get("MARGIN_SCHEDULE")
+    schedule = []
+    for item in value or []:
+        try:
+            schedule.append((str(item[0])[:10], float(item[1])))
+        except (TypeError, ValueError, IndexError):
+            continue
+    return sorted(schedule) or [("2000-01-01", BASELINE_MARGIN)]
+
+
+def _scheduled_margin(entry_display: str | None, schedule) -> float:
+    margin = schedule[0][1]
+    for start, value in schedule:
+        if str(entry_display or "")[:10] >= start:
+            margin = value
+    return margin
+
+
+def _edge_thresholds() -> dict:
+    values = _literal_constants(STRATEGY_PATH, {"EDGE_CUSUM_YELLOW", "EDGE_CUSUM_RED"})
+    return {
+        "yellow": float(values.get("EDGE_CUSUM_YELLOW", 600.0)),
+        "red": float(values.get("EDGE_CUSUM_RED", 800.0)),
+    }
+
+
+def _exit_code(reason) -> str:
+    """出場原因（實戰全名或回測「中文 (英文)」）→ edge_falsify 短碼。"""
+    text = str(reason or "").strip()
+    if "(" in text and text.endswith(")"):
+        text = text[text.rfind("(") + 1:-1].strip()
+    return {"SafeNet": "SN", "MFE-trail": "MFE", "MaxHold": "MH", "MH-ext": "MHx"}.get(text, text)
+
+
+def _attach_size(row: dict, schedule, margin=None, gross_pnl=None) -> dict:
+    """補上保證金、名目與 200U 基準 PnL。
+
+    回測明細直接有 Mgn(U)；實戰 trades.csv 沒有保證金欄，先用毛損益 ÷ 價格變動推回名目，
+    無法推算（例如進出場同價）時才退回 MARGIN_SCHEDULE。
+    """
+    notional = None
+    size_source = None
+    if margin:
+        notional = float(margin) * LEVERAGE
+        size_source = "回測明細"
+    entry, exit_price = row.get("entry_price"), row.get("exit_price")
+    if notional is None and gross_pnl is not None and entry and exit_price:
+        direction = -1.0 if row.get("side") == "S" else 1.0
+        move = (float(exit_price) - float(entry)) / float(entry) * direction
+        if abs(move) >= 1e-4:
+            estimated = float(gross_pnl) / move
+            if estimated > 0:
+                notional = estimated
+                size_source = "成交推算"
+    if notional is None:
+        notional = _scheduled_margin(row.get("entry_time_display"), schedule) * LEVERAGE
+        size_source = "保證金排程"
+    row["notional"] = round(notional, 2)
+    row["margin"] = round(notional / LEVERAGE / 10) * 10 if size_source == "成交推算" else round(notional / LEVERAGE, 2)
+    row["size_source"] = size_source
+    row["pnl_actual"] = row.get("pnl")
+    row["pnl_200u"] = (
+        round(float(row["pnl"]) * BASELINE_NOTIONAL / notional, 6)
+        if row.get("pnl") is not None and notional else None
+    )
+    return row
+
+
+def _with_basis(rows: list[dict], basis: str) -> list[dict]:
+    if basis != "200u":
+        return rows
+    return [{**row, "pnl": row.get("pnl_200u")} if row.get("pnl") is not None else row for row in rows]
+
+
+def _basis(value) -> str:
+    basis = str(value or "actual").lower()
+    if basis not in BASES:
+        raise ValueError("金額基準只能是 actual 或 200u")
+    return basis
+
+
 class DataStore:
     def __init__(self, allow_network=True):
         self.allow_network = allow_network
@@ -346,6 +464,7 @@ class DataStore:
         self._signal_refresh_lock = threading.Lock()
         self._price_refresh_lock = threading.Lock()
         self._last_kline_error = None
+        self._backtest_metrics_status = {"available": False, "matched": 0, "error": None}
 
     @property
     def backtest_path(self):
@@ -448,10 +567,56 @@ class DataStore:
                     rows.append(parsed)
         else:
             rows = _backtest_text_rows(path)
+        schedule = _margin_schedule()
+        for row in rows:
+            _attach_size(
+                row, schedule,
+                margin=row.pop("backtest_margin", None),
+                gross_pnl=row.pop("gross_pnl", None),
+            )
+        if source == "backtest":
+            self._merge_backtest_metrics(rows)
         rows.sort(key=lambda row: row["entry_time_utc"] or "")
         with self._lock:
             self._trades_cache[source] = (mtime, rows)
         return rows
+
+    @property
+    def backtest_metrics_path(self):
+        configured = os.environ.get("VIEWER_BACKTEST_METRICS_PATH")
+        if configured:
+            return Path(configured).expanduser().resolve()
+        return DEFAULT_BACKTEST_METRICS_PATH
+
+    def _merge_backtest_metrics(self, rows):
+        """以（方向, 進場成交時刻）對齊回測逐筆 MAE／MFE／進場 GK；缺檔時維持缺值。"""
+        path = self.backtest_metrics_path
+        self._backtest_metrics_status = {"available": False, "path": str(path), "matched": 0, "error": None}
+        if not path.is_file():
+            self._backtest_metrics_status["error"] = "尚未產生回測逐筆指標檔（執行 refresh_viewer_backtest.py）"
+            return
+        raw_rows, error = _read_csv(path)
+        if error:
+            self._backtest_metrics_status["error"] = str(error)
+            return
+        metrics = {}
+        for raw in raw_rows:
+            key = (_side(raw.get("side")), str(raw.get("entry_exec_utc8") or "")[:16])
+            metrics[key] = raw
+        matched = 0
+        for row in rows:
+            raw = metrics.get((row.get("side"), str(row.get("entry_time_display") or "")[:16]))
+            if not raw:
+                continue
+            matched += 1
+            row["mae_pct"] = _number(raw.get("mae_pct"), None)
+            row["mfe_pct"] = _number(raw.get("mfe_pct"), None)
+            gk = _number(raw.get("gk_pctile"), None)
+            if row.get("side") == "S":
+                row["gk_pctile_s"] = gk
+            else:
+                row["gk_pctile"] = gk
+        self._backtest_metrics_status.update({"available": matched > 0, "matched": matched, "total": len(rows)})
 
     def _fetch_public_klines(self, start_ms=None, end_ms=None):
         if start_ms is None or end_ms is None:
@@ -665,8 +830,8 @@ class DataStore:
             raise ValueError(f"結束日期不能晚於最新可選日 {bounds['max_date']}")
         return start, end
 
-    def select_trades(self, source, start, end, side="ALL"):
-        trades = self.trades(source)
+    def select_trades(self, source, start, end, side="ALL", basis="actual"):
+        trades = _with_basis(self.trades(source), basis)
         selected_trades = []
         for row in trades:
             if side != "ALL" and row["side"] != side:
@@ -680,10 +845,10 @@ class DataStore:
                 selected_trades.append(row)
         return selected_trades
 
-    def selection(self, source="live", days=30, side="ALL", start_date=None, end_date=None):
+    def selection(self, source="live", days=30, side="ALL", start_date=None, end_date=None, basis="actual"):
         start, end = self.selection_window(source, start_date, end_date, days)
         selected_candles = self.klines(source, start, end)
-        selected_trades = self.select_trades(source, start, end, side)
+        selected_trades = self.select_trades(source, start, end, side, basis)
         return selected_candles, selected_trades, start, end
 
     def state(self):
@@ -835,9 +1000,9 @@ class DataStore:
             })
         return {"sources": sources, "timezone": "Asia/Taipei"}
 
-    def data(self, source="live", days=30, side="ALL", start_date=None, end_date=None):
+    def data(self, source="live", days=30, side="ALL", start_date=None, end_date=None, basis="actual"):
         selected_candles, selected_trades, start, end = self.selection(
-            source, days, side, start_date, end_date
+            source, days, side, start_date, end_date, basis
         )
         trades_mtime = _mtime(self.source_path(source))
 
@@ -861,6 +1026,7 @@ class DataStore:
             "timezone": "Asia/Taipei",
             "source": source,
             "source_label": self.source_label(source),
+            "basis": basis,
             "date_range": {
                 "start": _date_label(start),
                 "end": _date_label(end - timedelta(microseconds=1)),
@@ -892,9 +1058,10 @@ class DataStore:
             },
         }
 
-    def analysis(self, source="live", days=30, side="ALL", start_date=None, end_date=None):
+    def analysis(self, source="live", days=30, side="ALL", start_date=None, end_date=None, basis="actual"):
         start, end = self.selection_window(source, start_date, end_date, days)
-        selected_trades = self.select_trades(source, start, end, side)
+        selected_trades = self.select_trades(source, start, end, side, basis)
+        rolling = self._rolling_metrics(source, side, basis)
         closed = [row for row in selected_trades if row["closed"] and row["pnl"] is not None]
         ordered = sorted(
             closed,
@@ -928,6 +1095,7 @@ class DataStore:
                 "gk_pctile": row.get("gk_pctile"),
                 "gk_pctile_s": row.get("gk_pctile_s"),
                 "exit_reason": row.get("exit_reason"),
+                **rolling.get(str(row.get("id")), {}),
             })
 
         def summary(rows):
@@ -1126,9 +1294,25 @@ class DataStore:
             if row.get("mae_pct") is not None and row.get("mfe_pct") is not None
         ]
 
+        rolling_values = [value["rolling_mfe"] for value in rolling.values() if value.get("rolling_mfe") is not None]
+        in_range = [point["rolling_mfe"] for point in equity if point.get("rolling_mfe") is not None]
+        rolling_summary = {
+            "window": ROLLING_WINDOW,
+            "history_median_mfe": round(sorted(rolling_values)[len(rolling_values) // 2], 4) if rolling_values else None,
+            "range_first_mfe": in_range[0] if in_range else None,
+            "range_last_mfe": in_range[-1] if in_range else None,
+            "range_min_mfe": min(in_range) if in_range else None,
+            "mfe_available": bool(rolling_values),
+        }
+        comparison = self._compare_with_backtest(start, end, side, basis, closed) if source == "live" else None
+
         return {
             "source": source,
             "source_label": self.source_label(source),
+            "basis": basis,
+            "rolling": rolling_summary,
+            "comparison": comparison,
+            "backtest_metrics": dict(self._backtest_metrics_status) if source == "backtest" else None,
             "summary": {
                 **summary(closed),
                 "profit_factor": round(gross_profit / gross_loss, 6) if gross_loss else (999.0 if gross_profit else 0.0),
@@ -1172,6 +1356,224 @@ class DataStore:
                     "reason": "目前紀錄沒有逐根保存可驗證的 TP／SafeNet／MaxHold 價格線",
                 },
             },
+        }
+
+    def _closed_sorted(self, source, side="ALL", basis="actual"):
+        rows = [
+            row for row in _with_basis(self.trades(source), basis)
+            if row["closed"] and row.get("pnl") is not None and (side == "ALL" or row["side"] == side)
+        ]
+        return sorted(rows, key=lambda row: row.get("exit_time_utc") or row.get("entry_time_utc") or "")
+
+    def _rolling_metrics(self, source, side="ALL", basis="actual"):
+        """全歷史逐筆滾動平均（近 ROLLING_WINDOW 筆），讓區間開頭也有完整窗口。"""
+        result = {}
+        window = []
+        min_count = 5
+
+        def average(values):
+            valid = [float(value) for value in values if value is not None]
+            return round(sum(valid) / len(valid), 4) if len(valid) >= min_count else None
+
+        for row in self._closed_sorted(source, side, basis):
+            window.append(row)
+            window = window[-ROLLING_WINDOW:]
+            result[str(row.get("id"))] = {
+                "rolling_mfe": average(item.get("mfe_pct") for item in window),
+                "rolling_mae": average(item.get("mae_pct") for item in window),
+                "rolling_pnl_200u": average(item.get("pnl_200u") for item in window),
+                "rolling_count": len(window),
+            }
+        return result
+
+    def _compare_with_backtest(self, start, end, side, basis, live_closed):
+        """同一日期區間的實戰 vs 回測快照：累積曲線與逐筆對齊（方向 + 進場成交時刻）。"""
+        try:
+            backtest_rows = self.select_trades("backtest", start, end, side, basis)
+        except (OSError, ValueError) as exc:
+            return {"available": False, "reason": f"回測快照讀取失敗：{exc}"}
+        if not self.source_path("backtest").is_file():
+            return {"available": False, "reason": "VPS 上尚未產生回測快照"}
+        backtest_closed = sorted(
+            [row for row in backtest_rows if row["closed"] and row.get("pnl") is not None],
+            key=lambda row: row.get("exit_time_utc") or "",
+        )
+        live_sorted = sorted(live_closed, key=lambda row: row.get("exit_time_utc") or "")
+
+        def curve(rows):
+            total = 0.0
+            points = []
+            for row in rows:
+                total += float(row["pnl"])
+                points.append({
+                    "time_utc": row.get("exit_time_utc"),
+                    "time_display": row.get("exit_time_display"),
+                    "cumulative_pnl": round(total, 6),
+                    "number": row.get("number"),
+                    "side": row.get("side"),
+                })
+            return points
+
+        def key(row):
+            return row.get("side"), str(row.get("entry_time_display") or "")[:16]
+
+        backtest_by_key = {key(row): row for row in backtest_closed}
+        live_by_key = {key(row): row for row in live_sorted}
+        matched = [(row, backtest_by_key[key(row)]) for row in live_sorted if key(row) in backtest_by_key]
+        brief = lambda row: {
+            "number": row.get("number"),
+            "side": row.get("side"),
+            "entry_time_display": row.get("entry_time_display"),
+            "exit_reason": row.get("exit_reason"),
+            "pnl": row.get("pnl"),
+        }
+        bounds = self.available_date_bounds("backtest")
+        coverage_note = None
+        if bounds.get("min_date") and _date_label(start) < bounds["min_date"]:
+            coverage_note = f"回測快照最早只到 {bounds['min_date']}，更早的實戰交易沒有對照"
+        return {
+            "available": True,
+            "live": {"trades": len(live_sorted), "pnl": round(sum(float(r["pnl"]) for r in live_sorted), 6), "curve": curve(live_sorted)},
+            "backtest": {"trades": len(backtest_closed), "pnl": round(sum(float(r["pnl"]) for r in backtest_closed), 6), "curve": curve(backtest_closed)},
+            "matched": len(matched),
+            "matched_pnl_gap": round(sum(float(live["pnl"]) - float(bt["pnl"]) for live, bt in matched), 6),
+            "exit_reason_mismatch": sum(
+                1 for live, bt in matched if _exit_code(live.get("exit_reason")) != _exit_code(bt.get("exit_reason"))
+            ),
+            "live_only": [brief(row) for row in live_sorted if key(row) not in backtest_by_key],
+            "backtest_only": [brief(row) for row in backtest_closed if key(row) not in live_by_key],
+            "coverage_note": coverage_note,
+            "backtest_updated_at": _iso(datetime.fromtimestamp(_mtime(self.source_path("backtest")), timezone.utc))
+            if _mtime(self.source_path("backtest")) else None,
+        }
+
+    def edge(self, source="live"):
+        """策略健康度：V29 CUSUM + 證偽檢查（Edge／突破延續／尾部）+ 月度燈號連續數。
+
+        判讀函式直接沿用 edge_falsify.py（只含純計算，不匯入 strategy）；實盤貼合項需要回測引擎，
+        Viewer 不執行，改由「實戰 vs 回測」卡片與 analyze.py 呈現。
+        """
+        try:
+            import edge_falsify
+        except ImportError as exc:
+            raise OSError(f"edge_falsify.py 無法載入：{exc}") from exc
+
+        rows = self._closed_sorted(source)
+        thresholds = _edge_thresholds()
+        constants = _literal_constants(STRATEGY_PATH, {"EDGE_CUSUM_K"})
+        cusum_k = float(constants.get("EDGE_CUSUM_K", 14.3))
+
+        def light(hp):
+            if hp is None:
+                return None
+            return "green" if hp >= 60 else "yellow" if hp >= 25 else "red"
+
+        def evaluate(subset):
+            pnls = [float(row["pnl_200u"]) for row in subset if row.get("pnl_200u") is not None]
+            codes = [_exit_code(row.get("exit_reason")) for row in subset]
+            if not pnls:
+                return None
+            checks = [
+                ("edge", "Edge 強度", *edge_falsify._check_edge(pnls)),
+                ("continuation", "突破延續", *edge_falsify._check_continuation(codes)),
+                ("tail", "尾部風險", *edge_falsify._check_tail(pnls, codes)),
+            ]
+            items = [
+                {"key": key, "name": name, "hp": None if hp is None else round(hp, 1), "light": light(hp), "note": note}
+                for key, name, hp, note in checks
+            ]
+            scored = [item["hp"] for item in items if item["hp"] is not None]
+            worst = min(scored) if scored else None
+            return {
+                "trades": len(pnls),
+                "avg_pnl_200u": round(sum(pnls) / len(pnls), 2),
+                "baseline_avg_pnl_200u": edge_falsify.BASE_AVG_R,
+                "items": items,
+                "overall_hp": worst,
+                "overall_light": light(worst),
+            }
+
+        recent = rows[-EDGE_RECENT_TRADES:]
+        current = evaluate(recent)
+
+        # 月度燈號：每個月底（本月為截至目前）回看最近 30 筆，與 analyze.py 每月檢查的視角一致。
+        def exit_month(row):
+            return str(row.get("exit_time_display") or "")[:7]
+
+        if source == "live":
+            last_month = datetime.now(UTC8).strftime("%Y-%m")
+        else:
+            last_month = exit_month(rows[-1]) if rows else datetime.now(UTC8).strftime("%Y-%m")
+        months = []
+        year, month = int(last_month[:4]), int(last_month[5:7])
+        for _ in range(EDGE_MONTHS):
+            months.append(f"{year:04d}-{month:02d}")
+            year, month = (year - 1, 12) if month == 1 else (year, month - 1)
+        months.reverse()
+        monthly = []
+        for label in months:
+            subset = [row for row in rows if exit_month(row) <= label][-EDGE_RECENT_TRADES:]
+            result = evaluate(subset) if len(subset) >= 10 else None
+            monthly.append({
+                "month": label,
+                "in_progress": source == "live" and label == last_month,
+                "closed_in_month": sum(1 for row in rows if exit_month(row) == label),
+                "overall_hp": result["overall_hp"] if result else None,
+                "light": result["overall_light"] if result else None,
+                "avg_pnl_200u": result["avg_pnl_200u"] if result else None,
+            })
+        streak = 0
+        for item in reversed(monthly):
+            if item["light"] in {"yellow", "red"}:
+                streak += 1
+            else:
+                break
+
+        # V29 健康度：實戰以機器人狀態檔為準；回測（或狀態檔缺值）以同公式回放。
+        replay = 0.0
+        series = []
+        for row in rows:
+            if row.get("pnl_200u") is None:
+                continue
+            replay = max(0.0, replay + (cusum_k - float(row["pnl_200u"])))
+            series.append({
+                "time_display": row.get("exit_time_display"),
+                "pct": round(max(0.0, (thresholds["red"] - replay) / thresholds["red"] * 100), 1),
+            })
+        cusum = replay
+        cusum_source = "交易回放"
+        if source == "live":
+            payload, error = _read_json(STATE_PATH)
+            stored = (payload or {}).get("edge_health") if not error else None
+            if isinstance(stored, dict) and _number(stored.get("cusum"), None) is not None:
+                cusum = float(stored["cusum"])
+                cusum_source = "機器人狀態檔"
+        pct = max(0.0, (thresholds["red"] - cusum) / thresholds["red"] * 100)
+        level = "red" if cusum > thresholds["red"] else "yellow" if cusum > thresholds["yellow"] else "green"
+        yellow_pct = (thresholds["red"] - thresholds["yellow"]) / thresholds["red"] * 100
+        recent_series = series[-60:]
+
+        return {
+            "source": source,
+            "source_label": self.source_label(source),
+            "server_time_display": _display_time(datetime.now(timezone.utc)),
+            "recent_window": EDGE_RECENT_TRADES,
+            "current": current,
+            "monthly": monthly,
+            "non_green_streak": streak,
+            "freeze_rule": "連續兩個月 🟡（或更差）→ 凍結加碼；🔴 → 檢視是否退回 200U／暫停（V29 SOP）",
+            "v29": {
+                "pct": round(pct, 1),
+                "level": level,
+                "cusum": round(cusum, 2),
+                "cusum_source": cusum_source,
+                "replay_pct": round(max(0.0, (thresholds["red"] - replay) / thresholds["red"] * 100), 1),
+                "yellow_pct": round(yellow_pct, 1),
+                "min_recent_pct": min((point["pct"] for point in recent_series), default=None),
+                "series": recent_series,
+            },
+            "fidelity_note": "實盤貼合需執行回測引擎，Viewer 不跑；請看「實戰 vs 回測」卡片，或在 VPS 執行 analyze.py。",
+            "basis_note": "Edge／尾部金額一律換算為 200U 保證金基準（實際 PnL × $4,000 ÷ 當筆名目）。",
         }
 
     def trade_detail(self, source="live", trade_id=""):
@@ -1309,6 +1711,7 @@ def make_handler(store: DataStore):
                     self._json(store.data(
                         source=source, days=days, side=side,
                         start_date=start_date, end_date=end_date,
+                        basis=_basis(query.get("basis", ["actual"])[0]),
                     ))
                     return
                 if parsed.path == "/api/analysis":
@@ -1325,7 +1728,15 @@ def make_handler(store: DataStore):
                     self._json(store.analysis(
                         source=source, days=days, side=side,
                         start_date=start_date, end_date=end_date,
+                        basis=_basis(query.get("basis", ["actual"])[0]),
                     ))
+                    return
+                if parsed.path == "/api/edge":
+                    query = parse_qs(parsed.query)
+                    source = query.get("source", ["live"])[0].lower()
+                    if source not in {"live", "backtest"}:
+                        raise ValueError("資料來源只能是 live 或 backtest")
+                    self._json(store.edge(source))
                     return
                 if parsed.path == "/api/trade":
                     query = parse_qs(parsed.query)
