@@ -64,7 +64,7 @@ journalctl -u cryptobot -f                                       # 看日誌
 | [doc/v32_l15_s15_10gate_audit.md](doc/v32_l15_s15_10gate_audit.md) | L15/S15 基準 10-Gate 稽核（8 PASS、1 N/A、1 FAIL；G8 時序翻轉 FAIL，但為現行鎖定基準，不需升級） |
 | [doc/v33_s_mild_up_research.md](doc/v33_s_mild_up_research.md) | V33 真實盤回饋研究（S/MILD_UP 進場 slope 過濾全 REJECTED；MH9 REJECTED；MH8 僅 SHADOW ONLY，線上維持 V14+R+V25-D） |
 | [doc/v34_dialogue_research.md](doc/v34_dialogue_research.md) | V34 2026-08 對話研究彙整（零交易 gate 診斷、週末/GK/突破敏感度、SIDE 1.3% shadow、2,000 天結果、V29 重稽核、GK shift A/B；**未部署**） |
-| [doc/v35_research.md](doc/v35_research.md) | V35 2026-10-08 研究彙整（今年回測 +$1,064 vs ETH -13.6%、7 月起轉弱＝S 上漲盤逆勢＋低波動＋500U 放大、S 7 連虧創紀錄；**大行情外掛 10 輪 462 組全 REJECTED**；付費清算/訂單簿資料評估未購買） |
+| [doc/v35_research.md](doc/v35_research.md) | V35 2026-10-08 研究彙整（今年回測 +$1,064 vs ETH -13.6%、7 月起轉弱＝S 上漲盤逆勢＋低波動＋500U 放大、S 7 連虧創紀錄；**大行情外掛 10 輪 462 組全 REJECTED**；獨立空頭波段 55 日通道 9/10 未部署（需 ≤5 倍）、多頭波段 4 類皆未過；付費清算/訂單簿資料評估未購買） |
 
 ---
 

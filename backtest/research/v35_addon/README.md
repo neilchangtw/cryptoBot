@@ -19,5 +19,8 @@ python backtest/research/v35_addon/base.py data/v35          # 現行策略 5.5 
 | `fund.py` + `f_stage1.py` | 第 4 輪：資金費率極端反向 |
 | `m30.py` + `m_stage1.py` | 第 5 輪：30m GK 壓縮突破 |
 | `gen.py` + `rounds.py` | 第 6～10 輪通用引擎與 10-Gate（`rounds.py WORK 6..10`） |
+| `swing.py` + `sw_run.py` | 獨立多頭／空頭波段（日線通道＋ATR 移動停損、日線＋4h 均線）稽核 |
+| `sw_chk.py` | 空頭通道 S-T(55,2) 逐筆明細、逆向波動、擴大鄰域 |
+| `bull2.py` | 多頭第 2 輪：回檔買進、BTC 確認突破 |
 
 嚴格模式共用設定：收盤訊號→次根開盤成交 ±2bp、停損 25% 穿透、每筆 $9＋funding、200U×20x；開發期 2021-02-16～2024-10-07 選平台中心，保留期 2024-10-08～2026-10-08 只測一次；G5 隨機對照門檻第 k 輪 ≥ 100−5/k 百分位。
