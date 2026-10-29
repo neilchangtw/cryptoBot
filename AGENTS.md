@@ -169,6 +169,12 @@ cryptoBot/
 
 ## 目前狀態
 
+### ✅ 2026-10-29 實盤保證金下調（已套用）
+
+- VPS `.env` 的 `MARGIN_PER_TRADE` 已由 500U 調為 200U；20x 槓桿不變，單筆名目由 $10,000 降為 $4,000。當時 Binance 與機器人狀態均確認無持倉後才套用，systemd 服務已重新載入設定。
+- 200U 動態風控線：日虧 -$200、L 月虧 -$75、S 月虧 -$150。這次在 10 月月中下調，L 側當月損益已超過新的月虧上限，因此依既有熔斷暫停 L 新開倉至 2026-11-01 月度重置；S 側及日虧線未觸發。
+- 回測 `MARGIN_SCHEDULE` 已同步加入 2026-10-29 起 200U；`doc/live_data_spec.md` 記錄目前規格及月中熔斷影響。
+
 ### ⏳ 2026-07-23~30 更新（待部署）
 
 - `df082d6`：Telegram 群組平倉通知隱藏美元 PnL、只顯示百分比；私聊保留美元；開倉與虧損標題各 5 句隨機文案。
@@ -262,15 +268,15 @@ cryptoBot/
 - **V25 Regime-conditional exits（2026-04-22）**：V25-D PROMOTED 12/12 gates — `S_MH_UP 10→8` + `L_TP_DOWN 3.5→4.0%` + `L_MH_MILD_UP 6→7`，2Y PnL $6,789（+$206, +3.1%）、WR 62.3%（+0.7%）、**MDD $334（-$39, -10.5%）**、Sharpe 6.23、G4 6/6 鄰域穩定、G8 reversed 改善（-3717 vs -3981）。V25-D 是 V14+R 純出場優化，進場 100% 沿用
 - **模式**：**LIVE 正式盤（mainnet 真錢）**，資料寫在 `data_live/`（VPS systemd 服務跑；連線/維運/部署見 [deploy/cheatsheet.txt](deploy/cheatsheet.txt)）
 - **Hedge Mode**：已啟用（dualSidePosition=true），L/S 倉位互不影響
-- **帳戶**：餘額 ~$2,715 / **300U 保證金 / 20x / $6,000 名目**（2026-07-03 由 200U 上調，
-  動態風控自動等比：日虧 -300 / L 月虧 -112.5 / S 月虧 -225；策略規格內的 $ 數字仍為
-  200U/$4,000 研究基準）
+- **帳戶**：餘額本次未核對 / **200U 保證金 / 20x / $4,000 名目**（2026-10-29 由 500U 下調；
+  2026-08-01 至 2026-10-28 為 500U；動態風控：日虧 -200 / L 月虧 -75 / S 月虧 -150；
+  策略研究基準為 200U/$4,000）
 - **演進**：GK v1.1 → v6 L+S → V10 → V11-E → V13 → V14 → **V14+R → V14+R+V25-D（線上）**
 - **舊 Dashboard**：FastAPI + TradingView LW Charts + PyWebView 原生視窗（**已封存，改用終端機 + Telegram**）
 - **顯示慣例**：所有終端機/Telegram 輸出的出場原因、進場趨勢、方向一律「中文 (英文)」格式，統一由 `labels.py` 產生（如 `止盈 (TP)`、`偏多 (MILD_UP)`）；交易列表時間顯示為**實際成交時刻**（K 棒收盤 = 開盤+1h，對齊幣安後台）
 - **每小時心跳**：標題顯示累計運轉天數；有持倉時額外顯示該倉的出場條件（止盈/安全網價位、最長持倉剩餘、浮盈回吐狀態）；固定顯示「💚 策略健康度 xx%」（V29 Edge 衰退警報，出場時更新，黃/紅燈轉換另發告警）；自檢正常時收斂一行「✅ 正常（無告警・資料新鮮・倉位同步・停損掛單在）」，異常才逐項展開（LIVE 每小時各一次唯讀 API 驗證倉位同步與 SafeNet 掛單存在）
 - **回測成交假設**：`run_backtest.py` 預設「貼近實盤」（TP/BE 用市價收盤成交，非理論價；SafeNet 維持真實 stop），並在既有 FEE 外每筆額外扣 **$5 執行成本緩衝**；該成本會納入日虧、月虧與連虧冷卻。`--extra-cost 0` 可還原原始回測，`--ideal` 可切回理論價對照、`--slip` 加滑價壓測；引擎 `simulate_v14_detailed(realistic=,slip_bps=,extra_cost=)`，研究腳本預設仍為 0
-- **回測保證金歷史（2026-07-03 起）**：`run_backtest.py` 預設帶 `MARGIN_SCHEDULE`（檔內常數：200U → 300U@2026-07-03 → 500U@2026-08-01，之後調保證金就往表上加一行），每筆名目/FEE/熔斷線依進場日等比（= 線上動態風控）；`--flat` 切回全程 200U 研究基準（= V14~V28 文件數字）；明細表新增 Mgn 欄；引擎 `simulate_v14_detailed(margin_schedule=)`，未傳 = 原行為，研究腳本不受影響
+- **回測保證金歷史（2026-07-03 起）**：`run_backtest.py` 預設帶 `MARGIN_SCHEDULE`（檔內常數：200U → 300U@2026-07-03 → 500U@2026-08-01 → 200U@2026-10-29，之後調保證金就往表上加一行），每筆名目/FEE/熔斷線依進場日等比（= 線上動態風控）；`--flat` 切回全程 200U 研究基準（= V14~V28 文件數字）；明細表新增 Mgn 欄；引擎 `simulate_v14_detailed(margin_schedule=)`，未傳 = 原行為，研究腳本不受影響
 - **多實例（多人使用，方案 A）**：一份程式碼 + 每人一個實例（各自 Binance key / Telegram bot / 資料 / 狀態）。靠環境變數 `INSTANCE_DIR` 分流 `data/`·`logs/`·`eth_state*.json`（`paths.py`，未設則沿用程式目錄=單人原行為）。部署用 systemd template `cryptobot@<名字>` + `instances/<名字>/.env`，步驟見 [deploy/cheatsheet.txt](deploy/cheatsheet.txt)「多實例」段。每則 Telegram 訊息開頭標「👤 實例名」（`INSTANCE_NAME`，未設則用目錄名；單人為空不加），讓多人各自確認查到自己的。注意每人需各自一支 Telegram bot（同 token 兩進程會搶更新）。**共用 K 線**：多實例時每小時只有一個實例真的抓 Binance、其他讀共用檔（`data_feed.py`，flock 去重，快取在 `cache/`，所有實例共用；fail-open 退回各自抓；單人維持原樣）
 
 ### 模擬盤運行狀態（2026-05-20 21:00 UTC+8 快照；此為轉正式盤前的 Testnet 模擬期紀錄）
