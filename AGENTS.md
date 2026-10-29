@@ -699,7 +699,7 @@ python fetch_backtest_data.py   # Binance 公開端點分頁抓 ETH+BTC 1h 730 �
 完整記錄見 [doc/backtest_history.md](doc/backtest_history.md)。
 
 - 5m 均值回歸（滑價吃光 edge）
-- 資金費率套利（全部虧損）
+- 資金費率套利（全部虧損）——指費率極端時**單邊反向**下單（`btc_eth_vol_fr.py`）；市場中性的現貨-永續套利另見 [V43](doc/v43_funding_carry_plan.md)
 - ETH 均值回歸（-$320）
 - 所有壓縮期結構止損（ETH 1h 無效）
 - Kaufman Efficiency Ratio / TTM Squeeze / Body Ratio（無 edge）
