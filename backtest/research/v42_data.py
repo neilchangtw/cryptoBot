@@ -243,13 +243,24 @@ def symbol_status(symbol: str) -> dict:
 
 def cmd_status(_args) -> None:
     print(f"{'symbol':10s} {'K線月':>7s} {'fund月':>7s} {'bars':>7s} {'first(UTC+8)':>14s} {'last(UTC+8)':>14s} {'跳格':>4s} {'funding':>7s}")
-    ok = True
+    ok = full = True
+    n = len(months())
     for s in SYMBOLS:
         i = symbol_status(s)
         print(f"{s:10s} {i['kline_months']:>7s} {i['funding_months']:>7s} {i['bars']:7d} {i['first']:>14s} "
               f"{i['last']:>14s} {i['gaps']:4d} {i['funding']:7d}")
         ok &= i["bars"] > 0 and i["funding"] > 0
-    print("狀態：" + ("全部有檔（跳格>0 代表交易所停機缺 K，屬正常；月份不齊請重跑 fetch）" if ok else "有缺，請重跑 fetch"))
+        full &= i["kline_months"] == i["funding_months"] == f"{n}/{n}"
+    last = months()[-1]
+    days = sorted(p.stem.split("_")[-1] for p in RAW_DIR.glob(f"*/kline_day_{last}-*.csv"))
+    if not full and days:
+        print(f"最後一月 {last} 每日檔已取得至 {days[-1]}（需到 {LAST_DAY}；當日檔通常隔天才發布）")
+    if ok and full:
+        print("狀態：全部完整（跳格>0 代表交易所停機缺 K，屬正常）")
+    elif ok:
+        print(f"狀態：月份不齊——dev／val 可以先跑；保留期前請重跑 fetch 補齊至 {LAST_DAY}")
+    else:
+        print("狀態：有缺，請重跑 fetch")
 
 
 def main() -> None:
