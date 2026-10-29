@@ -67,7 +67,7 @@ journalctl -u cryptobot -f                                       # 看日誌
 | [doc/v35_high_gk_acceleration_research.md](doc/v35_high_gk_acceleration_research.md) | V35 高 GK 趨勢加速補單（OOS／成本／鄰域未通過；**REJECTED**） |
 | [doc/v36_multitrack_research.md](doc/v36_multitrack_research.md) | V36 多軌研究（V29 恢復、episode、執行、prospective 資料、Beta sleeve；**均未升級**） |
 | [doc/v38_signal_aggtrades_plan.md](doc/v38_signal_aggtrades_plan.md) | V38 訊號小時 aggTrades 訂單流（**第一階段 REJECTED**：20 組無一過 Bonferroni；S 最後 15 分鐘賣壓重→易虧 AUC 0.30/0.34 接近過關，轉 V39 樣本外驗證） |
-| [doc/v39_s_exhaustion_oos_plan.md](doc/v39_s_exhaustion_oos_plan.md) | V39 預登記：S 收盤前賣壓耗盡假說，以 2021-03～2024-10 未用過的逐筆資料一次性驗證（**PLANNED**，VPS 執行） |
+| [doc/v39_s_exhaustion_oos_plan.md](doc/v39_s_exhaustion_oos_plan.md) | V39 S 收盤前賣壓耗盡假說樣本外驗證（**REJECTED**：2021-03～2024-10 488 事件 AUC 0.500 p 0.50，V38 訊號為偽陽性；重播勝率 -1.7pp；**訂單流方向結案**） |
 | [doc/v37_microstructure_shadow_plan.md](doc/v37_microstructure_shadow_plan.md) | V37 微結構研究計畫（輕量 5m 接受度診斷＋prospective shadow；**尚未執行**） |
 | [doc/maxhold_review_20260908.md](doc/maxhold_review_20260908.md) | 9/8 附件復盤：269筆回測重現、35筆實戰對齊，MH／TP敏感度初查 |
 | [doc/strategy_optimization_plan_20260908.md](doc/strategy_optimization_plan_20260908.md) | 9/8 優化研究計畫與預登記門檻；歷史驗證已完成 |
