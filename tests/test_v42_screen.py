@@ -146,6 +146,18 @@ class ATests(unittest.TestCase):
         self.assertTrue((got.funding_usd == 0).all())
         self.assertTrue(np.allclose(got.net_pnl, ref.pnl_usd))
 
+    def test_funding_quantity_not_from_rounded_price(self):
+        c = self.c.copy()
+        for col in ("open", "high", "low", "close"):
+            c[col] = c[col] / 1e6                     # 價格 ~0.002，引擎 entry_price 捨入後為 0
+        close_ms = ((c.datetime - pd.Timedelta(hours=7) - pd.Timestamp("1970-01-01"))
+                    // pd.Timedelta(milliseconds=1)).to_numpy("int64")
+        f = pd.DataFrame({"funding_time_ms": close_ms[::8], "rate": 0.0001})
+        got = v42.a_trades(c, f, self.start, self.end, 0.0)
+        self.assertGreater(len(got), 0)
+        self.assertTrue(np.isfinite(got.funding_usd).all())
+        self.assertLess(got.funding_usd.abs().max(), 4000 * 0.0001 * 3)
+
     def test_slippage_passed_through(self):
         ref = self.direct_engine(4.0)
         got = v42.a_trades(self.c, self.empty_f, self.start, self.end, 4.0)
@@ -160,7 +172,7 @@ class ATests(unittest.TestCase):
         closes = self.c.close.to_numpy()
         for t in got.itertuples():
             js = [j for j in range(t.entry_bar + 1, t.exit_bar + 1) if j % 8 == 0]
-            qty = t.margin * 20 / t.entry_price
+            qty = t.margin * 20 / closes[t.entry_bar]
             exp = (-1 if t.side == "L" else 1) * qty * sum(closes[j] * 0.0001 for j in js)
             self.assertAlmostEqual(t.funding_usd, exp, places=3)
         self.assertTrue((got.funding_usd[got.side == "L"] <= 0).all())

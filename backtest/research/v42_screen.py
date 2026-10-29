@@ -120,7 +120,8 @@ def a_trades(candles: pd.DataFrame, funding: pd.DataFrame, start, end, slip: flo
     tr["exit_dt"] = pd.to_datetime(tr["exit_dt"])
     tr = tr[(tr.entry_dt >= pd.Timestamp(start)) & (tr.entry_dt < pd.Timestamp(end))].reset_index(drop=True)
     F = bar_funding_cum(candles, funding)
-    qty = tr["margin"].to_numpy(float) * 20 / tr["entry_price"].to_numpy(float)
+    # 引擎輸出的 entry_price 四捨五入到 2 位小數（DOGE 等低價幣會變 0），數量改用未捨入的進場棒收盤價
+    qty = tr["margin"].to_numpy(float) * 20 / candles["close"].to_numpy(float)[tr.entry_bar.to_numpy(int)]
     sign = np.where(tr["side"] == "L", 1.0, -1.0)
     tr["funding_usd"] = np.round(-sign * qty * (F[tr.exit_bar.to_numpy(int)] - F[tr.entry_bar.to_numpy(int)]), 4)
     tr["net_pnl"] = tr["pnl_usd"] + tr["funding_usd"]
