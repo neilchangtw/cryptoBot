@@ -66,6 +66,7 @@ journalctl -u cryptobot -f                                       # 看日誌
 | [doc/v34_dialogue_research.md](doc/v34_dialogue_research.md) | V34 2026-08 對話研究彙整（零交易 gate 診斷、週末/GK/突破敏感度、SIDE 1.3% shadow、2,000 天結果、V29 重稽核、GK shift A/B；**未部署**） |
 | [doc/v35_high_gk_acceleration_research.md](doc/v35_high_gk_acceleration_research.md) | V35 高 GK 趨勢加速補單（OOS／成本／鄰域未通過；**REJECTED**） |
 | [doc/v36_multitrack_research.md](doc/v36_multitrack_research.md) | V36 多軌研究（V29 恢復、episode、執行、prospective 資料、Beta sleeve；**均未升級**） |
+| [doc/v38_signal_aggtrades_plan.md](doc/v38_signal_aggtrades_plan.md) | V38 預登記：只抓訊號小時 aggTrades，10 個小時內訂單流特徵能否分辨真假突破（**PLANNED**，VPS 執行，不影響實盤） |
 | [doc/v37_microstructure_shadow_plan.md](doc/v37_microstructure_shadow_plan.md) | V37 微結構研究計畫（輕量 5m 接受度診斷＋prospective shadow；**尚未執行**） |
 | [doc/maxhold_review_20260908.md](doc/maxhold_review_20260908.md) | 9/8 附件復盤：269筆回測重現、35筆實戰對齊，MH／TP敏感度初查 |
 | [doc/strategy_optimization_plan_20260908.md](doc/strategy_optimization_plan_20260908.md) | 9/8 優化研究計畫與預登記門檻；歷史驗證已完成 |
