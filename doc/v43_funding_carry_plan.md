@@ -1,6 +1,6 @@
-# V43 預登記草稿：現貨-永續資金費率套利（V42 候選 C，2026-10-29）
+# V43 預登記：現貨-永續資金費率套利（V42 候選 C，2026-10-29）
 
-**狀態：草稿，待使用者確認後才寫程式、才看資料。** 不修改 `strategy.py`、`executor.py`、`.env`、VPS 設定；只在 VPS 跑獨立研究腳本。公司電腦不下載行情（只用合成資料跑測試）。
+**狀態：REJECTED（2026-10-29 VPS 執行，組合 2023 年 -$397，G7 FAIL）。結論見 [v43_conclusion.md](research_results/v43/v43_conclusion.md)。** 規則於看資料前鎖定（fd58a42 誤提交了草稿版文字，程式本身已依本文件實作；本版補上鎖定時的逐日盯市、各段空手起算、保留期守門等條文）。 不修改 `strategy.py`、`executor.py`、`.env`、VPS 設定；只在 VPS 跑獨立研究腳本。公司電腦不下載行情（只用合成資料跑測試）。
 
 ## 跟舊「資金費率套利」的差別
 
@@ -47,6 +47,11 @@ V43 是**市場中性**：同數量「買現貨＋空永續」，價格漲跌兩
 
 2020-11～12 只作 `f̄` 暖機。V42 未動用保留期，2025 起資料對 V43 是未見資料。
 
+- 每段都從空手開始，期末最後一根收盤強制平倉（C0 在每段第一個決策日建倉）。
+- **日 PnL 用逐日盯市**（資金費於結算日入帳、基差每日變動、成本於成交日扣），G4 的月 PnL、G6 的最佳月、G7 年度、G8 回撤都用它。持倉常達數月，若依平倉日歸屬，C0 三年只有一個數字，會讓這些門檻失真。現行策略基準照 V42：依出場台北日期、`realistic=True`、+$5、滑價 0、加實際 funding。
+- 保留期守門：`--i-understand-holdout-once` 且該候選 G1、G-APR、G2 皆 PASS 才准跑，執行即寫入 `doc/research_results/v43/holdout_log.txt`；同一候選第二次一律拒絕。
+- 若 C0、C1 都通過 G1～G6，組合用 C1（G5 已證明擇時較好）；兩者資金相同，不同時上。
+
 ## 門檻（看資料前鎖定）
 
 | Gate | 條件 |
@@ -68,15 +73,32 @@ C0、C1 各自判定。通過 G1～G6 者進組合；G7、G8 皆過 → **SHADOW
 - 永續 1h K 線與 fundingRate：V42 已下載 `data/v42/BTCUSDT_*`、`data/v42/ETHUSDT_*`，直接沿用。
 - 新增：現貨 1h K 線，data.binance.vision `data/spot/monthly/klines/{SYMBOL}/1h/`（最後一個月用每日檔）。注意 2025-01 起現貨檔時間戳改成微秒，讀檔要判斷。輸出 `data/v43/{SYMBOL}_spot_1h.csv`，欄位與 V42 相同。
 
-## 預計程式（確認後才寫）
+## 程式與執行順序（VPS，cryptobot，~/cryptoBot）
 
-- `backtest/research/v43_data.py fetch|status`：只抓兩個幣的現貨 1h。
-- `backtest/research/v43_carry.py c0|c1 --period dev|val|holdout`、`report`；輸出 `doc/research_results/v43/`。
-- `tests/test_v43_carry.py`：合成資料驗證資金費正負號、基差、成本、再平衡。
+- `backtest/research/v43_data.py fetch|status`：只抓兩個幣的現貨 1h；status 同時檢查 V42 的永續 K 線與 funding。
+- `backtest/research/v43_carry.py c0|c1 --period dev|val|holdout`、`report`。
+- `tests/test_v43_carry.py`：合成資料驗證資金費正負號與結算區間、基差、成本、再平衡、決策不偷看、平台選擇、保留期守門。
+
+```
+.venv/bin/python backtest/research/v42_data.py status      # 確認 BTC、ETH 永續與 funding 已在
+.venv/bin/python backtest/research/v43_data.py fetch
+.venv/bin/python backtest/research/v43_data.py status
+.venv/bin/python backtest/research/v43_carry.py c0 --period dev
+.venv/bin/python backtest/research/v43_carry.py c1 --period dev
+.venv/bin/python backtest/research/v43_carry.py c0 --period val
+.venv/bin/python backtest/research/v43_carry.py c1 --period val
+.venv/bin/python backtest/research/v43_carry.py report
+# 以下各只准一次，且需 G1／G-APR／G2 皆過：
+.venv/bin/python backtest/research/v43_carry.py c0 --period holdout --i-understand-holdout-once
+.venv/bin/python backtest/research/v43_carry.py c1 --period holdout --i-understand-holdout-once
+.venv/bin/python backtest/research/v43_carry.py report
+```
+
+輸出：`doc/research_results/v43/`（`{c0,c1}_{period}_trades.csv`、`*_daily.csv`、`*_summary.json`、`c1_selection.json`、`baseline_{period}_trades.csv`、`gates.json`、`holdout_log.txt`）。
 
 ## 先說在前面的限制
 
 - 2021 年費率極高（常見 0.03%～0.1%/8h），dev 期結果很可能被 2021 撐起來；G2、G3 才是真正的檢驗。2025～2026 費率普遍偏低，holdout 可能不好看。
-- 用永續收盤價近似標記價格計算資金費；現貨與永續成交時間差、真實盤口深度都沒模擬。
+- 用永續收盤價近似標記價格計算資金費；再平衡只看 1h 收盤、不看盤中高點；現貨與永續成交時間差、真實盤口深度都沒模擬。
 - 若通過，實盤需要現貨交易權限與兩個帳戶間的資金調撥，這是另一個工程題目，不在本輪。
 - 這是一次性測試：不論結果如何，V43 都結案，不因結果改門檻或參數。
