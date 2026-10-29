@@ -5,7 +5,7 @@
 
 用法（VPS，cryptobot 使用者，~/cryptoBot）：
     .venv/bin/python run_backtest.py --refresh            # 更新 1h K 線
-    .venv/bin/python backtest/research/v38_signal_aggtrades.py fetch      # 可中斷，重跑會續傳
+    .venv/bin/python backtest/research/v38_signal_aggtrades.py fetch      # 每日檔下載→取訊號小時→刪檔；可中斷續傳
     .venv/bin/python backtest/research/v38_signal_aggtrades.py status
 分析（任何環境，只需 features.csv）：
     python backtest/research/v38_signal_aggtrades.py analyze
@@ -19,8 +19,9 @@ import json
 import math
 import sys
 import time
-import urllib.parse
+import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -36,7 +37,6 @@ TRADES = OUT_DIR / "trades.csv"
 HISTORY_START = "2024-11-01"
 SPLIT = "2026-01-01"           # 開發期 < SPLIT ≤ 保留期
 EXTRA_COST = 5.0
-AGG_URL = "https://fapi.binance.com/fapi/v1/aggTrades"
 LARGE_NOTIONAL = 100_000.0     # 單筆 aggTrade 名目 ≥ $100k 視為大單
 FEATURE_COLS = [
     "taker_last15", "delta_last15", "intensity_last15", "large_share", "large_imbalance",
@@ -61,56 +61,66 @@ def baseline_trades() -> pd.DataFrame:
     )
     frame["signal_close"] = close.to_numpy()[frame["entry_bar"]]
     # datetime = K 棒開盤時間（UTC+8）；訊號棒 = [open, open+1h)，收盤即進場
-    frame["open_utc_ms"] = ((pd.to_datetime(frame["entry_dt"]) - pd.Timedelta(hours=8))
-                            .astype("int64") // 1_000_000)
+    frame["open_utc_ms"] = ((pd.to_datetime(frame["entry_dt"]) - pd.Timedelta(hours=8)
+                             - pd.Timestamp("1970-01-01")) // pd.Timedelta(milliseconds=1)).astype("int64")
     frame["key"] = frame["side"] + "_" + pd.to_datetime(frame["entry_dt"]).dt.strftime("%Y%m%d%H")
     return frame
 
 
-# ---------------------------------------------------------------- 下載（限速）
-class Throttle:
-    def __init__(self, max_weight: int):
-        self.max_weight = max_weight
-        self.gap = 60.0 / max(1, max_weight // 20)   # aggTrades weight 20
-
-    def get(self, params: dict) -> list:
-        for attempt in range(8):
-            time.sleep(self.gap)
-            url = AGG_URL + "?" + urllib.parse.urlencode(params)
-            try:
-                with urllib.request.urlopen(url, timeout=30) as resp:
-                    used = int(resp.headers.get("X-MBX-USED-WEIGHT-1M", "0") or 0)
-                    data = json.loads(resp.read())
-                if used > self.max_weight * 1.5:      # 與機器人共用 IP 額度，過高就等下一分鐘
-                    time.sleep(60 - time.time() % 60 + 1)
-                return data
-            except urllib.error.HTTPError as err:
-                if err.code in (418, 429):
-                    wait = int(err.headers.get("Retry-After", "60"))
-                    print(f"  rate limited {err.code}，等待 {wait}s", flush=True)
-                    time.sleep(wait + 1)
-                    continue
-                raise
-            except (urllib.error.URLError, TimeoutError) as err:
-                print(f"  網路錯誤 {err}，重試 {attempt + 1}", flush=True)
-                time.sleep(5 * (attempt + 1))
-        raise RuntimeError("aggTrades 連續失敗")
+# ---------------------------------------------------------------- 下載（每日檔，用完即刪）
+# 幣安 REST aggTrades 只能查最近 2 天（code -4166），改用 data.binance.vision 每日檔。
+DAILY_URL = "https://data.binance.vision/data/futures/um/daily/aggTrades/ETHUSDT/ETHUSDT-aggTrades-{day}.zip"
+AGG_COLS = ["agg_trade_id", "price", "quantity", "first_trade_id", "last_trade_id",
+            "transact_time", "is_buyer_maker"]
 
 
-def fetch_hour(throttle: Throttle, start_ms: int) -> pd.DataFrame:
-    end_ms = start_ms + 3_600_000
-    rows = throttle.get({"symbol": "ETHUSDT", "startTime": start_ms,
-                         "endTime": end_ms - 1, "limit": 1000})
-    out = list(rows)
-    while rows and len(rows) == 1000 and rows[-1]["T"] < end_ms:
-        rows = throttle.get({"symbol": "ETHUSDT", "fromId": rows[-1]["a"] + 1, "limit": 1000})
-        out.extend(r for r in rows if r["T"] < end_ms)
-    if not out:
-        return pd.DataFrame(columns=["p", "q", "T", "m"])
-    df = pd.DataFrame(out)[["p", "q", "T", "m"]]
-    df["p"] = df["p"].astype(float)
-    df["q"] = df["q"].astype(float)
-    return df
+def download(url: str, dest: Path) -> bool:
+    for attempt in range(6):
+        try:
+            with urllib.request.urlopen(url, timeout=120) as resp, dest.open("wb") as fh:
+                while chunk := resp.read(1 << 20):
+                    fh.write(chunk)
+            return True
+        except urllib.error.HTTPError as err:
+            if err.code == 404:                   # 當天檔案尚未發布
+                return False
+            print(f"  下載失敗 HTTP {err.code}，重試 {attempt + 1}", flush=True)
+            time.sleep(10 * (attempt + 1))
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as err:
+            print(f"  下載失敗 {err}，重試 {attempt + 1}", flush=True)
+            time.sleep(10 * (attempt + 1))
+    raise RuntimeError(f"下載連續失敗：{url}")
+
+
+def day_hours(zip_path: Path, hour_starts: list[int]) -> dict[int, pd.DataFrame]:
+    """讀一天的 aggTrades，只留指定小時；回傳 {小時起點 ms: DataFrame[p,q,T,m]}。"""
+    with zipfile.ZipFile(zip_path) as zf:
+        name = zf.namelist()[0]
+        with zf.open(name) as fh:
+            has_header = not fh.readline().decode().strip()[:1].isdigit()
+        keep = {h: [] for h in hour_starts}
+        with zf.open(name) as fh:
+            reader = pd.read_csv(fh, header=0 if has_header else None, names=AGG_COLS,
+                                 usecols=["price", "quantity", "transact_time", "is_buyer_maker"],
+                                 chunksize=1_000_000)
+            for chunk in reader:
+                t = chunk["transact_time"].to_numpy()
+                for h in hour_starts:
+                    mask = (t >= h) & (t < h + 3_600_000)
+                    if mask.any():
+                        keep[h].append(chunk[mask])
+    out = {}
+    for h, parts in keep.items():
+        if not parts:
+            out[h] = pd.DataFrame(columns=["p", "q", "T", "m"])
+            continue
+        df = pd.concat(parts)
+        m = df["is_buyer_maker"]
+        if m.dtype == object:
+            m = m.astype(str).str.lower().eq("true")
+        out[h] = pd.DataFrame({"p": df["price"].astype(float), "q": df["quantity"].astype(float),
+                               "T": df["transact_time"].astype("int64"), "m": m.astype(bool)})
+    return out
 
 
 # ---------------------------------------------------------------- 特徵（皆以交易方向對齊）
@@ -158,23 +168,39 @@ def features(trades: pd.DataFrame, row: pd.Series) -> dict:
 def cmd_fetch(args) -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     trades = baseline_trades()
-    trades.drop(columns=["key"]).assign(key=trades["key"]).to_csv(TRADES, index=False)
+    trades.to_csv(TRADES, index=False)
     done = set(pd.read_csv(FEATURES)["key"]) if FEATURES.exists() else set()
-    todo = trades[~trades["key"].isin(done)]
-    print(f"交易 {len(trades)} 筆，已完成 {len(done)}，待抓 {len(todo)}（限速 {args.max_weight} weight/分）", flush=True)
-    throttle = Throttle(args.max_weight)
+    todo = trades[~trades["key"].isin(done)].copy()
+    todo["utc_day"] = pd.to_datetime(todo["open_utc_ms"], unit="ms").dt.strftime("%Y-%m-%d")
+    days = sorted(todo["utc_day"].unique())
+    print(f"交易 {len(trades)} 筆，已完成 {len(done)}，待抓 {len(todo)} 筆／{len(days)} 天", flush=True)
     header = ["key", "n_agg", "volume"] + FEATURE_COLS
     new_file = not FEATURES.exists()
+    tmp = Path(args.tmp_dir)
+    tmp.mkdir(parents=True, exist_ok=True)
     with FEATURES.open("a", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=header)
         if new_file:
             writer.writeheader()
-        for n, (_, row) in enumerate(todo.iterrows(), 1):
+        for n, day in enumerate(days, 1):
             started = time.time()
-            agg = fetch_hour(throttle, int(row["open_utc_ms"]))
-            writer.writerow({k: features(agg, row).get(k, "") for k in header})
+            rows = todo[todo["utc_day"] == day]
+            zip_path = tmp / f"ETHUSDT-aggTrades-{day}.zip"
+            if not download(DAILY_URL.format(day=day), zip_path):
+                print(f"[{n}/{len(days)}] {day} 尚無每日檔，略過（下次重跑再補）", flush=True)
+                continue
+            size_mb = zip_path.stat().st_size / 1e6
+            try:
+                hours = day_hours(zip_path, [int(x) for x in rows["open_utc_ms"]])
+            finally:
+                zip_path.unlink(missing_ok=True)       # 原始逐筆不保留
+            for _, row in rows.iterrows():
+                writer.writerow({k: features(hours[int(row["open_utc_ms"])], row).get(k, "")
+                                 for k in header})
             fh.flush()
-            print(f"[{n}/{len(todo)}] {row['key']} {len(agg)} 筆 aggTrades，{time.time() - started:.0f}s", flush=True)
+            print(f"[{n}/{len(days)}] {day} {size_mb:.0f}MB，{len(rows)} 筆訊號，"
+                  f"{time.time() - started:.0f}s", flush=True)
+            time.sleep(args.pause)
 
 
 def cmd_status(_args) -> None:
@@ -227,7 +253,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     f = sub.add_parser("fetch")
-    f.add_argument("--max-weight", type=int, default=800, help="每分鐘 API weight 上限（IP 共用 2400）")
+    f.add_argument("--tmp-dir", default="/tmp/v38_aggtrades", help="單日壓縮檔暫存處，讀完即刪")
+    f.add_argument("--pause", type=float, default=2.0, help="每天之間暫停秒數")
     sub.add_parser("status")
     a = sub.add_parser("analyze")
     a.add_argument("--perm", type=int, default=2000)

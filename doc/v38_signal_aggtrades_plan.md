@@ -8,8 +8,9 @@
 
 ## 資料與邊界
 
-- 母體：`v38_signal_aggtrades.py` 以現行引擎（固定 200U、貼近實盤、每筆 +$5）重播 2024-11-01 起的進場，每筆只抓「訊號棒那一小時」的 Binance USDⓈ-M `aggTrades`（REST，限速預設 800 weight/分，IP 上限 2400，機器人共用）。
-- 只在 VPS 執行（V37 計畫：不在公司網路／設備下載行情）。原始逐筆不落地，只存 `doc/research_results/v38_signal_aggtrades/features.csv`。
+- 母體：`v38_signal_aggtrades.py` 以現行引擎（固定 200U、貼近實盤、每筆 +$5）重播 2024-11-01 起的進場，每筆只取「訊號棒那一小時」的 Binance USDⓈ-M `aggTrades`。
+- 來源（2026-10-29 修訂，特徵與門檻未變）：REST `aggTrades` 以時間或 fromId 查詢皆只限最近 2 天（code -4166），改為只下載有訊號的那些 UTC 日的 data.binance.vision 每日檔，取出訊號小時後立即刪檔，同時只暫存一天。
+- 只在 VPS 執行（V37 計畫：不在公司網路／設備下載行情）。原始逐筆不保留，只存 `doc/research_results/v38_signal_aggtrades/features.csv`。
 - 所有特徵只用訊號棒收盤前的成交（`T < 收盤`），進場仍在收盤。
 
 ## 鎖定特徵（全部依交易方向對齊，L 看買方、S 看賣方）
