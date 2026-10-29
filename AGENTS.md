@@ -69,6 +69,7 @@ journalctl -u cryptobot -f                                       # 看日誌
 | [doc/v38_signal_aggtrades_plan.md](doc/v38_signal_aggtrades_plan.md) | V38 訊號小時 aggTrades 訂單流（**第一階段 REJECTED**：20 組無一過 Bonferroni；S 最後 15 分鐘賣壓重→易虧 AUC 0.30/0.34 接近過關，轉 V39 樣本外驗證） |
 | [doc/v39_s_exhaustion_oos_plan.md](doc/v39_s_exhaustion_oos_plan.md) | V39 S 收盤前賣壓耗盡假說樣本外驗證（**REJECTED**：2021-03～2024-10 488 事件 AUC 0.500 p 0.50，V38 訊號為偽陽性；重播勝率 -1.7pp；**訂單流方向結案**） |
 | [doc/v40_dvol_bookdepth_plan.md](doc/v40_dvol_bookdepth_plan.md) | V40 預登記：Deribit DVOL 突升（9/11 規則 D）與幣安 bookDepth 盤口深度，兩個從未實測的免費新資訊（**REJECTED**：DVOL 勝率 +0.1pp、盤口 6 特徵開發 p ≥ 0.48） |
+| [doc/research_results/v42/v42_conclusion.md](doc/research_results/v42/v42_conclusion.md) | V42 新策略篩選（[預登記](doc/v42_new_strategy_screen_plan.md)；**REJECTED**：A 現行策略換 BTC/SOL/BNB/XRP/DOGE 開發期 5/5 虧損 -$1,242～-$3,712，B 10 幣橫截面動能 L=56 -$236、G5 44% 分位；未動用保留期；**換幣與橫截面動能方向結案**） |
 | [doc/v37_microstructure_shadow_plan.md](doc/v37_microstructure_shadow_plan.md) | V37 微結構研究計畫（輕量 5m 接受度診斷＋prospective shadow；**尚未執行**） |
 | [doc/maxhold_review_20260908.md](doc/maxhold_review_20260908.md) | 9/8 附件復盤：269筆回測重現、35筆實戰對齊，MH／TP敏感度初查 |
 | [doc/strategy_optimization_plan_20260908.md](doc/strategy_optimization_plan_20260908.md) | 9/8 優化研究計畫與預登記門檻；歷史驗證已完成 |
