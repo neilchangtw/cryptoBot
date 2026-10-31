@@ -85,6 +85,7 @@ class StoreTest(unittest.TestCase):
                 patch.object(store, "trades", return_value=[]):
             out = store.lowvol_shadow()
         self.assertEqual(out["status"], "insufficient")
+        self.assertEqual(out["lock_date"], "2026-11-01")
         self.assertIn("down", out["reason"])
 
     def test_incremental_fetch_and_state(self):
