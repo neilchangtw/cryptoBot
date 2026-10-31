@@ -33,6 +33,8 @@ from urllib.error import URLError
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
+import viewer_lowvol_shadow
+
 
 ROOT = Path(__file__).resolve().parent
 INSTANCE_DIR = Path(
@@ -66,10 +68,16 @@ UTC8 = timezone(timedelta(hours=8))
 BASELINE_MARGIN = 200.0
 LEVERAGE = 20.0
 BASELINE_NOTIONAL = BASELINE_MARGIN * LEVERAGE
+LOWVOL_CHECK_SECONDS = 60
+LOWVOL_CHUNK_BARS = 20000
 ROLLING_WINDOW = 20
 EDGE_RECENT_TRADES = 30
 EDGE_MONTHS = 6
 BASES = {"actual", "200u"}
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 def _number(value, default=None):
@@ -465,6 +473,11 @@ class DataStore:
         self._price_refresh_lock = threading.Lock()
         self._last_kline_error = None
         self._backtest_metrics_status = {"available": False, "matched": 0, "error": None}
+        # 服務沙盒禁止寫入 /home，K 線只放記憶體，重啟後第一次請求會重抓
+        self._lowvol_lock = threading.Lock()
+        self._lowvol_bars = []
+        self._lowvol_checked = 0.0
+        self._lowvol_state = None
 
     @property
     def backtest_path(self):
@@ -1612,6 +1625,69 @@ class DataStore:
             "basis_note": "Edge／尾部金額一律換算為 200U 保證金基準（實際 PnL × $4,000 ÷ 當筆名目）。",
         }
 
+    def _refresh_lowvol_bars(self):
+        """增量補齊已收盤 1h K 線；失敗時保留既有資料，回傳錯誤訊息。"""
+        if self._lowvol_bars and time.monotonic() - self._lowvol_checked < LOWVOL_CHECK_SECONDS:
+            return None
+        if not self.allow_network:
+            self._lowvol_bars = [row for row in _parse_local_klines(LOCAL_KLINE_PATH) if row["closed"]]
+            self._lowvol_checked = time.monotonic()
+            return None
+        hour_ms = 3_600_000
+        bars = self._lowvol_bars
+        cursor = bars[-1]["time_ms"] + hour_ms if bars else int(viewer_lowvol_shadow.HISTORY_START.timestamp() * 1000)
+        end_ms = int(_utcnow().timestamp() * 1000)
+        error = None
+        try:
+            while cursor + hour_ms <= end_ms:
+                chunk_end = min(end_ms, cursor + LOWVOL_CHUNK_BARS * hour_ms)
+                rows = [row for row in self._fetch_public_klines(cursor, chunk_end) if row["closed"]]
+                bars.extend(row for row in rows if row["time_ms"] >= cursor)
+                if rows:
+                    cursor = bars[-1]["time_ms"] + hour_ms
+                if chunk_end >= end_ms or not rows:
+                    break
+        except (OSError, ValueError) as exc:
+            error = str(exc)
+        self._lowvol_checked = time.monotonic()
+        return error
+
+    def lowvol_shadow(self, basis="actual"):
+        """第 15 輪 Q20W30 的 SHADOW 狀態與影子紀錄；任何失敗都回「資料不足」，不影響其他卡片。"""
+        base = {
+            "readonly": True,
+            "status": "insufficient",
+            "basis": basis,
+            "lock_date": viewer_lowvol_shadow.LOCK_TIME.strftime("%Y-%m-%d"),
+            "threshold": viewer_lowvol_shadow.PAUSE_Q,
+            "doc": viewer_lowvol_shadow.DOC_PATH,
+        }
+        try:
+            with self._lowvol_lock:
+                error = self._refresh_lowvol_bars()
+                bars = self._lowvol_bars
+                cached = self._lowvol_state
+                if bars and (cached is None or cached[0] != bars[-1]["time_ms"]):
+                    computed = viewer_lowvol_shadow.compute_state(bars)
+                    self._lowvol_state = cached = (bars[-1]["time_ms"], computed) if computed else None
+            if not cached:
+                return {**base, "reason": error or f"K 線只有 {len(bars)} 根，算不出百分位"}
+            state = cached[1]
+            return {
+                **base,
+                "status": "ok",
+                "stale_reason": error,
+                "bars": len(bars),
+                "last_bar": state["last_bar"],
+                "atr_median": round(state["v"], 3),
+                "rank": round(state["rank"], 1),
+                "paused": state["paused"],
+                "since": state["since"],
+                "ledger": viewer_lowvol_shadow.shadow_ledger(self._closed_sorted("live", basis=basis), state["by_time"]),
+            }
+        except Exception as exc:  # 影子卡片不可拖垮儀表板
+            return {**base, "reason": str(exc)}
+
     def trade_detail(self, source="live", trade_id=""):
         """回傳單筆交易與持倉生命週期，僅讀取 CSV。"""
         trade_id = str(trade_id or "")
@@ -1773,6 +1849,10 @@ def make_handler(store: DataStore):
                     if source not in {"live", "backtest"}:
                         raise ValueError("資料來源只能是 live 或 backtest")
                     self._json(store.edge(source))
+                    return
+                if parsed.path == "/api/lowvol":
+                    query = parse_qs(parsed.query)
+                    self._json(store.lowvol_shadow(_basis(query.get("basis", ["actual"])[0])))
                     return
                 if parsed.path == "/api/trade":
                     query = parse_qs(parsed.query)

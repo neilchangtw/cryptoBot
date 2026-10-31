@@ -310,7 +310,7 @@
     </div>
     </div>
   </header>
-  <nav class="section-nav" aria-label="頁面區段導覽"><div class="section-nav-inner"><a href="#overview">總覽</a><a href="#edgeHealth">策略健康度</a><a href="#liveStatus">即時狀態</a><a href="#analysis">績效分析</a><a href="#marketChart">K 線圖</a><a href="#recentTrades">最近交易</a></div></nav>
+  <nav class="section-nav" aria-label="頁面區段導覽"><div class="section-nav-inner"><a href="#overview">總覽</a><a href="#edgeHealth">策略健康度</a><a href="#lowvolShadow">低波動 SHADOW</a><a href="#liveStatus">即時狀態</a><a href="#analysis">績效分析</a><a href="#marketChart">K 線圖</a><a href="#recentTrades">最近交易</a></div></nav>
   <main>
     <div id="error" class="error"></div>
     <div id="staleNotice" class="stale-notice" role="status" hidden></div>
@@ -330,6 +330,15 @@
         <article class="edge-card" id="edgeChecks"><h3>證偽檢查</h3><div class="signal-empty">讀取中…</div></article>
         <article class="edge-card edge-months" id="edgeMonths"><h3>月度燈號</h3><div class="signal-empty">讀取中…</div></article>
       </div>
+    </section>
+    <section class="panel" id="lowvolShadow" aria-labelledby="lowvolTitle">
+      <div class="section-head"><h2 id="lowvolTitle">V44 低波動暫停（SHADOW）</h2><span id="lowvolUpdated" class="muted"></span></div>
+      <div class="edge-grid">
+        <article class="edge-card" id="lowvolNow" aria-live="polite"><h3>現在狀態</h3><div class="signal-empty">讀取中…</div></article>
+        <article class="edge-card" id="lowvolLedger"><h3>影子紀錄</h3><div class="signal-empty">讀取中…</div></article>
+        <article class="edge-card edge-months" id="lowvolRecent"><h3>最近交易</h3><div class="signal-empty">讀取中…</div></article>
+      </div>
+      <div id="lowvolNote" class="analysis-note"></div>
     </section>
     <section class="panel" id="liveStatus" style="margin-top:14px" aria-labelledby="signalTitle">
       <div class="section-head"><h2 id="signalTitle">即時開單條件與風控狀態</h2><span id="signalUpdated" class="muted"></span></div>
@@ -555,6 +564,25 @@
       const streak=Number(payload.non_green_streak)||0,list=payload.monthly||[],latest=list[list.length-1];
       const streakText=streak>=2?`已連續 ${streak} 個月非綠燈：達到凍結加碼條件`:streak===1?`連續 1 個月非綠燈：下個月仍非綠燈就凍結加碼`:'目前沒有連續非綠燈月份';
       months.innerHTML=`<h3>月度燈號（每月底回看最近 ${payload.recent_window||30} 筆）</h3><div class="month-chips">${list.map(item=>`<div class="month-chip ${item.in_progress?'is-current':''}" title="${esc(`${item.month}｜${item.light?lightName[item.light]:'樣本不足'}｜當月平倉 ${item.closed_in_month} 筆`)}"><span>${esc(item.month.slice(2).replace('-','/'))}</span>${lightDot(item.light)}<small>${item.overall_hp==null?'不足':`${Number(item.overall_hp).toFixed(0)}%`}</small></div>`).join('')}</div><div class="edge-verdict is-${streak>=2?'red':streak===1?'yellow':'green'}">${esc(streakText)}${latest?.in_progress?'（虛線框為本月，至今為止）':''}</div><div class="edge-sub">${esc(payload.freeze_rule||'')}</div>`;
+    }
+    let lowvolRequest=0;
+    async function loadLowvol(){
+      const request=++lowvolRequest,basis=state.basis;let payload=null;
+      try{const response=await fetch(`/api/lowvol?basis=${encodeURIComponent(basis)}`,{cache:'no-store'});payload=await response.json();}
+      catch(err){payload={status:'insufficient',reason:err.message};}
+      if(request===lowvolRequest)renderLowvol(payload);
+    }
+    function renderLowvol(p){
+      const now=$('lowvolNow'),ledger=$('lowvolLedger'),recent=$('lowvolRecent');
+      $('lowvolNote').textContent=`這是 SHADOW，不影響實盤；規則與打折原因見 ${p.doc||'doc/research_results/v44/v44_round15_results.md'}`;
+      if(p.status!=='ok'){$('lowvolUpdated').textContent='';now.innerHTML=`<h3>現在狀態</h3><div class="signal-empty">資料不足${p.reason?`：${esc(p.reason)}`:''}</div>`;ledger.innerHTML='<h3>影子紀錄</h3><div class="signal-empty">資料不足</div>';recent.innerHTML='<h3>最近交易</h3><div class="signal-empty">資料不足</div>';return;}
+      $('lowvolUpdated').textContent=`最後收盤 K 棒 ${p.last_bar||'-'}${p.stale_reason?'（更新失敗，資料可能過期）':''}`;
+      const level=p.paused?'yellow':'green';
+      now.innerHTML=`<h3>現在狀態</h3><div class="edge-big"><b class="text-${level}">${p.paused?'暫停中':'正常'}</b><span>百分位 ${Number(p.rank).toFixed(1)}（&lt; ${Number(p.threshold).toFixed(0)} 暫停）</span></div><div class="edge-sub">30 天 ATR 中位 ${Number(p.atr_median).toFixed(2)}%${p.paused&&p.since?`<br>本次暫停開始：${esc(p.since)}`:''}<br>實盤照常下單，這裡只記錄規則會怎麼做。</div>`;
+      const label=p.basis==='200u'?'（200U 基準）':'（實際金額）',l=p.ledger||{},row=(name,g)=>`<div class="edge-item"><span></span><b>${name}</b><strong class="${(Number(g.pnl)||0)>=0?'text-green':'text-red'}">${money(g.pnl)}</strong><small>${g.trades} 筆｜勝率 ${g.win_rate==null?'-':`${Number(g.win_rate).toFixed(0)}%`}</small></div>`;
+      ledger.innerHTML=`<h3>影子紀錄${label}</h3>${row('平常（會做）',l.normal||{})}${row('暫停期（會被擋）',l.blocked||{})}<div class="edge-sub">只算 ${esc(p.lock_date)} 起進場的實盤已平倉交易${l.unknown?`；${l.unknown} 筆對不到 K 棒未分組`:''}。</div>`;
+      const items=l.recent||[];
+      recent.innerHTML=`<h3>最近交易${label}</h3>${items.length?items.map(t=>`<div class="edge-item"><span></span><b>${esc(t.side)} #${esc(t.number)}${t.blocked?' <span class="text-yellow">會被擋</span>':''}</b><strong class="${(Number(t.pnl)||0)>=0?'text-green':'text-red'}">${money(t.pnl)}</strong><small>${esc(t.entry)}｜${esc(t.exit_reason)}</small></div>`).join(''):`<div class="signal-empty">${esc(p.lock_date)} 起還沒有已平倉交易。</div>`}`;
     }
     function drawRolling(id,points,meta){
       const values=(points||[]).flatMap(p=>[numeric(p.rolling_mfe),numeric(p.rolling_mae)]).filter(v=>v!==null);
@@ -783,7 +811,7 @@
     async function load(resetView=false){
       if(state.loading){state.pendingLoad=true;state.pendingResetView=state.pendingResetView||resetView;return;}
       const selection={source:state.source,startDate:state.startDate,endDate:state.endDate,side:state.side,basis:state.basis};let result='更新完成';
-      setLoading(true);setError('');renderSignal(null,'loading');
+      setLoading(true);setError('');renderSignal(null,'loading');loadLowvol();
       try{
         const query=`source=${encodeURIComponent(selection.source)}&start=${encodeURIComponent(selection.startDate)}&end=${encodeURIComponent(selection.endDate)}&side=${selection.side}&basis=${selection.basis}`;
         const signalRequest=selection.source==='live'?fetch('/api/signal?source=live',{cache:'no-store'}).then(async response=>({response,body:await response.json()})).catch(error=>({error})):Promise.resolve(null);
