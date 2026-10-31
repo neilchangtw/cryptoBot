@@ -34,6 +34,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import viewer_lowvol_shadow
+import viewer_stack_shadow
 
 
 ROOT = Path(__file__).resolve().parent
@@ -1652,6 +1653,38 @@ class DataStore:
         self._lowvol_checked = time.monotonic()
         return error
 
+    def _lowvol_snapshot(self):
+        """回傳 (K 線, 波動狀態, R 表, 錯誤)；同一根 K 棒只算一次，兩張 SHADOW 卡共用。"""
+        with self._lowvol_lock:
+            error = self._refresh_lowvol_bars()
+            bars = self._lowvol_bars
+            cached = self._lowvol_state
+            if bars and (cached is None or cached[0] != bars[-1]["time_ms"]):
+                computed = viewer_lowvol_shadow.compute_state(bars)
+                returns = viewer_stack_shadow.past_returns(bars) if computed else None
+                self._lowvol_state = cached = (bars[-1]["time_ms"], computed, returns) if computed else None
+            return bars, cached[1] if cached else None, cached[2] if cached else None, error
+
+    def stack_shadow(self):
+        """V44 三合一 SHADOW 狀態與前瞻紀錄；任何失敗都回「資料不足」，不影響其他卡片。"""
+        base = {"readonly": True, "status": "insufficient", "doc": viewer_stack_shadow.DOC_PATH,
+                "lock_date": viewer_lowvol_shadow.LOCK_TIME.strftime("%Y-%m-%d")}
+        try:
+            bars, state, returns, error = self._lowvol_snapshot()
+            if not state:
+                return {**base, "reason": error or f"K 線只有 {len(bars)} 根，算不出百分位"}
+            year = _utcnow().astimezone(viewer_lowvol_shadow.UTC8).year
+            return {
+                **base,
+                "status": "ok",
+                "stale_reason": error,
+                "last_bar": state["last_bar"],
+                "state": viewer_stack_shadow.current_state(state["paused"], returns[None], year),
+                "ledger": viewer_stack_shadow.shadow_ledger(self._closed_sorted("live"), state["by_time"], returns),
+            }
+        except Exception as exc:  # 影子卡片不可拖垮儀表板
+            return {**base, "reason": str(exc)}
+
     def lowvol_shadow(self, basis="actual"):
         """第 15 輪 Q20W30 的 SHADOW 狀態與影子紀錄；任何失敗都回「資料不足」，不影響其他卡片。"""
         base = {
@@ -1663,16 +1696,9 @@ class DataStore:
             "doc": viewer_lowvol_shadow.DOC_PATH,
         }
         try:
-            with self._lowvol_lock:
-                error = self._refresh_lowvol_bars()
-                bars = self._lowvol_bars
-                cached = self._lowvol_state
-                if bars and (cached is None or cached[0] != bars[-1]["time_ms"]):
-                    computed = viewer_lowvol_shadow.compute_state(bars)
-                    self._lowvol_state = cached = (bars[-1]["time_ms"], computed) if computed else None
-            if not cached:
+            bars, state, _, error = self._lowvol_snapshot()
+            if not state:
                 return {**base, "reason": error or f"K 線只有 {len(bars)} 根，算不出百分位"}
-            state = cached[1]
             return {
                 **base,
                 "status": "ok",
@@ -1853,6 +1879,9 @@ def make_handler(store: DataStore):
                 if parsed.path == "/api/lowvol":
                     query = parse_qs(parsed.query)
                     self._json(store.lowvol_shadow(_basis(query.get("basis", ["actual"])[0])))
+                    return
+                if parsed.path == "/api/stack":
+                    self._json(store.stack_shadow())
                     return
                 if parsed.path == "/api/trade":
                     query = parse_qs(parsed.query)
