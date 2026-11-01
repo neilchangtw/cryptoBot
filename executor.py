@@ -427,7 +427,10 @@ class Executor:
         dt_utc = dt_utc8 - timedelta(hours=8) if isinstance(dt_utc8, datetime) else dt_utc8
         trade_id = f"{dt_utc8.strftime('%Y%m%d_%H%M%S')}_{sub_strategy}"
 
-        qty = strategy.NOTIONAL / entry_price
+        margin_mult = strategy.gk_margin_mult(
+            sub_strategy, signal_indicators.get("gk_pctile_s" if sub_strategy == "S" else "gk_pctile"))
+        margin = strategy.MARGIN * margin_mult
+        qty = strategy.NOTIONAL * margin_mult / entry_price
 
         # 決定 SafeNet 價格
         if side == "long":
@@ -539,6 +542,8 @@ class Executor:
             "entry_time_utc8": str(dt_utc8),
             "entry_bar_counter": bar_counter,
             "qty": qty,
+            "margin": margin,
+            "margin_mult": margin_mult,
             "bars_held": 0,
             "mae_pct": 0.0,
             "mfe_pct": 0.0,
@@ -616,12 +621,14 @@ class Executor:
             f"🛡 安全網 (SafeNet)：${sn_price:.2f}（{safenet_pct*100:.1f}%）\n"
             f"📊 進場趨勢：{labels.regime_label(entry_regime)}\n"
             f"🔋 壓縮能量：{gk_pctile:.1f}\n"
+            + (f"💵 保證金：{margin:.0f}U（× {margin_mult:g}）\n" if strategy.GK_MARGIN_ENABLED else "") +
             f"📝 第 {self.trade_number} 筆" + wrap_private(f" ｜ 💰 金庫 ${self.account_balance:.2f}")
         )
         # 開單是群組需要知道的事件；後續心跳由主循環在仍有持倉時送到群組。
         send_telegram_message(msg, include_groups=True)
 
-        logger.info(f"Opened {sub_strategy} {side} @ ${entry_price:.2f} | {trade_id}")
+        logger.info(f"Opened {sub_strategy} {side} @ ${entry_price:.2f} | {trade_id} | "
+                    f"margin {margin:.0f}U (x{margin_mult:g})")
         self.save_state()
         return trade_id
 
@@ -736,7 +743,7 @@ class Executor:
         else:
             gross_pnl = (entry_price - exit_price) * actual_qty
         pnl_usd = round(gross_pnl - total_commission, 4)
-        pnl_pct = round(pnl_usd / strategy.MARGIN * 100, 4)
+        pnl_pct = round(pnl_usd / pos.get("margin", strategy.MARGIN) * 100, 4)
         bars_held = bar_counter - pos["entry_bar_counter"]
 
         # 同步幣安實際餘額
@@ -771,9 +778,9 @@ class Executor:
             "hold_bars": bars_held,
             "hold_hours": bars_held,
             "max_adverse_excursion_pct": round(pos.get("mae_pct", 0), 2),
-            "max_adverse_excursion_usd": round(pos.get("mae_pct", 0) / 100 * strategy.NOTIONAL, 2),
+            "max_adverse_excursion_usd": round(pos.get("mae_pct", 0) / 100 * strategy.position_notional(pos), 2),
             "max_favorable_excursion_pct": round(pos.get("mfe_pct", 0), 2),
-            "max_favorable_excursion_usd": round(pos.get("mfe_pct", 0) / 100 * strategy.NOTIONAL, 2),
+            "max_favorable_excursion_usd": round(pos.get("mfe_pct", 0) / 100 * strategy.position_notional(pos), 2),
             "mae_time_bar": pos.get("mae_time_bar", ""),
             "mfe_time_bar": pos.get("mfe_time_bar", ""),
             "pnl_at_bar7": "",

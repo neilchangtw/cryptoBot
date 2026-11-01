@@ -316,8 +316,7 @@ def _handle_balance(executor, cmd_logger):
             lines.append(f"💎 淨值：${total:.2f}")
 
         # 保證金使用
-        active = sum(1 for _ in executor.positions)
-        margin_used = active * strategy.MARGIN
+        margin_used = sum(p.get("margin", strategy.MARGIN) for p in executor.positions.values())
         lines.append(f"🔒 保證金佔用：${margin_used:.0f} / ${strategy.MARGIN * 2:.0f}")
 
         send_telegram_message("\n".join(lines))
@@ -651,6 +650,7 @@ def main():
     logger.info(f"  L: GK<{strategy.L_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.L_TP_PCT*100:.1f}% MH{strategy.L_MAX_HOLD} SN{strategy.L_SAFENET_PCT*100:.1f}%")
     logger.info(f"  S: GK<{strategy.S_GK_THRESH} BRK{strategy.BRK_LOOK} TP{strategy.S_TP_PCT*100:.1f}% MH{strategy.S_MAX_HOLD} SN{strategy.S_SAFENET_PCT*100:.1f}%")
     logger.info(f"  Symbol: {SYMBOL} | Notional: ${strategy.NOTIONAL} | Fee: ${strategy.FEE}")
+    logger.info(f"  GK 配保證金：{'開 ' + str(strategy.GK_MARGIN_MULT) if strategy.GK_MARGIN_ENABLED else '關'}")
     logger.info(f"=" * 60)
 
     # 初始化 Executor
@@ -1101,7 +1101,7 @@ def main():
                     unr_pct = (bar_data["close"] - ep) / ep
                 else:
                     unr_pct = (ep - bar_data["close"]) / ep
-                total_unr += unr_pct * strategy.NOTIONAL
+                total_unr += unr_pct * strategy.position_notional(pos)
             pos_state["total_unrealized_pnl"] = total_unr
 
             long_sig_str = long_sig["reason"] if long_sig else "HOLD"

@@ -418,3 +418,5 @@ G5 每 200U MDD 不增；G6 滾動 2022 起總和勝基準且過半年份勝；G
 **限制**：三條規則都帶事後資訊，通過才算一次獨立驗證，不等於可上線；30 筆樣本很小。
 
 **腳本**：backtest/research/v44_stack_locked.py；viewer_stack_shadow.py。
+
+**補記（2026-11-01）**：實盤可用 `GK_MARGIN_ENABLED=Y` 開 N1 配保證金（strategy.py，預設關閉）。開啟後卡片的「實盤」仍用 pnl_200u（每筆等權），判準不變；另列「含保證金配置」一行作參考。

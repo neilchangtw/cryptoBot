@@ -47,6 +47,42 @@ NOTIONAL = MARGIN * LEVERAGE                          # 名目金額 = 保證金
 # 調 .env 的 MARGIN_PER_TRADE 時，FEE / 日虧 / 月虧熔斷自動跟上，不需改程式。
 # （比例＝V14 校準值對 200U 的比：FEE $4、日虧 -$200、L 月虧 -$75、S 月虧 -$150）
 _RISK_SCALE = MARGIN / 200.0
+# ── 依 GK 分組配保證金（V44 第 6 輪 N1，切點見 doc/v44_maxhold_reframe_plan.md 第 26 節）──
+# GK_MARGIN_ENABLED 預設關閉 = 行為與舊版完全相同。開啟時只改下單數量，進出場與 $ 風控線都不變。
+# GK_MARGIN_MULT_L／S：由低到高三組 GK 的倍數；每筆保證金 = MARGIN_PER_TRADE × 倍數。
+GK_MARGIN_ENABLED = os.getenv("GK_MARGIN_ENABLED", "N").strip().upper() in ("Y", "YES", "TRUE", "1", "ON")
+GK_MARGIN_CUTS = {"L": (7.766667, 17.2), "S": (11.1, 24.2)}
+
+
+def _parse_margin_mult(name: str, default: tuple) -> tuple:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    values = tuple(float(x) for x in raw.split(","))
+    if len(values) != 3 or not all(0 < x <= 5 for x in values):
+        raise ValueError(f"{name} 需為 3 個 0～5 的倍數，收到：{raw}")
+    return values
+
+
+GK_MARGIN_MULT = {
+    "L": _parse_margin_mult("GK_MARGIN_MULT_L", (0.6, 0.9, 1.5)),
+    "S": _parse_margin_mult("GK_MARGIN_MULT_S", (1.5, 0.9, 0.6)),
+}
+
+
+def gk_margin_mult(sub_strategy: str, gk_pctile) -> float:
+    """該筆保證金倍數；未開啟或 GK 缺值時回 1.0。"""
+    if not GK_MARGIN_ENABLED or gk_pctile is None or gk_pctile != gk_pctile:
+        return 1.0
+    low, high = GK_MARGIN_CUTS[sub_strategy]
+    return GK_MARGIN_MULT[sub_strategy][(gk_pctile >= low) + (gk_pctile >= high)]
+
+
+def position_notional(position: dict) -> float:
+    """持倉的實際名目；舊狀態檔沒有 margin 欄時退回 NOTIONAL。"""
+    return position.get("margin", MARGIN) * LEVERAGE
+
+
 FEE = round(4.0 * _RISK_SCALE, 2)  # 每筆交易成本估計（taker+滑價 ≈ 0.1% 名目；200U 基準 $4）
 
 # ── V14+R Regime Gate ──

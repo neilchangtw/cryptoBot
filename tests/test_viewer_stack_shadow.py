@@ -97,6 +97,19 @@ class LedgerTest(unittest.TestCase):
         self.assertEqual(out["actual_mdd"], 60.0)
         self.assertEqual(out["recent"][0]["m"], 0.0)
 
+    def test_live_sizing_row_only_when_margins_differ(self):
+        lock = lowvol.LOCK_TIME
+        hour = timedelta(hours=1)
+        a, b = lock + hour, lock + 2 * hour
+        ms = lambda t: int(t.timestamp() * 1000)
+        paused, r = {ms(a): False, ms(b): False}, {ms(a): 0.05, ms(b): 0.05}
+        rows = [{**self.row(1, "L", a, 40.0, 20), "pnl_actual": 60.0, "margin": 300.0},
+                {**self.row(2, "L", b, -40.0, 5), "pnl_actual": -24.0, "margin": 120.0}]
+        out = stack.shadow_ledger(rows, paused, r)
+        self.assertAlmostEqual(out["live"]["pnl"], 36.0 * 200 / 210, places=2)
+        same = [{**row, "margin": 200.0} for row in rows]
+        self.assertIsNone(stack.shadow_ledger(same, paused, r)["live"])
+
     def test_all_paused(self):
         lock = lowvol.LOCK_TIME + timedelta(hours=1)
         ms = int(lock.timestamp() * 1000)

@@ -88,10 +88,17 @@ def shadow_ledger(rows: list[dict], paused_by_time: dict, r_by_time: dict, limit
     shadow = [row["pnl_200u"] * m / mean_m if mean_m else 0.0 for row, m in picked]
     actual_pnl, actual_mdd = _curve(actual)
     shadow_pnl, shadow_mdd = _curve(shadow)
+    # 實盤若開了 GK 配保證金，pnl_200u 已把部位差異換算掉；另列含配置的實盤，避免只看到等權版
+    margins = [row["margin"] for row, _ in picked if row.get("margin")]
+    live = None
+    if margins and max(margins) > min(margins) * 1.2:
+        mean_margin = sum(margins) / len(margins)
+        pnl, mdd = _curve([row["pnl_actual"] * 200.0 / mean_margin for row, _ in picked])
+        live = dict(pnl=pnl, mdd=mdd, mean_margin=round(mean_margin, 1))
     recent = [dict(number=row.get("number"), side=row.get("side"), entry=row.get("entry_time_display"), m=round(m, 2),
                    pnl=round(row["pnl_200u"], 2)) for row, m in picked[-limit:][::-1]]
     return dict(trades=len(picked), unknown=unknown, mean_m=round(mean_m, 3) if mean_m else None,
-                actual_pnl=actual_pnl, actual_mdd=actual_mdd, shadow_pnl=shadow_pnl, shadow_mdd=shadow_mdd,
+                actual_pnl=actual_pnl, actual_mdd=actual_mdd, shadow_pnl=shadow_pnl, shadow_mdd=shadow_mdd, live=live,
                 target=TARGET_TRADES, deadline=DEADLINE, recent=recent)
 
 

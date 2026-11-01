@@ -288,8 +288,8 @@ def record_position_bar(trade_id: str, position: dict, bar_data: dict,
         unr_pct = (close - entry_price) / entry_price * 100
     else:
         unr_pct = (entry_price - close) / entry_price * 100
-    from strategy import NOTIONAL
-    unr_usd = unr_pct / 100 * NOTIONAL
+    from strategy import position_notional
+    unr_usd = unr_pct / 100 * position_notional(position)
 
     # EMA20 距離
     ema_dist = (close - ema20) / close * 100 if close > 0 else 0

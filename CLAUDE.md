@@ -564,6 +564,9 @@ TELEGRAM_GROUP_NOTIFICATIONS=Y  # Y=群組主動通知開；N=關（群組手動
 TELEGRAM_ADMIN_IDS=         # 選填：控制類指令（/pause /resume /cleanup）白名單 user id；
                             # 不設=授權聊天室內任何人可用全部指令；群組使用強烈建議設定
 MARGIN_PER_TRADE=200        # 每筆保證金（預設 200；調整此值 = 人肉複利的唯一旋鈕）
+GK_MARGIN_ENABLED=N         # Y=依進場 GK 分組配保證金（V44 第 6 輪）；未設=關，行為同舊版
+GK_MARGIN_MULT_L=0.6,0.9,1.5  # 選填：L 由低到高三組 GK 的倍數（切點 7.77／17.2，strategy.GK_MARGIN_CUTS）
+GK_MARGIN_MULT_S=1.5,0.9,0.6  # 選填：S 由低到高三組 GK 的倍數（切點 11.1／24.2）
 LEVERAGE=20                 # 槓桿倍數（預設 20）
 ```
 
