@@ -1,10 +1,14 @@
 import importlib
 import os
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
 import strategy
+import viewer_gk_margin
+import vps_viewer
 
 
 def reloaded(**env):
@@ -58,6 +62,60 @@ class GkMarginTest(unittest.TestCase):
         caps = (off.DAILY_LOSS_LIMIT, off.L_MONTHLY_LOSS_CAP, off.S_MONTHLY_LOSS_CAP, off.FEE)
         on = reloaded(GK_MARGIN_ENABLED="Y", MARGIN_PER_TRADE="200")
         self.assertEqual(caps, (on.DAILY_LOSS_LIMIT, on.L_MONTHLY_LOSS_CAP, on.S_MONTHLY_LOSS_CAP, on.FEE))
+
+
+class ViewerGkMarginTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.env = Path(self.dir.name) / ".env"
+
+    def test_only_reads_listed_keys(self):
+        self.env.write_text("BINANCE_API_SECRET=abc\nGK_MARGIN_ENABLED=Y\nMARGIN_PER_TRADE=200 # note\n", encoding="utf-8")
+        got = viewer_gk_margin.read_settings(self.env)
+        self.assertEqual(got, {"GK_MARGIN_ENABLED": "Y", "MARGIN_PER_TRADE": "200"})
+
+    def test_missing_file_is_unknown(self):
+        cfg = viewer_gk_margin.config(viewer_gk_margin.read_settings(self.env))
+        self.assertIsNone(cfg["enabled"])
+
+    def test_next_margin_matches_strategy(self):
+        cfg = viewer_gk_margin.config({"GK_MARGIN_ENABLED": "Y", "MARGIN_PER_TRADE": "200"})
+        s = reloaded(GK_MARGIN_ENABLED="Y")
+        for side, gk in (("L", 5.0), ("L", 7.766667), ("L", 17.2), ("S", 5.0), ("S", 11.1), ("S", 24.2)):
+            margin, mult = viewer_gk_margin.next_margin(side, gk, cfg)
+            self.assertEqual(mult, s.gk_margin_mult(side, gk))
+            self.assertEqual(margin, 200 * mult)
+
+    def test_disabled_next_is_base(self):
+        cfg = viewer_gk_margin.config({"GK_MARGIN_ENABLED": "N", "MARGIN_PER_TRADE": "200"})
+        self.assertEqual(viewer_gk_margin.next_margin("L", 20.0, cfg), (200.0, 1.0))
+
+    def test_custom_multipliers(self):
+        cfg = viewer_gk_margin.config({"GK_MARGIN_ENABLED": "Y", "MARGIN_PER_TRADE": "200", "GK_MARGIN_MULT_L": "1,1.5,2.5"})
+        self.assertEqual(viewer_gk_margin.next_margin("L", 20.0, cfg), (500.0, 2.5))
+
+    def test_ledger_groups_only_after_enable(self):
+        cfg = viewer_gk_margin.config({"GK_MARGIN_ENABLED": "Y"})
+        late = viewer_gk_margin.LIVE_FROM + timedelta(hours=1)
+        early = viewer_gk_margin.LIVE_FROM - timedelta(hours=1)
+        rows = [{"side": "L", "entry_time_utc": late.isoformat(), "gk_pctile": 20.0, "pnl": 30.0},
+                {"side": "L", "entry_time_utc": early.isoformat(), "gk_pctile": 20.0, "pnl": -99.0},
+                {"side": "S", "entry_time_utc": late.isoformat(), "gk_pctile_s": 5.0, "pnl": -10.0}]
+        out = viewer_gk_margin.ledger(rows, cfg)
+        self.assertEqual((out["L"][2]["trades"], out["L"][2]["pnl"]), (1, 30.0))
+        self.assertEqual((out["S"][0]["trades"], out["S"][0]["win_rate"]), (1, 0.0))
+
+    def test_position_margin_fallback(self):
+        self.assertEqual(vps_viewer._position_margin({"margin": 300.0}), 300.0)
+        self.assertEqual(vps_viewer._position_margin({"qty": 2.0, "entry_price": 2000.0}), 200.0)
+        self.assertIsNone(vps_viewer._position_margin({}))
+
+    def test_trade_row_margin_mult(self):
+        row = {"entry_time_display": "2026-11-02 10:00", "side": "L", "entry_price": 2000.0, "exit_price": 2020.0, "pnl": 58.0}
+        vps_viewer._attach_size(row, [("2000-01-01", 200.0)], gross_pnl=60.0)
+        self.assertEqual((row["margin"], row["margin_mult"]), (300, 1.5))
+        self.assertAlmostEqual(row["pnl_200u"], 58.0 * 4000 / 6000, places=4)
 
 
 class LotSizeTest(unittest.TestCase):

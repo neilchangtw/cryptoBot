@@ -33,6 +33,7 @@ from urllib.error import URLError
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
+import viewer_gk_margin
 import viewer_lowvol_shadow
 import viewer_stack_shadow
 
@@ -439,12 +440,23 @@ def _attach_size(row: dict, schedule, margin=None, gross_pnl=None) -> dict:
     row["notional"] = round(notional, 2)
     row["margin"] = round(notional / LEVERAGE / 10) * 10 if size_source == "成交推算" else round(notional / LEVERAGE, 2)
     row["size_source"] = size_source
+    scheduled = _scheduled_margin(row.get("entry_time_display"), schedule)
+    row["margin_mult"] = round(row["margin"] / scheduled, 2) if scheduled else 1.0
     row["pnl_actual"] = row.get("pnl")
     row["pnl_200u"] = (
         round(float(row["pnl"]) * BASELINE_NOTIONAL / notional, 6)
         if row.get("pnl") is not None and notional else None
     )
     return row
+
+
+def _position_margin(position: dict):
+    """持倉保證金：新倉讀狀態檔，舊倉由數量×進場價反推。"""
+    margin = _number(position.get("margin"), None)
+    if margin is not None:
+        return round(margin, 2)
+    qty, entry = _number(position.get("qty"), None), _number(position.get("entry_price"), None)
+    return round(qty * entry / LEVERAGE, 2) if qty and entry else None
 
 
 def _with_basis(rows: list[dict], basis: str) -> list[dict]:
@@ -895,6 +907,8 @@ class DataStore:
                 "entry_time_display": _display_time(entry_time),
                 "entry_price": _number(position.get("entry_price")),
                 "qty": _number(position.get("qty")),
+                "margin": _position_margin(position),
+                "margin_mult": _number(position.get("margin_mult"), 1.0),
                 "entry_regime": str(position.get("entry_regime") or "NA"),
                 "hold_bars": _int(position.get("bars_held"), None),
                 "mfe_pct": _number(position.get("running_mfe_pct"), None),
@@ -1665,6 +1679,26 @@ class DataStore:
                 self._lowvol_state = cached = (bars[-1]["time_ms"], computed, returns) if computed else None
             return bars, cached[1] if cached else None, cached[2] if cached else None, error
 
+    def gk_margin(self):
+        """GK 配保證金（實盤）的設定、下一筆金額與分組績效；讀不到的欄位回 None。"""
+        cfg = viewer_gk_margin.config(viewer_gk_margin.read_settings(INSTANCE_DIR / ".env"))
+        gk = {"L": None, "S": None}
+        try:
+            payload = self.signal().get("gk") or {}
+            gk = {"L": payload.get("L"), "S": payload.get("S")}
+        except Exception:  # 開單條件失敗不影響這張卡
+            pass
+        nxt = {}
+        for side in ("L", "S"):
+            margin, mult = viewer_gk_margin.next_margin(side, gk[side], cfg)
+            nxt[side] = {"gk": gk[side], "margin": margin, "mult": mult}
+        try:
+            groups = viewer_gk_margin.ledger(self._closed_sorted("live"), cfg)
+        except OSError:
+            groups = None
+        return {"readonly": True, **cfg, "next": nxt, "groups": groups,
+                "live_from": viewer_gk_margin.LIVE_FROM.strftime("%Y-%m-%d %H:%M")}
+
     def stack_shadow(self):
         """V44 三合一 SHADOW 狀態與前瞻紀錄；任何失敗都回「資料不足」，不影響其他卡片。"""
         base = {"readonly": True, "status": "insufficient", "doc": viewer_stack_shadow.DOC_PATH,
@@ -1879,6 +1913,9 @@ def make_handler(store: DataStore):
                 if parsed.path == "/api/lowvol":
                     query = parse_qs(parsed.query)
                     self._json(store.lowvol_shadow(_basis(query.get("basis", ["actual"])[0])))
+                    return
+                if parsed.path == "/api/gkmargin":
+                    self._json(store.gk_margin())
                     return
                 if parsed.path == "/api/stack":
                     self._json(store.stack_shadow())
