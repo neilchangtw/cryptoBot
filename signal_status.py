@@ -114,6 +114,39 @@ def _side_gates(side, row, st):
     return gates, fire
 
 
+def consec_cooldown_remaining(st) -> int:
+    """連虧冷卻剩餘 bar；條件與 executor.check_circuit_breaker 完全一致。
+
+    連虧筆數未達門檻時（例如冷卻期間另一邊獲利出場，連虧已歸零）不算冷卻。
+    """
+    consec = st.get("consec_losses", 0) or 0
+    cd_until = st.get("consec_loss_cooldown_until", 0) or 0
+    bar_counter = st.get("bar_counter", 0) or 0
+    if consec < strategy.CONSEC_LOSS_PAUSE:
+        return 0
+    return max(0, cd_until - bar_counter)
+
+
+def position_safenet_price(position) -> float:
+    """幣安實際掛單的 SafeNet 價；舊持倉無紀錄才退回以成交價推算。"""
+    stored = position.get("safenet_price")
+    if stored:
+        return float(stored)
+    ep = float(position.get("entry_price") or 0)
+    if str(position.get("sub_strategy") or "").upper() == "L":
+        return ep * (1 - strategy.L_SAFENET_PCT)
+    return ep * (1 + strategy.S_SAFENET_PCT)
+
+
+def position_margin_text(position) -> str:
+    """持倉保證金顯示，例如「120U ×0.6」；倍數 1 時只顯示金額。"""
+    margin = position.get("margin")
+    if margin is None:
+        return ""
+    mult = float(position.get("margin_mult") or 1.0)
+    return f"{float(margin):.0f}U" + (f" ×{mult:g}" if abs(mult - 1.0) > 1e-9 else "")
+
+
 def build_signal_status(df, idx, st, html: bool = False) -> str:
     """產生即時開單條件報表。
 
@@ -144,8 +177,7 @@ def build_signal_status(df, idx, st, html: bool = False) -> str:
     # 全域阻擋：連虧冷卻 / 暫停
     bar_counter = st.get("bar_counter", 0)
     consec = st.get("consec_losses", 0)
-    cd_until = st.get("consec_loss_cooldown_until", 0) or 0
-    consec_remain = max(0, cd_until - bar_counter) if cd_until > 0 else 0
+    consec_remain = consec_cooldown_remaining(st)
     paused = bool(st.get("paused", False))
 
     lines = [
@@ -211,7 +243,7 @@ def _position_payload(trade_id, position, close, bar_time, bar_counter):
         stop_pct = strategy.L_SAFENET_PCT
         max_hold = strategy.L_COND_REDUCED_MH if position.get("mh_reduced") else strategy.get_l_mh(regime)
         tp_price = entry_price * (1 + tp_pct)
-        stop_price = entry_price * (1 - stop_pct)
+        stop_price = position_safenet_price(position)
         current_pnl_pct = (close - entry_price) / entry_price * 100
         distance_tp = (tp_price - close) / close * 100 if close > 0 else None
         distance_stop = (close - stop_price) / close * 100 if close > 0 else None
@@ -221,7 +253,7 @@ def _position_payload(trade_id, position, close, bar_time, bar_counter):
         stop_pct = strategy.S_SAFENET_PCT
         max_hold = strategy.get_s_mh(regime)
         tp_price = entry_price * (1 - tp_pct)
-        stop_price = entry_price * (1 + stop_pct)
+        stop_price = position_safenet_price(position)
         current_pnl_pct = (entry_price - close) / entry_price * 100
         distance_tp = (close - tp_price) / close * 100 if close > 0 else None
         distance_stop = (stop_price - close) / close * 100 if close > 0 else None
@@ -297,8 +329,7 @@ def build_signal_payload(df, idx, st) -> dict:
     regime = strategy.classify_regime(slope)
     bar_counter = st.get("bar_counter", 0)
     consec = st.get("consec_losses", 0)
-    cd_until = st.get("consec_loss_cooldown_until", 0) or 0
-    consec_remain = max(0, cd_until - bar_counter) if cd_until > 0 else 0
+    consec_remain = consec_cooldown_remaining(st)
     paused = bool(st.get("paused", False))
 
     global_blocks = []

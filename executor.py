@@ -100,6 +100,29 @@ class Executor:
     # 狀態持久化
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+    def _backfill_safenet_price(self):
+        """舊持倉缺 safenet_price → 由 trades.csv 的訊號 K 收盤重建（僅供顯示，不動掛單）。"""
+        missing = [tid for tid, pos in self.positions.items() if "safenet_price" not in pos]
+        if not missing:
+            return
+        try:
+            closes = {r.get("trade_id"): r.get("entry_signal_bar_close") for r in recorder.read_trades()}
+        except Exception as e:
+            logger.warning(f"safenet_price backfill skipped: {e}")
+            return
+        for tid in missing:
+            try:
+                ref = float(closes.get(tid) or 0)
+            except (TypeError, ValueError):
+                ref = 0.0
+            if ref <= 0:
+                continue
+            pos = self.positions[tid]
+            if pos.get("sub_strategy") == "L":
+                pos["safenet_price"] = round(ref * (1 - strategy.L_SAFENET_PCT), 2)
+            else:
+                pos["safenet_price"] = round(ref * (1 + strategy.S_SAFENET_PCT), 2)
+
     def _load_state(self):
         """從 eth_state.json 載入狀態"""
         if not os.path.exists(self.state_path):
@@ -151,6 +174,8 @@ class Executor:
                 # V25-D: 舊持倉缺 entry_regime → "NA"（落到 V14 default 出場）
                 if "entry_regime" not in pos:
                     pos["entry_regime"] = "NA"
+
+            self._backfill_safenet_price()
 
             # 載入風控熔斷狀態
             cb = state.get("circuit_breaker", {})
@@ -554,6 +579,8 @@ class Executor:
             "running_mfe": 0.0,
             "mh_reduced": False,
             "entry_regime": entry_regime,
+            # 幣安實際掛的 SafeNet 觸發價（以訊號 K 收盤計，非成交均價）；顯示層一律讀這個
+            "safenet_price": round(safenet_price, 2),
             "entry_order_id": entry_order_id,
             "entry_commission": entry_commission,
         }

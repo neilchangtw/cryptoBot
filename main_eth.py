@@ -261,7 +261,9 @@ def _handle_status(executor, cmd_logger):
             lines.append("<b>內部持倉：</b>")
             for tid, p in executor.positions.items():
                 ps = "LONG" if p["side"] == "long" else "SHORT"
-                lines.append(f"  {ps} {p.get('qty', 0):.4f} ETH @ ${p['entry_price']:.2f}")
+                mgn = signal_status.position_margin_text(p)
+                lines.append(f"  {ps} {p.get('qty', 0):.4f} ETH @ ${p['entry_price']:.2f}"
+                             + (f"（{mgn}）" if mgn else ""))
         else:
             lines.append("內部持倉：空")
 
@@ -1156,7 +1158,7 @@ def main():
                         unr = (cur_close - ep) / ep * 100
                         rg = p.get("entry_regime", "NA")
                         tp_price = ep * (1 + strategy.get_l_tp(rg))
-                        sn_price = ep * (1 - strategy.L_SAFENET_PCT)
+                        sn_price = signal_status.position_safenet_price(p)
                         eff_mh = (strategy.L_COND_REDUCED_MH if p.get("mh_reduced")
                                   else strategy.get_l_mh(rg))
                         bars_held = p["bars_held"]
@@ -1179,7 +1181,8 @@ def main():
                             mfe_needed = ep * (1 + strategy.L_MFE_ACT)
                             mfe_status = f"未啟動（需先達 ${mfe_needed:.2f}）"
                         lines.append(
-                            f"📈 L 多單（{unr:+.1f}%，抱{bars_held}h，{labels.regime_label(rg)}）\n"
+                            f"📈 L 多單（{unr:+.1f}%，抱{bars_held}h，{labels.regime_label(rg)}"
+                            f"{'，' + mgn if (mgn := signal_status.position_margin_text(p)) else ''}）\n"
                             f"   🎯 止盈 (TP) ${tp_price:.2f}｜🛡 安全網 (SafeNet) ${sn_price:.2f}\n"
                             f"   ⏰ MaxHold（最多持倉時間）：{hold_status}\n"
                             f"   🧭 {hold_detail}\n"
@@ -1192,7 +1195,7 @@ def main():
                         unr = (ep - cur_close) / ep * 100
                         rg = p.get("entry_regime", "NA")
                         tp_price = ep * (1 - strategy.S_TP_PCT)
-                        sn_price = ep * (1 + strategy.S_SAFENET_PCT)
+                        sn_price = signal_status.position_safenet_price(p)
                         bars_held = p["bars_held"]
                         if p.get("extension_active"):
                             ext_elapsed = max(0, executor.bar_counter - p.get("extension_start_bar", executor.bar_counter))
@@ -1206,7 +1209,8 @@ def main():
                             hold_status = f"距 MaxHold（最多持倉時間）剩 {mh_left}h"
                             hold_detail = f"屆時若為正收益，將延長 {strategy.L_EXT_BARS}h"
                         lines.append(
-                            f"📉 S 空單（{unr:+.1f}%，抱{bars_held}h，{labels.regime_label(rg)}）\n"
+                            f"📉 S 空單（{unr:+.1f}%，抱{bars_held}h，{labels.regime_label(rg)}"
+                            f"{'，' + mgn if (mgn := signal_status.position_margin_text(p)) else ''}）\n"
                             f"   🎯 止盈 (TP) ${tp_price:.2f}｜🛡 安全網 (SafeNet) ${sn_price:.2f}\n"
                             f"   ⏰ MaxHold（最多持倉時間）：{hold_status}\n"
                             f"   🧭 {hold_detail}"
@@ -1280,9 +1284,9 @@ def main():
                 global_blocks = []
                 if executor.paused:
                     global_blocks.append("/pause 暫停開新倉")
-                if executor.consec_loss_cooldown_until > executor.bar_counter:
-                    global_blocks.append(
-                        f"連虧冷卻剩 {executor.consec_loss_cooldown_until - executor.bar_counter}h")
+                _consec_remain = signal_status.consec_cooldown_remaining(gate_state)
+                if _consec_remain > 0:
+                    global_blocks.append(f"連虧冷卻剩 {_consec_remain}h")
 
                 entry_status_lines = []
                 for _side in ("L", "S"):
@@ -1314,7 +1318,7 @@ def main():
 
                 # 進場冷卻倒數（連虧 24h 優先，否則顯示同側尚未解除的 L/S）
                 bar_c = executor.bar_counter
-                consec_remain = max(0, executor.consec_loss_cooldown_until - bar_c) if executor.consec_loss_cooldown_until > 0 else 0
+                consec_remain = signal_status.consec_cooldown_remaining(gate_state)
                 if consec_remain > 0:
                     cb_info += f"\n🚫 連虧冷卻剩 {consec_remain}h（L+S 皆停）"
                 else:
