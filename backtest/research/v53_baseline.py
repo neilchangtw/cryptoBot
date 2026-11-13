@@ -13,7 +13,8 @@ def baseline_trades(df, slip=0.0, extra=5.0):
                             ep=t.entry_price, xp=t.exit_price, reason=t.exit_reason, eng_pnl=t.pnl_usd))
     return out
 if __name__ == '__main__':
-    df = C.load_1h(); OUT = os.path.join(C.ROOT, 'doc', 'research_results', 'v53')
+    CUT = '2026-11-01'  # 同一截止：K 線、逐筆、成本、年表、月表皆只用 UTC 2026-10-31 23:59 以前
+    df = C.load_1h(end=CUT); OUT = os.path.join(C.ROOT, 'doc', 'research_results', 'v53')
     print('資料', df.datetime.min(), '~', df.datetime.max(), '根數', len(df), '重複', int(df.datetime.duplicated().sum()), '缺漏', int((df.datetime.diff().dropna() != pd.Timedelta(hours=1)).sum()))
     tr = baseline_trades(df); inc, cost = C.mtm_equity(tr, df)
     cost['reason'] = tr.reason.values; cost['eng_pnl'] = tr.eng_pnl.values

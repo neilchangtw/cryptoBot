@@ -44,19 +44,22 @@ def mtm_equity(trades, df, fund=None, fee=FEE, extra=EXTRA):
         rows.append(dict(side=r.side, t_in=r.t_in, t_out=r.t_out, ep=r.ep, xp=r.xp, gross=gross, fee=fee * ntl / NTL, extra=extra * ntl / NTL, funding=fpay, net=gross - c - fpay))
     return pd.Series(iv, index=idx), pd.DataFrame(rows)
 
-def tables(inc, tr, last_full_month=None):
-    """年表、月表（UTC，市價權益歸屬）＋已實現（依出場時間）。"""
+def tables(inc, tr, last_full_month=None, target=300.0):
+    """年表、月表（UTC，市價權益歸屬）＋已實現（依出場時間）。
+    同一截止：市價權益、已實現、筆數、成本一律只算到 last_full_month 月底（UTC）；截止後出場的交易不計入已實現與筆數。
+    門檻：每年淨利(市價) >= target × 完整月數（2021~2025 為 $3,600；2026 以完整月數計，標記暫定）。"""
     m = inc.groupby(inc.index.to_period('M')).sum()
     m = m[(m.index >= '2021-01') & ((m.index <= last_full_month) if last_full_month else True)]
-    eq = inc[inc.index >= '2021-01-01'].cumsum(); 
+    if last_full_month and len(tr): tr = tr[tr.t_out.dt.to_period('M') <= last_full_month]
     rows = []
     for y in sorted(set(m.index.year)):
         mm = m[m.index.year == y]; e = inc[inc.index.year == y]
         if last_full_month: e = e[e.index.to_period('M') <= last_full_month]
         c = e.cumsum(); dd = (c.cummax() - c).max()
         t = tr[tr.t_out.dt.year == y] if len(tr) else tr
-        rows.append(dict(year=y, months=len(mm), net_mtm=round(mm.sum()), monthly_avg=round(mm.sum() / len(mm)), realized=round(t.net.sum()) if len(t) else 0, trades=len(t),
+        need = target * len(mm); ok = bool(mm.sum() >= need)
+        rows.append(dict(year=y, months=len(mm), net_mtm=round(mm.sum()), threshold=round(need), monthly_avg=round(mm.sum() / len(mm)), realized=round(t.net.sum()) if len(t) else 0, trades=len(t),
                          fee=round(t.fee.sum()) if len(t) else 0, extra=round(t.extra.sum()) if len(t) else 0, funding=round(t.funding.sum()) if len(t) else 0,
-                         mdd_in_year=round(dd), worst_month=round(mm.min()), neg_months=int((mm < 0).sum()),
-                         pass_year=bool(mm.sum() > 0 and (y == 2026 or mm.sum() / len(mm) >= 300))))
+                         mdd_in_year=round(dd), worst_month=round(mm.min()), neg_months=int((mm < 0).sum()), pass_year=ok,
+                         status=('達標' if ok else '未達標') + ('（暫定）' if len(mm) < 12 else '')))
     return pd.DataFrame(rows), m

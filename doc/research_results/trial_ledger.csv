@@ -1,0 +1,18 @@
+id,date,round,direction,signals_or_variants,configs_seen,period_seen,cost_setting,holdout_use,result,status,source
+T001,2026-11-13,V46,現行關卡逐一移除或改值,連虧冷卻/日月熔斷/時段星期封鎖/regime gate/低波動才跳逆勢,約15,2021-03~2026-11,realistic 0bp（未加$5）,2026已看,移除皆變差或不穩,REJECTED,doc/research_results/v46
+T002,2026-11-13,V47,現行策略參數滾動前推,L 81組+S 81組；expanding/rolling24m 兩種選法,162+2,2021-07~2026-11,2bp,2026已看,前推$5668/$6596 低於固定$8765,診斷（非候選）,doc/research_results/v47
+T003,2026-11-13,V48-A,買回檔均值回歸做多,z<-k 對SMA24 × 趨勢濾網SMA200/500/1200,72,2021-07~2025-12,$4,2026未開,WF -$3419；0%組獲利,REJECTED,doc/research_results/v48
+T004,2026-11-13,V48-B,固定時段做多,進場時×持有時數,288,2021-07~2025-12,$4,2026未開,WF -$5895,REJECTED,doc/research_results/v48
+T005,2026-11-13,V48-C,4h Donchian 做多,通道長度×出場,未精確記錄（≤81）,2021-07~2025-12,$4,2026未開,WF -$529,REJECTED,doc/research_results/v48
+T006,2026-11-13,V48-D,4h Donchian+SMA regime 做多,同上加regime,未精確記錄（≤81）,2021-07~2025-12,$4,2026未開,WF -$1582,REJECTED,doc/research_results/v48
+T007,2026-11-13,V48-E,funding≤0 做多,門檻×持有,未精確記錄（≤36）,2021-07~2025-12,$4+funding,2026未開,WF -$2610,REJECTED,doc/research_results/v48
+T008,2026-11-13,V49,4h 壓縮跌破做空（無時段星期封鎖）,GK門檻×突破長度×TP×MH,未精確記錄（≤81）,2021-07~2025-12,$4,2026未開,WF -$2489；0%組穩健,REJECTED,doc/research_results/v48
+T009,2026-11-13,V50,週末壓縮跌破反向做多,門檻×持有,未精確記錄（≤36）,2021-07~2025-12,$4,2026未開,WF +$529；17%組穩健,REJECTED,doc/research_results/v50
+T010,2026-11-13,V51,散戶多空比百分位反向做多,q×窗口×持有,未精確記錄（≤36）,2022-07~2025-12 + 2026保留期,$4,**2026保留期開啟一次**,dev WF +$5928；保留期 -$1064,REJECTED,doc/research_results/v51
+T011,2026-11-13,V52,現行引擎套 BTCUSDT,L 81組+S 81組 前推,162,2021-07~2025-12,2bp,2026未開（BTC）,S -$1115；L -$1485,REJECTED,doc/research_results/v52
+T012,2026-11-13,V53-基準,現行策略 V53 口徑,1,1,2021-01~2026-10,$4+$5+funding,全期已看,6年皆未達門檻,基準,doc/research_results/v53
+T013,2026-11-13,V53-R0,壓縮突破事後逐年最佳,L 81+S 81 每年取最佳,162,2021-01~2026-10,$4+$5,全期已看,無一年≥$3600,診斷（上帝視角上限）,doc/research_results/v53
+T014,2026-11-13,V53-R1,大戶減散戶多空比差 多空都做,窗口×q×持有,16（另診斷72h重疊報酬）,2022~2025 dev,$4+$5+funding,2026未跑,dev WF -$4876,REJECTED,doc/research_results/v53
+T015,2026-11-13,臨時診斷,6~7月對8~11月突破延續率/半年損益對ETH漲跌相關/S單邊V48對現行比較,人工檢視,約10,2021~2026-11,混合,全期已看,觀察用,臨時（未預登記）,本對話串回覆
+T016,2026-11-13,V54-A D0,季度合約基差百分位對前瞻報酬,W180 × 3天/7天,2,2021-01~2025-12,毛報酬對0.225%成本,2026未看,見 v54_results.md,見 v54_results.md,doc/research_results/v54
+H001,2026-04~2026-10,V15~V45（歷史）,見 AGENTS.md「不要做的事」與 doc/v15~v45,進場過濾/ML/古典TA/多幣/funding/order flow/DVOL/MaxHold 22輪/大行情 等,無法完整重建；文件載明者合計 >6000,多為2024-07~2026 兩年窗，部分 2021 起,多為$4 理想化成交,無保留期概念,幾乎全數 REJECTED,歷史探索（不可重建，不列入校正）,AGENTS.md
