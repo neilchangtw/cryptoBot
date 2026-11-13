@@ -1,0 +1,95 @@
+{
+ "label": "基準 V14+R+V25-D",
+ "months": 70,
+ "total": 6026.12,
+ "monthly_avg": 86.1,
+ "trades": 690,
+ "wr": 0.5435,
+ "breakeven": 0,
+ "avg_win": 62.5,
+ "avg_loss": -55.3,
+ "neg_months": 32,
+ "zero_trade_months": 0,
+ "yearly": {
+  "2021": -835,
+  "2022": 1748,
+  "2023": -652,
+  "2024": 983,
+  "2025": 3433,
+  "2026": 1349
+ },
+ "years_positive": 4,
+ "r12_windows": 49,
+ "r12_pos_share": 0.6531,
+ "r12_worst": -1357,
+ "r12_worst_window": "2022-11~2023-10",
+ "r12_median": 1660,
+ "half1_2021-11~2024-04": 967,
+ "half2_2024-05~2026-10": 5964,
+ "r90_worst": -889,
+ "r90_worst_end": "2023-01-25",
+ "mdd_full": 1747,
+ "dd_longest_days_full": 829,
+ "mdd_recovery_days_full": 132,
+ "mdd_span_full": "2022-10-27~2024-09-24",
+ "mdd_5y": 1747,
+ "dd_longest_days_5y": 829,
+ "mdd_recovery_days_5y": 132,
+ "mdd_span_5y": "2022-10-27~2024-09-24",
+ "streak_max_n": 8,
+ "streak_worst_loss": -592,
+ "streak_worst_span": "2021-04-15~2021-05-20（6 筆）",
+ "streak4_per100": 2.75,
+ "streak6_per100": 1.01,
+ "streak_max_days": 35.6,
+ "streak_by_year": {
+  "2021": {
+   "max_n": 6,
+   "worst_loss": -592,
+   "n4": 2,
+   "n6": 1
+  },
+  "2022": {
+   "max_n": 7,
+   "worst_loss": -367,
+   "n4": 2,
+   "n6": 1
+  },
+  "2023": {
+   "max_n": 5,
+   "worst_loss": -338,
+   "n4": 4,
+   "n6": 0
+  },
+  "2024": {
+   "max_n": 8,
+   "worst_loss": -394,
+   "n4": 3,
+   "n6": 2
+  },
+  "2025": {
+   "max_n": 4,
+   "worst_loss": -296,
+   "n4": 4,
+   "n6": 0
+  },
+  "2026": {
+   "max_n": 8,
+   "worst_loss": -347,
+   "n4": 4,
+   "n6": 3
+  }
+ },
+ "boot_mdd_p50_p95": [
+  1364,
+  2461
+ ],
+ "boot_streakloss_p50_p95": [
+  -592,
+  -703
+ ],
+ "boot_streakn_p50_p95": [
+  8,
+  10
+ ]
+}
