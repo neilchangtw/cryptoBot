@@ -1,4 +1,8 @@
-# 下一輪接續狀態（2026-11-13，V55、V56 結束後）
+# 下一輪接續狀態（2026-11-13，V57 結束後；下一個編號 V58）
+
+V57 新增：驗收口徑改為 70 個月累計 ≥10,500U、每年為正、勝率 >50%，加五年穩定性門檻（doc/research_results/v57/v57_plan.md 第 4 節，已固定）。共用指標程式 backtest/research/v57_metrics.py，門檻判定 v57b_lowvol.judge()。V57-A、V57-B 結果見 v57/v57_results.md。
+
+（以下為 V56 結束時的盤點，仍適用）
 
 接續點：分支 `claude/v55-research`，commit 見 `git log`（V56 結果為 a1bffc8 之後的一筆）。下一個編號 V57。資料以三支 fetch 腳本重建（v53_fetch_data、v54_fetch_basis、v55_fetch_spot、v56_fetch_mark）。
 
