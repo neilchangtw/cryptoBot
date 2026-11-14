@@ -1,0 +1,2 @@
+label,days,long_bp,short_bp,all_bp,K1_pos_years,net,net_long,net_short,positions,perm_p95,perm_median,K2_p,long_p,K1,K2,K3,K4,lowvol_net,K5,verdict
+V65 高成交量日隔日反轉（量比>=1.5）,1826,92.7,20.9,16.6,4,2656,4951,-2295,241,2608,-2036,0.049,0.006,True,True,False,True,951,True,REJECTED（D0）：K3
