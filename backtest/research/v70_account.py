@@ -27,7 +27,7 @@ def replay(df, fund, base=None, base_mode=('fixed', 4000.0, 20.0), sleeve=None, 
     if sleeve:
         for t, v in sleeve['sig'].items():
             te = t + pd.Timedelta(hours=sleeve.get('delay', 1))   # V73：delay＝決策後幾小時的收盤成交（預設 1）
-            if te in ip and te >= W0 and not np.isnan(v): act[ip[te]] = int(v)
+            if te in ip and te >= W0 and not np.isnan(v): act[ip[te]] = float(v)   # V74：允許 0~1 的部分部位（|v|＝目標比例）
     eq = cap; wal = cap; E = np.full(n, np.nan); EW = np.full(n, np.nan); MG = np.zeros(n); NT = np.zeros(n); WL = np.full(n, np.nan); UP = np.zeros(n)
     op = {}; done = []; skips = []; fills = []; liq_acct = 0; tid = 0; sl = None; E[0] = EW[0] = WL[0] = cap
 
@@ -54,17 +54,17 @@ def replay(df, fund, base=None, base_mode=('fixed', 4000.0, 20.0), sleeve=None, 
         if cross and op and ew <= MMR * sum(p['q'] * c[i] for p in op.values()): liq_acct += 1
         for p in [p for p in op.values() if p['leg'] == 'base' and p['x_i'] == i]: close(p, i, p['x_px'], p['x_reason'])
         if i in act:
-            v = act[i]; cur = sl['s'] if sl is not None and sl['id'] in op else 0
+            fv = abs(act[i]); v = int(np.sign(act[i])); cur = sl['s'] if sl is not None and sl['id'] in op else 0
             if v != cur:
                 if cur != 0: close(sl, i, c[i], 'TREND'); sl = None
                 if v != 0:
-                    basis = cap if fixed_basis else (wal if sleeve['mode'] == 'hold' else eq); q = rq(sleeve['g'] * basis / c[i])
+                    basis = cap if fixed_basis else (wal if sleeve['mode'] == 'hold' else eq); q = rq(sleeve['g'] * fv * basis / c[i])
                     if q * c[i] >= MIN_NTL:
                         used = sum(p['mg'] for p in op.values())
                         if eq - used >= q * c[i] / sleeve['lev']: sl = opn(i, 'trend', v, q, sleeve['lev'], 'TREND')
                         else: skips.append(dict(t=idx[i], leg='trend', side='L' if v > 0 else 'S', 原因='可用保證金不足', 權益=round(eq, 1), 已占用=round(used, 1), 需要=round(q * c[i] / sleeve['lev'], 1)))
             elif cur != 0 and sleeve['mode'] == 'rebal':
-                tgt = sleeve['g'] * (cap if fixed_basis else eq); now = sl['q'] * c[i]
+                tgt = sleeve['g'] * fv * (cap if fixed_basis else eq); now = sl['q'] * c[i]
                 if tgt > 0 and abs(now / tgt - 1) > sleeve['band']:
                     dq = rq(tgt / c[i]) - sl['q']
                     if abs(dq) * c[i] >= MIN_NTL and sl['q'] + dq > 0:
