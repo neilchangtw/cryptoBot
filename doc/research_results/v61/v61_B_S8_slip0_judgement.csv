@@ -1,0 +1,19 @@
+metric,baseline,candidate,threshold,passed
+total,6609.94,8970.94,>= 10500,False
+years_positive,5,5,>= 6,False
+wr,0.5677,0.5243,> 0.5,True
+r12_worst,-286,-12,>= -900,True
+r12_pos_share,0.8367,0.9796,>= 0.8,True
+half1_2021-11~2024-04,1338,3360,>= 2000,True
+half2_2024-05~2026-10,6216,6488,> 0,True
+r90_worst,-489,-1211,>= -750,False
+mdd_5y,630,1500,<= 1400,False
+dd_longest_days_5y,372,351,<= 550,True
+mdd_recovery_days_5y,58,72,<= 180,True
+streak_worst_loss,-592,-740,>= -500,False
+streak_max_n,8,10,<= 8,False
+streak4_per100,2.59,2.38,<= 2.75,True
+streak6_per100,0.8,0.83,<= 0.8,False
+boot_mdd_p95,1551,3531,< 基準,False
+boot_streakloss_p95,-684,-740,> 基準,False
+gain_years_positive／max_share,-,4／0.38,>=4 且 <=0.60,True

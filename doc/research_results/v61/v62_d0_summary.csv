@@ -1,0 +1,2 @@
+label,days,long_bp,short_bp,all_bp,K1_pos_years,net,net_long,net_short,positions,perm_p95,perm_median,K2_p,long_p,K1,K2,K3,K4,lowvol_net,K5,overlap_days,same_dir_share,verdict
+V62 期限結構（近減遠，高做空低做多）,1826,-20.6,59.9,16.3,1,-10144,-3009,-7135,255,3705,-2729,0.9855,0.928,False,False,False,False,-3230,False,206,0.636,"REJECTED（D0）：K1,K2,K3,K4,K5"

@@ -1,0 +1,2 @@
+label,days,long_bp,short_bp,all_bp,K1_pos_years,net,net_long,net_short,positions,perm_p95,perm_median,K2_p,long_p,K1,K2,K3,K4,lowvol_net,K5,overlap_days,same_dir_share,verdict
+V63 賣權成交量占比（高做空低做多）,1826,25.9,-43.1,16.3,4,4688,1127,3561,562,1877,-5287,0.009,0.312,True,True,False,True,-1693,False,269,0.584,"REJECTED（D0）：K3,K5"
