@@ -11,9 +11,10 @@ CAP = 1500.0; W0 = pd.Timestamp('2021-01-01'); W1 = pd.Timestamp('2026-10-31 23:
 
 def rq(x): return np.floor(x / STEP + 1e-9) * STEP
 
-def replay(df, fund, base=None, base_mode=('fixed', 4000.0, 20.0), sleeve=None, cap=CAP, cross=False):
+def replay(df, fund, base=None, base_mode=('fixed', 4000.0, 20.0), sleeve=None, cap=CAP, cross=False, start=None, end=None, fixed_basis=False):
     """base：參考帳本交易（side,t_in,t_out,ep,xp,reason,snm）。base_mode：('fixed',名目,槓桿) 或 ('risk',f,槓桿)。
     sleeve：dict(sig=日線方向 Series（index＝UTC 00:00 決策時刻，值 ±1/0）, mode='hold'|'rebal', g, band, lev)。cross＝全倉（強平以帳戶層級判定）。"""
+    W0 = pd.Timestamp(start) if start is not None else globals()['W0']; W1 = pd.Timestamp(end) if end is not None else globals()['W1']   # V71：可指定啟動日與結束時刻；fixed_basis＝下單一律以初始資金為基數（不隨權益放大）
     px = C.close_utc(df); px = px[(px.index >= W0 - pd.Timedelta(hours=1)) & (px.index <= W1)]; idx = px.index; c = px.values; n = len(idx)
     ct = pd.DatetimeIndex((df.datetime - pd.Timedelta(hours=7)).values); hl = pd.DataFrame(dict(h=df.high.values, l=df.low.values), index=ct).reindex(idx); hi = hl.h.values; lo = hl.l.values
     fr = fund.reindex(idx).fillna(0.0).values; ip = {t: i for i, t in enumerate(idx)}
@@ -57,13 +58,13 @@ def replay(df, fund, base=None, base_mode=('fixed', 4000.0, 20.0), sleeve=None, 
             if v != cur:
                 if cur != 0: close(sl, i, c[i], 'TREND'); sl = None
                 if v != 0:
-                    basis = wal if sleeve['mode'] == 'hold' else eq; q = rq(sleeve['g'] * basis / c[i])
+                    basis = cap if fixed_basis else (wal if sleeve['mode'] == 'hold' else eq); q = rq(sleeve['g'] * basis / c[i])
                     if q * c[i] >= MIN_NTL:
                         used = sum(p['mg'] for p in op.values())
                         if eq - used >= q * c[i] / sleeve['lev']: sl = opn(i, 'trend', v, q, sleeve['lev'], 'TREND')
                         else: skips.append(dict(t=idx[i], leg='trend', side='L' if v > 0 else 'S', 原因='可用保證金不足', 權益=round(eq, 1), 已占用=round(used, 1), 需要=round(q * c[i] / sleeve['lev'], 1)))
             elif cur != 0 and sleeve['mode'] == 'rebal':
-                tgt = sleeve['g'] * eq; now = sl['q'] * c[i]
+                tgt = sleeve['g'] * (cap if fixed_basis else eq); now = sl['q'] * c[i]
                 if tgt > 0 and abs(now / tgt - 1) > sleeve['band']:
                     dq = rq(tgt / c[i]) - sl['q']
                     if abs(dq) * c[i] >= MIN_NTL and sl['q'] + dq > 0:
@@ -74,7 +75,7 @@ def replay(df, fund, base=None, base_mode=('fixed', 4000.0, 20.0), sleeve=None, 
         for k, r in ent.get(i, []):
             s = 1 if r.side == 'L' else -1
             if base_mode[0] == 'fixed': q = base_mode[1] * getattr(r, 'scale', 1.0) / r.ep
-            else: q = rq(base_mode[1] * wal / ((0.035 if s > 0 else 0.040) * getattr(r, 'snm', 1.0)) / r.ep)
+            else: q = rq(base_mode[1] * (cap if fixed_basis else wal) / ((0.035 if s > 0 else 0.040) * getattr(r, 'snm', 1.0)) / r.ep)
             ntl = q * r.ep; used = sum(p['mg'] for p in op.values()); need = ntl / base_mode[2]
             if ntl < MIN_NTL: skips.append(dict(t=idx[i], leg='base', side=r.side, 原因='名目低於最小下單額', 權益=round(eq, 1), 已占用=round(used, 1), 需要=round(need, 1))); continue
             if eq - used < need: skips.append(dict(t=idx[i], leg='base', side=r.side, 原因='可用保證金不足', 權益=round(eq, 1), 已占用=round(used, 1), 需要=round(need, 1))); continue
