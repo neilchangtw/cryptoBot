@@ -26,7 +26,7 @@ def replay(df, fund, base=None, base_mode=('fixed', 4000.0, 20.0), sleeve=None, 
     act = {}
     if sleeve:
         for t, v in sleeve['sig'].items():
-            te = t + pd.Timedelta(hours=1)
+            te = t + pd.Timedelta(hours=sleeve.get('delay', 1))   # V73：delay＝決策後幾小時的收盤成交（預設 1）
             if te in ip and te >= W0 and not np.isnan(v): act[ip[te]] = int(v)
     eq = cap; wal = cap; E = np.full(n, np.nan); EW = np.full(n, np.nan); MG = np.zeros(n); NT = np.zeros(n); WL = np.full(n, np.nan); UP = np.zeros(n)
     op = {}; done = []; skips = []; fills = []; liq_acct = 0; tid = 0; sl = None; E[0] = EW[0] = WL[0] = cap
