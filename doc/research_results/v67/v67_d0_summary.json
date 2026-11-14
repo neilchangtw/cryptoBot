@@ -1,0 +1,104 @@
+{
+ "main": {
+  "net": 4951,
+  "positions": 134,
+  "days": 166,
+  "mean_bp": 92.7,
+  "wr": 0.582
+ },
+ "C1_all_down": {
+  "net": 3958,
+  "positions": 486,
+  "days": 891,
+  "mean_bp": 23.4,
+  "mean_bp_normal_vol_down": 7.5
+ },
+ "C2a": {
+  "n": 891,
+  "coef_bp": {
+   "const": -63.2,
+   "HV": 48.0,
+   "abs_rd(每1.0)": 1022.5,
+   "vol20(每1.0)": 1295.6,
+   "trend(每1.0)": 99.6
+  },
+  "t": {
+   "const": -1.83,
+   "HV": 1.24,
+   "abs_rd": 0.89,
+   "vol20": 1.59,
+   "trend": 1.15
+  },
+  "HV_p_one_sided": 0.1068
+ },
+ "C2b": {
+  "hv_days": 166,
+  "matched": 150,
+  "matched_share": 0.904,
+  "unique_controls": 107,
+  "mean_diff_bp": 155.6,
+  "share_positive": 0.567,
+  "boot_p_le0": 0.0005,
+  "mean_absrd_hv": 4.26,
+  "mean_absrd_match": 4.12
+ },
+ "C3": {
+  "real": 4951,
+  "p95": 3196,
+  "median": -87,
+  "p": 0.0055
+ },
+ "C4": {
+  "time_in_market": 0.091,
+  "buy_hold_full_gross": 12230,
+  "buy_hold_scaled_gross": 1112,
+  "signal_gross": 6157,
+  "all_day_mean_bp": 16.7
+ },
+ "gates": {
+  "G1": false,
+  "G2": true,
+  "G3": true,
+  "G4": true,
+  "G5": true
+ },
+ "verdict": "停止：G1 未過",
+ "robustness": {
+  "trend>0": {
+   "net": 3005,
+   "positions": 72,
+   "hv_down_bp": 103.8,
+   "normal_down_bp": 33.1
+  },
+  "trend<=0": {
+   "net": 1946,
+   "positions": 62,
+   "hv_down_bp": 80.2,
+   "normal_down_bp": -10.9
+  },
+  "extra_0bp": 4951,
+  "extra_2bp": 4736,
+  "extra_5bp": 4415,
+  "drop_top5": 1803,
+  "drop_top10": 299,
+  "top5_sum": 3147,
+  "ratio_1.25": {
+   "net": 4416,
+   "positions": 210,
+   "mean_bp": 56.3
+  },
+  "ratio_2.0": {
+   "net": 1829,
+   "positions": 45,
+   "mean_bp": 105.4
+  },
+  "2026_01_10_single_look": {
+   "net": -1543,
+   "positions": 10,
+   "sig_days": 17,
+   "hv_down_bp": -213.6,
+   "normal_down_bp": 8.9,
+   "all_day_bp": -5.0
+  }
+ }
+}
