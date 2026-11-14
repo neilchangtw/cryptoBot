@@ -127,3 +127,7 @@ python backtest/research/v78_grid.py        # 參數格點×相位（約 8 分�
 
 輸出（`doc/research_results/v78/`）：`baseline_summary.csv`、`drawdown_bases.csv`、`common_book_trades.csv`（逐筆，含是否被停手）、`d0_phases.csv`、`d0_phase_trades.csv`（四相位逐筆）、`d0_verdict.json`、`grid_phases.csv`、`grid_summary.json`。現行與 V77 的逐小時帳戶權益沿用 `v77/candidate_account_hourly.csv` 與 `v77_compare.py`。
 資料版本：`data/ETHUSDT_15m_2020_2026.csv`（217,440 根，UTC+8 2020-09-01 08:00～2026-11-14 07:45，無缺檔、無間隔異常；雜湊見打包清單）。研究分支含市場資料，請在已有資料的雲端或家用工作區執行；公司電腦限讀取研究說明。
+
+## 補記（2026-11-14，V79 稽核後）
+
+V79 對四相位比較做了時間處理稽核，未發現工程或資料錯誤。本文件的判定階段未計資金費，補計後數字變動在個位數到數十 U，結論不變。偏移組的時段與星期以 K 線開盤小時認定；改為進位到下一整點的獨立對照下，多方更差、空方 :30 與 :45 回到 +1,800～2,100。詳見 `../v79/v79_results.md`。
