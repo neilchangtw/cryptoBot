@@ -7,6 +7,7 @@ import numpy as np, pandas as pd
 warnings.filterwarnings('ignore')
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import v53_common as C, v57_metrics as M
+import q20fr_core as QC
 CAP = 1500.0; W0 = pd.Timestamp('2021-01-01'); W1 = pd.Timestamp('2026-10-31 23:00'); MMR = 0.005; HC = 0.001125; STEP = 0.001; MIN_NTL = 20.0
 
 def rq(x): return np.floor(x / STEP + 1e-9) * STEP
@@ -75,7 +76,7 @@ def replay(df, fund, base=None, base_mode=('fixed', 4000.0, 20.0), sleeve=None, 
         for k, r in ent.get(i, []):
             s = 1 if r.side == 'L' else -1
             if base_mode[0] == 'fixed': q = base_mode[1] * getattr(r, 'scale', 1.0) / r.ep
-            else: q = rq(base_mode[1] * (cap if fixed_basis else wal) / ((0.035 if s > 0 else 0.040) * getattr(r, 'snm', 1.0)) / r.ep)
+            else: q = QC.order_qty(cap if fixed_basis else wal, r.side, r.ep, getattr(r, 'snm', 1.0), base_mode[1])   # V77：與逐事件執行器共用同一個數量函式
             ntl = q * r.ep; used = sum(p['mg'] for p in op.values()); need = ntl / base_mode[2]
             if ntl < MIN_NTL: skips.append(dict(t=idx[i], leg='base', side=r.side, 原因='名目低於最小下單額', 權益=round(eq, 1), 已占用=round(used, 1), 需要=round(need, 1))); continue
             if eq - used < need: skips.append(dict(t=idx[i], leg='base', side=r.side, 原因='可用保證金不足', 權益=round(eq, 1), 已占用=round(used, 1), 需要=round(need, 1))); continue
