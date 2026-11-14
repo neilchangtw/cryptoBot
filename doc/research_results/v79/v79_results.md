@@ -203,3 +203,12 @@ python backtest/research/v79_sonly.py       # 只做空方的帳戶驗收（約 
 
 輸出（`doc/research_results/v79/`）：`timing_audit.json`、`phase_side_table.csv`、`phase_trades.csv`（四相位×三種重播逐筆）、`long_context.csv`、`long_order_hour.csv`、`c1_time_semantics.csv`、`c2_entry_delay.csv`、`long_weekly_diff.csv`、`m1_forward.csv`、`event_clusters.csv`、`long_trades_clustered.csv`、`absent_reasons.csv`、`shared_pairs.csv`、`block_contribution.csv`、`events_summary.json`、`sonly_summary.csv`、`sonly_gates.csv`、`s1_trades.csv`、`s2_trades.csv`、`s1_account_hourly.csv`、`s2_account_hourly.csv`、`sonly_trade_changes.csv`。
 研究分支含市場資料，請在已有資料的雲端或家用工作區執行；公司電腦限讀取研究說明。
+
+## 補記（2026-11-15，V80 稽核後）
+
+- 第 3 節「研究期外移除最大 5 群後 −319」只指研究期外；全期移除最大 5 群為 +2,229、最大 10 群為 +1,584。
+- 第 1 節的 C2（進場延後 15 分鐘）只替換進場價、沒有重播出場與風控，低估了影響。V80 以完整狀態機重播：整點多方 +1,809→−300、整點空方 +3,679→+2,403。以 `../v80/v80_results.md` 為準。
+- 第 3 節缺席原因是以指標與帳本事後推斷的診斷近似；引擎逐 gate 紀錄見 V80，「熔斷或月上限」實際幾乎都是多方月虧損熔斷。
+- 逐年增量：第 3 節按事件群進場年，第 4 節與 Q1 按平倉週，兩者口徑不同。
+- 第 5 節 M1b 的 0.011 是未置中重抽的尾端比例；置中後 p 也是 0.011，95% 區間 +1.3～+16.1bp，未過 12 項比較的校正門檻。
+- 共同截止時無未平倉部位，V79 只計已平倉的數字不受影響。原判定不變。

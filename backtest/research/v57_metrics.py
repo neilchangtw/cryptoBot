@@ -59,6 +59,7 @@ def evaluate(inc, cost, label='', boot=2000, seed=57):
     rng = np.random.default_rng(seed); c['ym'] = c.t_out.dt.to_period('M'); by = {k: v.net.values for k, v in c.groupby('ym')}; months = list(m.index); bm = []; bs = []; bn = []
     for _ in range(boot):
         pick = rng.integers(0, len(months) - 2, len(months) // 3 + 1); seq = np.concatenate([np.concatenate([by.get(months[p + j], np.empty(0)) for j in range(3)]) for p in pick])
+        if len(seq) == 0: continue   # V80：抽到的月份全無交易時略過（避免空陣列錯誤；亂數序列不變）
         e = np.cumsum(seq); bm.append((np.maximum.accumulate(e) - e).max()); n = 0; l = 0.0; wl = 0.0; wn = 0
         for x in seq:
             if x < 0: n += 1; l += x; wl = min(wl, l); wn = max(wn, n)
