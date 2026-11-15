@@ -105,3 +105,19 @@ python3 -I backtest/research/v85_readonly_fills/fill_latency_analysis.py --selft
 ## 6. 使用者審查後的分析程式修正（2026-11-15 第二版）
 
 使用者審查 `fill_latency_analysis.py` 提出五點，全部修正：(1) 非觸發單不再一律算市價單，只有 origType＝MARKET 才算，其他類型只計數；(2) 訊號時間改取自本機紀錄並由 `--bar-time` 指定，不從訂單時間推定，延遲超過 30 分或重試不會配錯；(3) 加 tradeId 去重、商品過濾、零數量剔除；(4) 驗證 K 線收盤在整點，按進出場 × 多空、出場類型、月份、波動分組，缺資料分開計；(5) 輸出拒絕 git 工作樹與既有目錄、不覆寫、600，逐腿檔不含識別碼與價格。合成資料測試通過（見 offline_test_output.txt）。提取工具本身未改，sha256 仍為 7ab6cca8…bd93。
+
+## 7. 提取工具第三版（2026-11-15，依使用者第二次審查）
+
+起點：使用者四段合成原檔 sha256 7ab6cca8…bd93，與分支上 fd71e06 版本逐位元組相同（已驗證）。
+
+| 項目 | 第二版問題 | 第三版處理 | 離線測試 |
+|---|---|---|---|
+| 重導向 | 用預設 `urlopen`，會跟隨 3xx 並把 X-MBX-APIKEY 與含 signature 的查詢字串送到 Location 網域（對照組 03b 已重現） | `RefuseRedirect` 在建立第二個請求前丟錯；回應最終網址不是 fapi.binance.com 也拒絕 | 03：301／302／303／307／308 各只送出 1 個請求，evil 網域 0 個；03b 對照組確認測試有鑑別力 |
+| 符號連結 | 只檢查 `.git`，未檢查連結 | 路徑任一段是連結就拒絕；`O_EXCL`＋`O_NOFOLLOW` 寫檔；讀檢查點也拒絕連結 | 13：輸出路徑、--run、目標檔、暫存檔四種連結都不會寫到連結目標 |
+| --run 路徑穿越 | 未驗證名稱 | 必填；只允許 `[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}`，不得含 `..` | 11：8 種惡意名稱全拒 |
+| 續跑混用 | 不檢查工具版本、檢查點內容 | run.json 與每個檢查點記錄 schema、工具 sha256、窗口、內容 sha256；不符、損壞、多出檔案都拒絕 | 09、10 |
+| 平台 | Windows 上權限斷言會失敗 | 權限檢查只在 POSIX 執行；非 POSIX 明確顯示 SKIP，Linux 上有 SKIP 會提示不要執行 | 16：Linux PASS；模擬非 POSIX 分支顯示 SKIP（不是真 Windows 測試） |
+
+研究端 Linux 結果：19 PASS、0 SKIP、0 FAIL。真 Windows 上未測（資料限制）。`fill_latency_analysis.py` 維持 commit fc6c964 版本未改；已知其自測的權限斷言與輸出路徑沒有平台分流與符號連結檢查，若要在 Windows 跑需另修。
+
+VPS 真實查詢、毫秒成交分析、帳戶新回測：未執行。

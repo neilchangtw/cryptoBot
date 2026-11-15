@@ -1,4 +1,4 @@
-# 實盤成交時間：唯讀提取工具與審查說明（V85 初版，V86 修訂）
+# 實盤成交時間：唯讀提取工具與審查說明（V85 初版，V86 第三版）
 
 狀態：**離線自我測試通過；VPS 查詢未執行、毫秒成交分析未執行、帳戶新回測未執行。** 研究端不執行真實查詢，也不宣稱「已驗證可在 VPS 安全執行」；是否執行由使用者審查後決定。
 
@@ -26,14 +26,15 @@
 
 ## 3. 工具做什麼、不做什麼
 
-- 只用 Python 標準函式庫（argparse、csv、hashlib、hmac、json、os、sys、time、urllib、datetime；selftest 另用 io、tempfile、contextlib）。不匯入 binance_trade、executor、strategy、requests 或任何專案模組，不啟動交易流程。
+- 只用 Python 標準函式庫（argparse、csv、hashlib、hmac、json、os、re、sys、time、urllib、datetime；selftest 另用 io、tempfile、contextlib、email.message、urllib.response）。不匯入 binance_trade、executor、strategy、requests 或任何專案模組，不啟動交易流程。
 - 網路目的地只有 `https://fapi.binance.com`；允許清單 `ALLOWED` 只有上表三個「使用」的 GET。其他路徑丟 PermissionError；程式內沒有 POST、PUT、DELETE，沒有子程序。
 - 標的固定 ETHUSDT。
 - 金鑰只從環境變數 `BINANCE_API_KEY`、`BINANCE_API_SECRET` 讀。V86 已移除讀 `.env` 的選項。不寫檔、不印出。
 - 錯誤只印「路徑 + HTTP 狀態碼 + Binance 錯誤碼」或網路錯誤類別，不印網址、簽章或回應全文。
-- 不自動重試。每個窗口完成就寫一個檢查點；中斷後用同一個 `--run` 加 `--resume` 只補沒完成的窗口。
+- **任何 HTTP 重導向（301／302／303／307／308）一律拒絕**：用自訂的 `RefuseRedirect` 取代 Python 預設的重導向處理，在發第二個請求前就丟錯，所以 `Location` 指向的網址收不到金鑰標頭或簽章。回應的最終網址若不是 fapi.binance.com 也拒絕。（V86 第二版用的是預設 `urlopen`，會跟隨重導向並把金鑰與簽章帶過去；selftest 第 03b 項保留這個對照組。）
+- 不自動重試。每個窗口完成就寫一個檢查點（含窗口起訖、工具 sha256、內容 sha256）；中斷後用同一個 `--run` 加 `--resume` 只補沒完成的窗口。續跑時若工具版本不同、檢查點損壞或被改、窗口不符、或目錄裡多出不屬於此範圍的檔案，一律拒絕，不混用。
 - 單一窗口回傳達 1,000 筆時切半重查，最小到 1 分鐘仍滿就停止，避免截斷。合併時以 `id`（成交）與 `orderId`（訂單）去重，部分回應重疊不會重複。
-- 輸出目錄若在任何 git 工作樹內就拒絕。目錄權限 700、檔案 600，原子寫入（先寫 .tmp 再改名）。每次執行另寫 `SHA256SUMS.txt`。
+- 輸出目錄若在任何 git 工作樹內就拒絕（以實際路徑判斷）。路徑任何一段是符號連結就拒絕；`--run` 必填，只能是 1～64 個英數字、底線、點或連字號，不得含 `/`、`\` 或 `..`。寫檔用 `O_EXCL`＋`O_NOFOLLOW` 原子寫入（先寫 .tmp 再改名），目標或暫存檔是連結時不會寫到連結目標。Linux／macOS 上目錄 700、檔案 600；Windows 沒有 POSIX 權限位元，selftest 第 16 項會明確顯示 SKIP，Linux 上必須是 PASS。每次執行另寫 `SHA256SUMS.txt`。
 - 只保存 `TRADE_FIELDS`、`ORDER_FIELDS` 列的欄位；不保存原始回應、clientOrderId 或帳戶資訊。
 
 **建議另建一把只開「讀取」權限的 API 金鑰**，可加 IP 白名單只允許 VPS。不要用實盤下單那把，也不要把金鑰交給研究端。
@@ -56,7 +57,8 @@ sha256sum extract_fills_readonly.py
 
 # 1) 離線自我測試（不連網）
 python3 -I extract_fills_readonly.py selftest
-#    成功：印出「selftest ok：……」，結束碼 0。失敗：AssertionError，停止，不要往下做。
+#    成功：19 項逐項印出 PASS，最後一行「結果：19 PASS、0 SKIP、0 FAIL」，結束碼 0。
+#    Linux 上有任何 FAIL 或 SKIP：停止，不要往下做。
 
 # 2) 輸入唯讀金鑰（不進 shell 歷史、不顯示在螢幕）
 read -rs BINANCE_API_KEY; echo; read -rs BINANCE_API_SECRET; echo
@@ -114,7 +116,7 @@ unset BINANCE_API_KEY BINANCE_API_SECRET
 ```bash
 python3 -I extract_fills_readonly.py fetch --start 2026-08-16 --end 2026-11-15 --run m3
 # 中斷或報錯後：
-python3 -I extract_fills_readonly.py fetch --run m3 --resume
+python3 -I extract_fills_readonly.py fetch --run m3 --resume      # 不需再給起訖，沿用 run.json
 python3 -I extract_fills_readonly.py check --run m3 --trades ~/cryptoBot/data_live/trades.csv
 cd ~/fill_audit_out/m3 && sha256sum -c SHA256SUMS.txt     # 檔案校驗
 ```

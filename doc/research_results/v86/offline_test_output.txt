@@ -1,29 +1,53 @@
-# V86 離線測試輸出（第二版，依使用者審查修訂分析程式）2026-11-15T06:04:22Z
+# V86 第三版離線測試輸出 2026-11-15T06:58:13Z（研究端 Linux；未連網、未查真實帳戶）
 $ python3 -I extract_fills_readonly.py selftest
-selftest ok：允許清單外拒絕（含 order、algoOrder、歷史匯出、檢視器路徑）、只發 GET、只連 fapi.binance.com、窗口 ≤7 天、時間戳用伺服器校正、錯誤訊息已遮蔽、續跑不重查、達上限切半、git 工作樹內拒絕、檔案權限 600、輸出與終端不含金鑰或簽章、未載入專案或下單模組
+平台：linux（os.name=posix），Python 3.13.18，工具 sha256 0470d869c75988117b5ff53610f96204e3caf3165d8eb5ec1fe2389dc701b518
+PASS  01 未載入專案或下單模組
+PASS  02 允許清單外路徑拒絕（order、algoOrder、兩種歷史匯出、檢視器）
+PASS  03 拒絕重導向 301/302/303/307/308：只送出 1 個請求、跨網域 Location 沒有收到任何請求（金鑰、簽章皆未送出）
+PASS  03b 對照組：預設 opener 會把金鑰與簽章送到跨網域 Location（證明 03 有鑑別力；正式路徑不用預設 opener）
+PASS  04 回應網址不是 fapi.binance.com 時拒絕
+PASS  05 正常抓取：窗口 ≤7 天、時間戳用伺服器校正、簽名請求都帶 signature
+PASS  06 續跑：已完成窗口不重查
+PASS  07 中途錯誤：訊息遮蔽（無網域、無簽章、有錯誤碼），續跑只補未完成窗口
+PASS  08 單窗口達 1,000 筆時切半重查
+PASS  09 續跑時工具版本不同：拒絕，不混用
+PASS  10 檢查點損壞、內容被改、窗口不符、多出檔案：拒絕續跑；還原後可續跑
+PASS  11 --run 路徑穿越拒絕（../、..、.、a/b、絕對路徑、空字串、反斜線）
+PASS  12 輸出目錄位於 git 工作樹內：拒絕
+PASS  13 符號連結繞過：輸出路徑任一段是連結、--run 是連結、目標檔或暫存檔是連結，都不會寫到連結目標
+PASS  14 check 子命令：配對 1 腿、時間為 13 位數
+PASS  15 SHA256SUMS.txt 與輸出檔一致
+PASS  16 Linux：輸出目錄 700、檔案 600（群組與其他人無任何權限）
+PASS  17 終端輸出與所有輸出檔不含金鑰、密鑰或 signature
+PASS  18 測試全程未載入專案或下單模組
+結果：19 PASS、0 SKIP、0 FAIL
 exit=0
-$ python3 -I fill_latency_analysis.py --selftest
+
+$ 模擬非 POSIX 分支（POSIX=False，仍在 Linux，非真 Windows）
+SKIP  16 Linux：輸出目錄 700、檔案 600（群組與其他人無任何權限）
+      SKIP：平台 posix，POSIX 權限位元不適用（NTFS 由 ACL 控制）；此項在 Linux 上必須為 PASS
+--
+結果：18 PASS、1 SKIP、0 FAIL
+
+$ python3 -I fill_latency_analysis.py --selftest（commit fc6c964 版本，本輪未改）
 selftest ok：重複與零數量剔除、限價單歸其他類型不入統計、訊號時間取自本機紀錄、晚 75 分的重試不配對、SafeNet 對停損價、bar-time 必填、拒絕 git 目錄與既有目錄、不覆寫、逐腿檔不含 orderId 與價格、檔案 600
 {"配對狀態": {"已配對": 4, "缺資料": 1}, "未配對訂單依類型": {"其他類型": 1, "市價單": 1}, "清洗": {"重複成交剔除": 1, "非ETHUSDT剔除": "提取時已過濾（無 symbol 欄）", "零或缺價量時間剔除": 1, "有效成交": 7, "同訂單多方向或多持倉方向": 0}}
 exit=0
 
 ## 靜態掃描
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:25:import argparse, csv, hashlib, hmac, json, os, sys, time, urllib.error, urllib.parse, urllib.request
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:26:from datetime import datetime, timedelta, timezone
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:205:    import io, tempfile, contextlib
-backtest/research/v85_readonly_fills/fill_latency_analysis.py:32:import argparse, json, os, sys
-backtest/research/v85_readonly_fills/fill_latency_analysis.py:33:import numpy as np, pandas as pd
-backtest/research/v85_readonly_fills/fill_latency_analysis.py:168:    import tempfile
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:6:- 網路目的地只有 https://fapi.binance.com；只允許下列 GET，�
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:12:- 金鑰只從環境變數 BINANCE_API_KEY、BINANCE_API_SECRET 讀；不�
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:28:BASE = 'https://fapi.binance.com'
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:59:        req = urllib.request.Request(BASE + path + ('?' + q if q else ''),
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:283:    c = ReadOnlyClient(os.environ.get('BINANCE_API_KEY'), os.environ.get(
-backtest/research/v85_readonly_fills/fill_latency_analysis.py:2:"""成交時間分析（V85 初版，V86 依使用者審查修訂）。在�
+6:- 網路目的地只有 https://fapi.binance.com；只允許下列 GET，其餘路徑直接拒絕：
+10:  程式內沒有 POST、PUT、DELETE，沒有子程序。
+13:- 金鑰只從環境變數 BINANCE_API_KEY、BINANCE_API_SECRET 讀；不讀 .env，不寫檔，不印出。
+31:BASE = 'https://fapi.binance.com'
+50:class RefuseRedirect(urllib.request.HTTPRedirectHandler):
+58:    return urllib.request.build_opener(RefuseRedirect, *extra_handlers)
+325:        def __init__(self): super().__init__(KEY, SEC, opener=urllib.request.build_opener()); self._open = fake
+348:                    hdr = email.message.Message(); hdr['Location'] = 'https://evil.example.net/steal'
+369:                    if len(sent) == 1: h['Location'] = 'https://evil.example.net/steal?' + urllib.parse.urlparse(req.full_url).query; code = 307
+372:            rc = ReadOnlyClient(KEY, SEC, opener=urllib.request.build_opener(T()))
+380:                def geturl(self): return 'https://evil.example.net/x'
 
 ## 檔案雜湊
-7ab6cca80640650091cfef2621a0545c7c6b6a5321ec6eb34c486f7ee674bd93  backtest/research/v85_readonly_fills/extract_fills_readonly.py
+0470d869c75988117b5ff53610f96204e3caf3165d8eb5ec1fe2389dc701b518  backtest/research/v85_readonly_fills/extract_fills_readonly.py
 c0697f68424b861eeb61228572cb41f9e7069d29747ddd52d6b7be157e0736e3  backtest/research/v85_readonly_fills/fill_latency_analysis.py
-7b59e4d3f59dcd2af29566a84698a557c6e79c1caa40f3f2da6324980ecebcec  backtest/research/v85_readonly_fills/README.md
-94f2bfef94a72051921ecf5b8b2c368284f062419539acbcff74a5568420cb06  backtest/research/v86_scale_algebra.py
-b01a60125db18fa6fa1b1dcaef6fceb1c0b3fdad41b6fa0c0fc9b85d3e5f4f5e  doc/research_results/v86/scale_algebra.csv
+8168ad7ad94f9a836285e7c02bb4c098b3f6a19e1d62a8570ee172c227822a14  backtest/research/v85_readonly_fills/README.md
