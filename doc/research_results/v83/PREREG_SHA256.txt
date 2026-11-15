@@ -1,0 +1,2 @@
+a36e524f0e6b2f7853eb24f38d1264a97e3d6c4b70df983cd72b3f4ede3f7a29  doc/research_results/v83/v83_plan.md
+Sun Nov 15 02:05:00 UTC 2026

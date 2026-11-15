@@ -1,0 +1,13 @@
+{
+ "來源": "https://api.exchange.coinbase.com/products/ETH-USD/candles granularity=86400",
+ "取得時間UTC": "2026-11-15 01:30",
+ "行數": 2344,
+ "起訖": [
+  "2020-06-01",
+  "2026-10-31"
+ ],
+ "缺日": [],
+ "零成交量日": 0,
+ "sha256": "94a7bafc6686c4a9ed4a7a1214cf2e5aea781b0439311727c0be38e1dfb6d569",
+ "限制": "API 回傳目前版本，是否曾回補未確認"
+}
