@@ -1,5 +1,7 @@
-# 下一輪接續狀態（2026-11-15，V85 結束後；下一個編號 V86）
+# 下一輪接續狀態（2026-11-15，V86 結束後；下一個編號 V87）
 
+
+V86：固定放大代數快篩（不是候選）與唯讀成交工具審查（離線測試全過，未在 VPS 執行）。見 doc/research_results/v86/v86_results.md。等使用者決定是否自行在 VPS 執行小樣本，並只回傳 check 的去識別摘要。
 V85（分支 claude/v85-research，自 master 47c34c5，未推送）：C 前視更正與完整重跑（77 筆 +2,281.9，REJECTED 不變）；實盤成交時間唯讀工具在 backtest/research/v85_readonly_fills/，待使用者審查後在 VPS 自行執行並提供兩個 CSV，再用 fill_latency_analysis.py 分析。一般查詢只涵蓋近 3 個月，越晚執行涵蓋越少。
 
 V84（分支 claude/v84-research，隔離工作樹 /home/user/repo_v84，未推送）：V83 收尾稽核與機制清單，見 doc/research_results/v84/。多重比較家族更正為 44 個（門檻 0.0011）；C 有一筆交易用到未公開資料（2025-12-09 持倉日），判定不變；現有 9 個網域內沒有合格的新機制，未做新回測。剩餘證據缺口與取得方式見 v84_inventory.md §4，其中只有 G5（實盤成交毫秒時間戳）不需新網域或付費，但需使用者在 VPS 操作。
