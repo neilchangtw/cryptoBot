@@ -1,47 +1,29 @@
-# V86 離線測試輸出 2026-11-15T05:51:30Z
+# V86 離線測試輸出（第二版，依使用者審查修訂分析程式）2026-11-15T06:04:22Z
 $ python3 -I extract_fills_readonly.py selftest
 selftest ok：允許清單外拒絕（含 order、algoOrder、歷史匯出、檢視器路徑）、只發 GET、只連 fapi.binance.com、窗口 ≤7 天、時間戳用伺服器校正、錯誤訊息已遮蔽、續跑不重查、達上限切半、git 工作樹內拒絕、檔案權限 600、輸出與終端不含金鑰或簽章、未載入專案或下單模組
 exit=0
 $ python3 -I fill_latency_analysis.py --selftest
-selftest ok {"訂單數": {"市價單": 2, "觸發單": 1}, "T到建立_ms": {"n": 2, "中位": 10050.0, "p90": 10250.0, "最大": 10300.0}, "建立到最後成交_ms": {"n": 2, "中位": 200.0, "p90": 280.0, "最大": 300.0}, "T到最後成交_ms": {"n": 2, "中位": 10250.0, "p90": 10530.0, "最大": 10600.0}, "成交落在整點後第幾分鐘": {"0": 2}, "方向性價差_bp": {"n": 2, "中位": 7.4701789264408625, "p90": 9.446322067593993, "最大": 9.940357852882276}, "限制": "缺少本機醒來、取得K線與送單時間戳時，T→訂單建立不可再拆；樣本只代表實盤期間與配置"}
+selftest ok：重複與零數量剔除、限價單歸其他類型不入統計、訊號時間取自本機紀錄、晚 75 分的重試不配對、SafeNet 對停損價、bar-time 必填、拒絕 git 目錄與既有目錄、不覆寫、逐腿檔不含 orderId 與價格、檔案 600
+{"配對狀態": {"已配對": 4, "缺資料": 1}, "未配對訂單依類型": {"其他類型": 1, "市價單": 1}, "清洗": {"重複成交剔除": 1, "非ETHUSDT剔除": "提取時已過濾（無 symbol 欄）", "零或缺價量時間剔除": 1, "有效成交": 7, "同訂單多方向或多持倉方向": 0}}
 exit=0
 
 ## 靜態掃描
--- import 行
 backtest/research/v85_readonly_fills/extract_fills_readonly.py:25:import argparse, csv, hashlib, hmac, json, os, sys, time, urllib.error, urllib.parse, urllib.request
 backtest/research/v85_readonly_fills/extract_fills_readonly.py:26:from datetime import datetime, timedelta, timezone
 backtest/research/v85_readonly_fills/extract_fills_readonly.py:205:    import io, tempfile, contextlib
-backtest/research/v85_readonly_fills/fill_latency_analysis.py:17:import sys, os, json
-backtest/research/v85_readonly_fills/fill_latency_analysis.py:18:import numpy as np, pandas as pd
--- 網路／方法／子程序關鍵字
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:6:- 網路目的地只有 https://fapi.binance.com；只允許下列 GET，其餘路徑直接拒絕：
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:10:  程式內沒有 POST、PUT、DELETE，沒有子程序。
+backtest/research/v85_readonly_fills/fill_latency_analysis.py:32:import argparse, json, os, sys
+backtest/research/v85_readonly_fills/fill_latency_analysis.py:33:import numpy as np, pandas as pd
+backtest/research/v85_readonly_fills/fill_latency_analysis.py:168:    import tempfile
+backtest/research/v85_readonly_fills/extract_fills_readonly.py:6:- 網路目的地只有 https://fapi.binance.com；只允許下列 GET，�
+backtest/research/v85_readonly_fills/extract_fills_readonly.py:12:- 金鑰只從環境變數 BINANCE_API_KEY、BINANCE_API_SECRET 讀；不�
 backtest/research/v85_readonly_fills/extract_fills_readonly.py:28:BASE = 'https://fapi.binance.com'
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:59:        req = urllib.request.Request(BASE + path + ('?' + q if q else ''), method='GET')
--- 檔案寫入
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:45:        self._open = opener or (lambda req: urllib.request.urlopen(req, timeout=20))
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:68:            with self._open(req) as r: return json.loads(r.read().decode())
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:111:    os.makedirs(out, mode=0o700, exist_ok=True); os.chmod(out, 0o700)
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:115:    fd = os.open(path + '.tmp', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:116:    with os.fdopen(fd, 'w', encoding='utf-8', newline='') as f: f.write(text)
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:117:    os.replace(path + '.tmp', path); os.chmod(path, 0o600)
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:124:    prep_out(out); run = os.path.join(out, run_name); os.makedirs(run, mode=0o700, exist_ok=T
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:127:        meta = json.load(open(meta_p, encoding='utf-8'))
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:131:        meta = dict(start_ms=start_ms, end_ms=end_ms, start=ms_iso(start_ms), end=ms_iso(end_
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:147:        d = json.load(open(os.path.join(ck, f), encoding='utf-8'))
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:154:        p = os.path.join(run, name); write_private(p, '\n'.join(lines) + '\n'); res[name] = (
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:166:    tr = list(csv.DictReader(open(os.path.join(run, 'trades.csv'), encoding='utf-8')))
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:167:    od = {r['orderId']: r for r in csv.DictReader(open(os.path.join(run, 'orders.csv'), encod
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:178:    local = list(csv.DictReader(open(trades_csv, encoding='utf-8')))      # 唯讀
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:251:        gdir = tempfile.mkdtemp(); os.makedirs(os.path.join(gdir, '.git'))
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:256:        with open(lt, 'w', newline='', encoding='utf-8') as f:
-backtest/research/v85_readonly_fills/extract_fills_readonly.py:262:            if f != 'local_trades.csv': blob += open(os.path.join(root, f), encoding='utf-8')
-backtest/research/v85_readonly_fills/fill_latency_analysis.py:69:    m, s = analyze(pd.read_csv(tr), pd.read_csv(od), kl); os.makedirs(out, exist_ok=True)
-backtest/research/v85_readonly_fills/fill_latency_analysis.py:70:    m.to_csv(os.path.join(out, 'fill_latency_by_order.csv'), index=False); json.dump(s, open(os
+backtest/research/v85_readonly_fills/extract_fills_readonly.py:59:        req = urllib.request.Request(BASE + path + ('?' + q if q else ''),
+backtest/research/v85_readonly_fills/extract_fills_readonly.py:283:    c = ReadOnlyClient(os.environ.get('BINANCE_API_KEY'), os.environ.get(
+backtest/research/v85_readonly_fills/fill_latency_analysis.py:2:"""成交時間分析（V85 初版，V86 依使用者審查修訂）。在�
 
 ## 檔案雜湊
 7ab6cca80640650091cfef2621a0545c7c6b6a5321ec6eb34c486f7ee674bd93  backtest/research/v85_readonly_fills/extract_fills_readonly.py
-e3b16acc759a3b6f34138e064eb39c3a64f5d8476cd837e572c3ad4a06c5e133  backtest/research/v85_readonly_fills/fill_latency_analysis.py
-738dda5e74e74248948b288136932d1f9d889d13212da4eda19fbc82ced8a6e5  backtest/research/v85_readonly_fills/README.md
+c0697f68424b861eeb61228572cb41f9e7069d29747ddd52d6b7be157e0736e3  backtest/research/v85_readonly_fills/fill_latency_analysis.py
+7b59e4d3f59dcd2af29566a84698a557c6e79c1caa40f3f2da6324980ecebcec  backtest/research/v85_readonly_fills/README.md
 94f2bfef94a72051921ecf5b8b2c368284f062419539acbcff74a5568420cb06  backtest/research/v86_scale_algebra.py
 b01a60125db18fa6fa1b1dcaef6fceb1c0b3fdad41b6fa0c0fc9b85d3e5f4f5e  doc/research_results/v86/scale_algebra.csv

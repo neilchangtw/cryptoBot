@@ -101,3 +101,7 @@ python3 -I backtest/research/v85_readonly_fills/fill_latency_analysis.py --selft
 ```
 
 檔案雜湊見 `offline_test_output.txt` 末段。
+
+## 6. 使用者審查後的分析程式修正（2026-11-15 第二版）
+
+使用者審查 `fill_latency_analysis.py` 提出五點，全部修正：(1) 非觸發單不再一律算市價單，只有 origType＝MARKET 才算，其他類型只計數；(2) 訊號時間改取自本機紀錄並由 `--bar-time` 指定，不從訂單時間推定，延遲超過 30 分或重試不會配錯；(3) 加 tradeId 去重、商品過濾、零數量剔除；(4) 驗證 K 線收盤在整點，按進出場 × 多空、出場類型、月份、波動分組，缺資料分開計；(5) 輸出拒絕 git 工作樹與既有目錄、不覆寫、600，逐腿檔不含識別碼與價格。合成資料測試通過（見 offline_test_output.txt）。提取工具本身未改，sha256 仍為 7ab6cca8…bd93。
