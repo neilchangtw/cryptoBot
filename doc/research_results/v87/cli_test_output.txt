@@ -1,0 +1,101 @@
+V87 匯總器第二版：離線測試輸出（2026-11-16，只用合成資料）
+工作目錄：雲端隔離工作樹 /home/user/repo_v87（不是 D:\cryptoBot；家中電腦未讀取）
+
+===== 直譯器：3.13.18 pandas 3.0.5 numpy 2.5.3 =====
+$ python3 -I backtest/research/v87_fill_bridge/fill_bridge.py --selftest
+selftest ok（POSIX，25 項）：部分成交合併、SafeNet 掛單存續分開、市價腿不含 SafeNet、重試模糊、同窗口價格不符不配對、缺 origType、缺訂單不以首筆代建單、全局一對一、數量不一致不入橋接、多持倉方向衝突、重複成交剔除、橋接算術與 realizedPnl 核對、SafeNet 以停損價為參考（非收盤價反事實）、去識別輸出可重算、funding 未取得、殘差不稱 funding、全部 USDT 時合計、JSON 字串鍵、無 NaN、可往返、非 USDT／混合／空白／無效／資產空白手續費標未驗證且不入合計、realizedPnl 缺值標示、K 線停止條件、bar-time 必填、兩種格式一致、URL／scheme／標準輸入／不存在／目錄／符號連結輸入在讀取前拒絕、寫到第 1／2／3 檔失敗都不留下目錄、輸出無識別碼價格數量、700／600、拒 git／既有／符號連結、不覆寫、未載入網路請求或專案模組、分析與寫檔期間未開子程序（Popen／os.system 守衛）
+{"未配對腿原因": {"缺候選訂單": 3, "模糊：該訂單同時是多條腿的候選": 2, "模糊：2 張候選": 1, "窗口內有同向單但價格與紀錄不一致": 1}, "未配對訂單": {"模糊（未配對）": 3, "窗口內但價格不一致": 1, "類型不明（origType 空白）": 1, "缺訂單": 1, "同訂單多方向或多持倉方向": 1}, "橋接排除": {"未平倉或無出場紀錄": 7, "數量不一致": 1}}
+結束碼 0
+
+$ python3 -I backtest/research/v87_fill_bridge/test_fill_bridge_cli.py
+平台：posix Python 3.13.18 pandas 3.0.5 numpy 2.5.3
+工具 sha256 7e9edfc714f5f32abcdef4dd22276d16f71134bdd03e1d09956eb2880d5303ce
+輸入 fills  sha256 140950ca3264941e40a61935213bdb771379c66a567ea3c1bd5bd6d31f55c9e2  fills.csv
+輸入 klines sha256 673c3d9c34eaa815b52b50998dc5d1ae2555bf84bf1212c3dab0d919a1a35839  klines.csv
+輸入 local  sha256 642896cd4ee22c93e3c0859c8598f0f16db3d4fdca194fb21cd701073d9b5616  local_trades.csv
+輸入 orders sha256 22c7dab16baa8f9d209db23ba18c19f9ce0731209584cf47cf7a15bda5e4efb8  orders.csv
+PASS A 命令列正式執行：結束碼 0、三檔齊全、無暫存目錄、無網路與子程序：結束碼 0
+PASS A summary.json 可重新讀取，且 stdout 與檔案內容相同
+PASS A 摘要與逐腿、逐筆 CSV 的筆數與金額一致；執行資訊雜湊正確；600／700：17/17 項
+  A 摘要節錄：{"腿數": 13, "相容配對腿": 6, "橋接": {"交易筆": 2, "排除": {"未平倉或無出場紀錄": 7, "數量不一致": 1}, "價差美元": {"筆": 2, "合計": -2.5, "缺值筆": 0}, "USDT淨損益": {"已驗證筆": 2, "手續費USDT": {"筆": 2, "合計": 4.0607500000000005, "缺值筆": 0}}}, "K線覆蓋": {"根數": 60, "首根收盤UTC": "2025-11-01T03:00:00", "末根收盤UTC": "2025-11-03T14:00:00"}, "版本": {"python": "3.13.18", "pandas": "3.0.5", "numpy": "2.5.3", "平台": "posix"}}
+PASS B 一筆出場手續費為 BNB：該筆 USDT 淨損益留空標未驗證、不進合計，價格橋接照列，摘要與 CSV 一致：結束碼 0
+PASS C 目錄已存在：結束碼 4、既有三檔不變：結束碼 4
+PASS D --fills https://example.invalid/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --fills http://127.0.0.1:9/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --fills file:///etc/hostname：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --orders https://example.invalid/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --orders http://127.0.0.1:9/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --orders file:///etc/hostname：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --local https://example.invalid/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --local http://127.0.0.1:9/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --local file:///etc/hostname：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --klines https://example.invalid/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --klines http://127.0.0.1:9/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --klines file:///etc/hostname：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS E --fills 不存在：結束碼 2、未建立輸出：結束碼 2
+PASS E --fills 目錄：結束碼 2、未建立輸出：結束碼 2
+PASS E --fills 符號連結：結束碼 2、未建立輸出：結束碼 2
+PASS F K 線不在整點：結束碼 3、未建立輸出與暫存目錄：結束碼 3
+PASS G 輸出位於 git 工作樹：結束碼 4、未建立：結束碼 4
+PASS H 內建 --selftest：結束碼 0：selftest ok（POSIX，25 項）：部分成交合併、SafeNet 掛單存續分開、市價腿不含 SafeNet、
+對照 修正前 3c11426（sha256 da96dd4a…）：結束碼 1，最後一行錯誤「TypeError: keys must be str, int, float, bool or None, not tuple」，留下的檔案 ['bridge_deidentified.csv', 'legs_deidentified.csv']
+對照 修正前版本 --fills https://example.invalid/x.csv：結束碼 1，守衛被觸發（pandas 嘗試連網，證明守衛有效）
+結果：23/23 通過
+結束碼 0
+
+===== 直譯器：3.13.18 pandas 2.2.3 numpy 2.1.3 =====
+$ python3 -I backtest/research/v87_fill_bridge/fill_bridge.py --selftest
+selftest ok（POSIX，25 項）：部分成交合併、SafeNet 掛單存續分開、市價腿不含 SafeNet、重試模糊、同窗口價格不符不配對、缺 origType、缺訂單不以首筆代建單、全局一對一、數量不一致不入橋接、多持倉方向衝突、重複成交剔除、橋接算術與 realizedPnl 核對、SafeNet 以停損價為參考（非收盤價反事實）、去識別輸出可重算、funding 未取得、殘差不稱 funding、全部 USDT 時合計、JSON 字串鍵、無 NaN、可往返、非 USDT／混合／空白／無效／資產空白手續費標未驗證且不入合計、realizedPnl 缺值標示、K 線停止條件、bar-time 必填、兩種格式一致、URL／scheme／標準輸入／不存在／目錄／符號連結輸入在讀取前拒絕、寫到第 1／2／3 檔失敗都不留下目錄、輸出無識別碼價格數量、700／600、拒 git／既有／符號連結、不覆寫、未載入網路請求或專案模組、分析與寫檔期間未開子程序（Popen／os.system 守衛）
+{"未配對腿原因": {"缺候選訂單": 3, "模糊：該訂單同時是多條腿的候選": 2, "窗口內有同向單但價格與紀錄不一致": 1, "模糊：2 張候選": 1}, "未配對訂單": {"模糊（未配對）": 3, "窗口內但價格不一致": 1, "類型不明（origType 空白）": 1, "缺訂單": 1, "同訂單多方向或多持倉方向": 1}, "橋接排除": {"未平倉或無出場紀錄": 7, "數量不一致": 1}}
+結束碼 0
+
+$ python3 -I backtest/research/v87_fill_bridge/test_fill_bridge_cli.py
+平台：posix Python 3.13.18 pandas 2.2.3 numpy 2.1.3
+工具 sha256 7e9edfc714f5f32abcdef4dd22276d16f71134bdd03e1d09956eb2880d5303ce
+輸入 fills  sha256 140950ca3264941e40a61935213bdb771379c66a567ea3c1bd5bd6d31f55c9e2  fills.csv
+輸入 klines sha256 673c3d9c34eaa815b52b50998dc5d1ae2555bf84bf1212c3dab0d919a1a35839  klines.csv
+輸入 local  sha256 642896cd4ee22c93e3c0859c8598f0f16db3d4fdca194fb21cd701073d9b5616  local_trades.csv
+輸入 orders sha256 22c7dab16baa8f9d209db23ba18c19f9ce0731209584cf47cf7a15bda5e4efb8  orders.csv
+PASS A 命令列正式執行：結束碼 0、三檔齊全、無暫存目錄、無網路與子程序：結束碼 0
+PASS A summary.json 可重新讀取，且 stdout 與檔案內容相同
+PASS A 摘要與逐腿、逐筆 CSV 的筆數與金額一致；執行資訊雜湊正確；600／700：17/17 項
+  A 摘要節錄：{"腿數": 13, "相容配對腿": 6, "橋接": {"交易筆": 2, "排除": {"未平倉或無出場紀錄": 7, "數量不一致": 1}, "價差美元": {"筆": 2, "合計": -2.5, "缺值筆": 0}, "USDT淨損益": {"已驗證筆": 2, "手續費USDT": {"筆": 2, "合計": 4.0607500000000005, "缺值筆": 0}}}, "K線覆蓋": {"根數": 60, "首根收盤UTC": "2025-11-01T03:00:00", "末根收盤UTC": "2025-11-03T14:00:00"}, "版本": {"python": "3.13.18", "pandas": "2.2.3", "numpy": "2.1.3", "平台": "posix"}}
+PASS B 一筆出場手續費為 BNB：該筆 USDT 淨損益留空標未驗證、不進合計，價格橋接照列，摘要與 CSV 一致：結束碼 0
+PASS C 目錄已存在：結束碼 4、既有三檔不變：結束碼 4
+PASS D --fills https://example.invalid/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --fills http://127.0.0.1:9/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --fills file:///etc/hostname：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --orders https://example.invalid/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --orders http://127.0.0.1:9/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --orders file:///etc/hostname：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --local https://example.invalid/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --local http://127.0.0.1:9/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --local file:///etc/hostname：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --klines https://example.invalid/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --klines http://127.0.0.1:9/x.csv：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS D --klines file:///etc/hostname：結束碼 2、守衛未被觸發、未建立輸出：結束碼 2
+PASS E --fills 不存在：結束碼 2、未建立輸出：結束碼 2
+PASS E --fills 目錄：結束碼 2、未建立輸出：結束碼 2
+PASS E --fills 符號連結：結束碼 2、未建立輸出：結束碼 2
+PASS F K 線不在整點：結束碼 3、未建立輸出與暫存目錄：結束碼 3
+PASS G 輸出位於 git 工作樹：結束碼 4、未建立：結束碼 4
+PASS H 內建 --selftest：結束碼 0：selftest ok（POSIX，25 項）：部分成交合併、SafeNet 掛單存續分開、市價腿不含 SafeNet、
+對照 修正前 3c11426（sha256 da96dd4a…）：結束碼 1，最後一行錯誤「TypeError: keys must be str, int, float, bool or None, not tuple」，留下的檔案 ['bridge_deidentified.csv', 'legs_deidentified.csv']
+對照 修正前版本 --fills https://example.invalid/x.csv：結束碼 1，守衛被觸發（pandas 嘗試連網，證明守衛有效）
+結果：23/23 通過
+結束碼 0
+
+$ python3 -I backtest/research/v87_fill_bridge/test_fill_bridge_cli.py --write-synthetic && git status --short -- backtest/research/v87_fill_bridge/synthetic
+已重建 synthetic/
+（無輸出＝重建後與已提交內容相同）
+
+檔案雜湊
+7e9edfc714f5f32abcdef4dd22276d16f71134bdd03e1d09956eb2880d5303ce  backtest/research/v87_fill_bridge/fill_bridge.py
+6d22ce55e30ae22c7856c6e93a017c845621a6fdc780658d081600a6e54d05cd  backtest/research/v87_fill_bridge/test_fill_bridge_cli.py
+0d771171ca31d19e403058fc143456516b8d61cefbaa350fec638b8aed0ff0f9  backtest/research/v87_fill_bridge/README.md
+140950ca3264941e40a61935213bdb771379c66a567ea3c1bd5bd6d31f55c9e2  backtest/research/v87_fill_bridge/synthetic/fills.csv
+dd9f4f434a25e2cc7082545842dd1fcc8023a927c68c8e678574c2bbb5864f3a  backtest/research/v87_fill_bridge/synthetic/fills_bnb.csv
+673c3d9c34eaa815b52b50998dc5d1ae2555bf84bf1212c3dab0d919a1a35839  backtest/research/v87_fill_bridge/synthetic/klines.csv
+b0fce30e4622fca3276cfbe50eec44f38d687c21b2d9dfc519f7e8509267fdba  backtest/research/v87_fill_bridge/synthetic/klines_bad_hour.csv
+642896cd4ee22c93e3c0859c8598f0f16db3d4fdca194fb21cd701073d9b5616  backtest/research/v87_fill_bridge/synthetic/local_trades.csv
+22c7dab16baa8f9d209db23ba18c19f9ce0731209584cf47cf7a15bda5e4efb8  backtest/research/v87_fill_bridge/synthetic/orders.csv
