@@ -85,10 +85,18 @@ def order_table(t, o):
     return m
 
 
+EPOCH = pd.Timestamp('1970-01-01')
+
+
+def to_ms(x):
+    """UTC 無時區時間 → 毫秒整數；用差值除以 1ms，與 datetime64 的 ns/us/s 解析度無關。"""
+    return (x - EPOCH) // pd.Timedelta(milliseconds=1)
+
+
 def load_klines(kl):
     kl = kl.copy()
     if 'open_time' in kl.columns: kl['open_ms'] = pd.to_numeric(kl.open_time).astype('int64')
-    else: kl['open_ms'] = ((pd.to_datetime(kl['datetime']) - pd.Timedelta(hours=8)).astype('int64') // 10**6)
+    else: kl['open_ms'] = to_ms(pd.to_datetime(kl['datetime']) - pd.Timedelta(hours=8))   # 不依賴 pandas 時間解析度（pandas 3 預設 us）
     kl['close_ms'] = kl.open_ms + H
     chk = dict(K線筆數=len(kl), 收盤都在整點=bool((kl.close_ms % H == 0).all()), 收盤時刻重複=int(kl.close_ms.duplicated().sum()))
     kl = kl.drop_duplicates('close_ms').sort_values('close_ms').set_index('close_ms')
@@ -105,7 +113,7 @@ def legs_from_local(local, bar_time):
         for leg, tc in (('進場', 'entry_time_utc'), ('出場', 'exit_time_utc')):
             v = r.get(tc)
             if pd.isna(v) or str(v) == '': continue
-            rec = int(pd.Timestamp(str(v).replace('Z', '')).value // 10**6)
+            rec = int(to_ms(pd.Timestamp(str(v).replace('Z', ''))))
             T = rec + (H if bar_time == 'open' else 0)
             side = ('BUY' if ps == 'LONG' else 'SELL') if leg == '進場' else ('SELL' if ps == 'LONG' else 'BUY')
             et = str(r.get('exit_type', '')) if leg == '出場' else ''
@@ -143,7 +151,7 @@ def analyze(fills, orders, local, kl_raw, bar_time):
     else: ok['波動三分位'] = '樣本不足'
     met = ['ab_T到建立_ms_未拆分', 'c_建立到最後_ms', 'T到最後成交_ms', '方向性價差_bp']
     grp = lambda keys: {' / '.join(map(str, k if isinstance(k, tuple) else (k,))): {mm: d(v[mm]) for mm in met} for k, v in ok.groupby(keys, observed=True)} if len(ok) else {}
-    ext = lambda col: dict(最大5=ok.nlargest(5, col)[['序號', '腿', '方向', col]].to_dict('records'), 最小5=ok.nsmallest(5, col)[['序號', '腿', '方向', col]].to_dict('records')) if len(ok) else {}
+    ext = lambda col: (lambda z: dict(最大5=z.nlargest(5, col)[['序號', '腿', '方向', col]].to_dict('records'), 最小5=z.nsmallest(5, col)[['序號', '腿', '方向', col]].to_dict('records')) if len(z) else {})(ok[ok[col].notna()] if len(ok) else ok)
     S = dict(清洗=q, K線檢查=kchk, 訂單分類={k: int(v) for k, v in m.kind.value_counts().items()},
              配對狀態={k: int(v) for k, v in R['狀態'].value_counts().items()} if len(R) else {},
              未配對訂單依類型={k: int(v) for k, v in um.kind.value_counts().items()},
@@ -204,6 +212,12 @@ def selftest():
     assert S['清洗']['重複成交剔除'] == 1 and S['清洗']['零或缺價量時間剔除'] == 1
     assert S['訂單分類']['其他類型'] == 1 and S['未配對訂單依類型'].get('其他類型') == 1 and S['未配對訂單依類型'].get('市價單') == 1
     assert S['K線檢查']['收盤都在整點']
+    # 專案快取格式：datetime（UTC+8 開盤字串），結果須與 open_time 版完全一致（V86 第 4 輪：pandas 3 解析度回歸）
+    kl2 = pd.DataFrame(dict(datetime=[(pd.Timestamp(int(v), unit='ms') + pd.Timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S') for v in kl.open_time], high=kl.high, low=kl.low, close=kl.close))
+    R2, S2 = analyze(fills, orders, local, kl2, 'open')
+    assert S2['K線檢查']['收盤都在整點'] and S2['P_T缺值'] == S['P_T缺值']
+    assert np.allclose(R2['方向性價差_bp'].fillna(-9e9).values, R['方向性價差_bp'].fillna(-9e9).values)
+    assert all(pd.notna(r['方向性價差_bp']) for r in S['極端_價差'].get('最大5', []))
     for bad in ('a', ''):
         try: analyze(fills, orders, local, kl, bad); raise SystemExit('應拒絕 bar_time')
         except AssertionError: pass
@@ -218,7 +232,7 @@ def selftest():
     try: write_private(os.path.join(out, 'legs_deidentified.csv'), 'x'); raise AssertionError('應拒絕覆寫')
     except FileExistsError: pass
     print('selftest ok：重複與零數量剔除、限價單歸其他類型不入統計、訊號時間取自本機紀錄、晚 75 分的重試不配對、SafeNet 對停損價、'
-          'bar-time 必填、拒絕 git 目錄與既有目錄、不覆寫、逐腿檔不含 orderId 與價格、檔案 600')
+          'bar-time 必填、datetime 格式 K 線與 open_time 一致、拒絕 git 目錄與既有目錄、不覆寫、逐腿檔不含 orderId 與價格、檔案 600')
     print(json.dumps(dict(配對狀態=S['配對狀態'], 未配對訂單依類型=S['未配對訂單依類型'], 清洗=S['清洗']), ensure_ascii=False))
 
 
