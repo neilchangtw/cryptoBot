@@ -138,3 +138,15 @@ python3 -I backtest/research/v85_readonly_fills/fill_latency_analysis.py --selft
 ```
 
 1 分 K 不在 Git（55.9MB），封存於 `/mnt/project-files/v81_research/`，也可用 `backtest/research/v81_fetch_1m.py` 重抓後以官方 CHECKSUM 校驗。檔案雜湊見 `offline_test_output.txt` 末段。
+
+## 7. 審查交付補充（2026-11-16，commit e91b7cf 之後）
+
+**master 狀態**：e91b7cf 已在使用者「push 上去並且 merge 到 master」的指示下快轉合併（42a242d → e91b7cf）。之後使用者改為「只 push 分支供審查、不 merge master」：本節的補充 commit 只推到 `claude/v87-research`，master 停在 e91b7cf，沒有回退。
+
+**提交物檢查（已驗證）**：6b3684a 2 檔、e91b7cf 12 檔，全部在 `doc/research_results/` 與 `backtest/research/` 下；檔名沒有 `.env`、state、成交或訂單 CSV；內容掃描沒有 API 金鑰樣式、簽章、VPS 主機名或 IP、使用者電子郵件；唯一的 64 位十六進位字串是 1 分 K 檔的 sha256。
+
+**台帳 T110／T111 的引號問題（已驗證）**：42a242d 的 `trial_ledger.csv` 第 112、113 行（T110、T111），第 4 欄 `direction` 內含「1,000U」「1,000 筆」且未加引號，逗號被當成欄位分隔。pandas `read_csv`（C 引擎與 python 引擎都一樣）停在「Expected 12 fields in line 112, saw 13」；Python `csv.reader` 不報錯，但這兩行讀成 13 欄，`direction` 之後各欄位右移一格。e91b7cf 只在這兩個欄位前後各加一個 `"`（逐字元比對：每行恰好插入 2 個字元），文字沒有改，修正後全檔 116 列、每列 12 欄。這是格式問題，不是資料損壞。
+
+**匯總器輸出欄位補充（工程，T116）**：為了讓去識別輸出能獨立重算，逐腿加上「實際名目美元」「參考名目美元」，原「價差美元」改名「價差成本美元」（正值＝成本）；逐筆橋接加上進場／出場價差成本美元、進場／出場手續費、funding（固定「未取得」）與「缺失成本」。配對規則、容差與停止條件都沒有改。selftest 加了三項：由兩個名目重算 bp 與美元、橋接恆等式、缺失成本標示。程式 sha256 由 513eb7b3…eaa5 改為新值（見 `offline_test_output.txt`）。1bp 是看過使用者回報 0.0bp 之後訂的工程容差，不是事前依據。
+
+在取得原始資料或去識別逐腿輸出之前，25 筆實測仍標「使用者回報」，沒有任何損益橋接數字。候選驗收門檻不變，V87 沒有新候選。

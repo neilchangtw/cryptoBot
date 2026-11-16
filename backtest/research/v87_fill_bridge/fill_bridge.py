@@ -10,9 +10,9 @@
   --bar-time open|close  本機紀錄時間是 K 線開盤或收盤（必填；2026-11-16 小樣本使用者回報為 open）
   --out     尚不存在、且不在 git 工作樹內的新目錄
 
-輸出（目錄 700、檔案 600；不含 orderId、tradeId、價格、數量、金鑰）
-  legs_deidentified.csv  逐腿：配對狀態、原因、腿別、方向、訂單類型、建單／首筆／末筆−T 毫秒、掛單存續、成交筆、方向性 bp、價差美元、手續費
-  bridge_deidentified.csv 逐筆交易：實際毛損益、收盤價反事實毛損益、價差美元、手續費、交易所淨（不含 funding）、本機淨、未拆分殘差
+輸出（目錄 700、檔案 600；不含 orderId、tradeId、單筆成交價、均價、數量欄、金鑰；含每腿名目美元＝數量×價格，供重算）
+  legs_deidentified.csv  逐腿：配對狀態、原因、腿別、方向、訂單類型、建單／首筆／末筆−T 毫秒、掛單存續、成交筆、方向性 bp、價差成本美元、實際與參考名目美元、手續費
+  bridge_deidentified.csv 逐筆交易：實際毛損益、收盤價反事實毛損益、價差美元與進出場分項、手續費分項、funding（未取得）、交易所淨（不含 funding）、本機淨、未拆分殘差、缺失成本
   summary.json           上述彙總；同時印到 stdout，可貼給研究端
 
 用法：
@@ -178,7 +178,8 @@ def analyze(fills, orders, local, kl_raw, bar_time):
                      建單_T_ms=float(o.create_ms - g.T_ms) if mk else np.nan, 首筆_T_ms=float(o.first_ms - g.T_ms) if mk else np.nan,
                      末筆_T_ms=float(o.last_ms - g.T_ms) if mk else np.nan, 建單到末筆_ms=float(o.last_ms - o.create_ms) if mk else np.nan,
                      掛單存續_ms=np.nan if mk else float(o.first_ms - o.create_ms),
-                     方向性bp=b, 價差美元=float(o.qty * ref * b / 1e4) if np.isfinite(b) else np.nan,
+                     方向性bp=b, 價差成本美元=float(o.qty * ref * b / 1e4) if np.isfinite(b) else np.nan,
+                     實際名目美元=float(o.qty * o.vwap), 參考名目美元=float(o.qty * ref) if np.isfinite(ref) else np.nan,
                      手續費=float(o.fee), 手續費已驗證=bool(o.fee_ok), _oid=oid, _qty=float(o.qty), _vwap=float(o.vwap), _ref=ref, _rpnl=float(o.rpnl))
         rows.append(r)
     R = pd.DataFrame(rows)
@@ -199,9 +200,11 @@ def analyze(fills, orders, local, kl_raw, bar_time):
         s = 1.0 if e.方向 == 'LONG' else -1.0; qq = e._qty
         act = s * qq * (x._vwap - e._vwap); cf = s * qq * (x._ref - e._ref) if np.isfinite(x._ref) else np.nan
         fee = e.手續費 + x.手續費; exn = act - fee; ln = float(num(pd.Series([lr.get('net_pnl_usd')]))[0])
+        miss = ['funding 未取得'] + ([] if (e.手續費已驗證 and x.手續費已驗證) else ['手續費非 USDT 未換算']) + ([] if np.isfinite(cf) else ['出場參考價缺'])
         B.append(dict(序號=int(sn), 月份=x.月份, 方向=e.方向, 出場類型=x.出場類型, 實際毛損益=act, 收盤價反事實毛損益=cf, 價差美元=act - cf if np.isfinite(cf) else np.nan,
-                      手續費=fee, 手續費已驗證=bool(e.手續費已驗證 and x.手續費已驗證), 交易所淨_不含funding=exn, 本機淨=ln, 未拆分殘差=ln - exn,
-                      realizedPnl核對差=float(x._rpnl - act)))
+                      進場價差成本美元=e.價差成本美元, 出場價差成本美元=x.價差成本美元, 進場手續費=e.手續費, 出場手續費=x.手續費,
+                      手續費=fee, 手續費已驗證=bool(e.手續費已驗證 and x.手續費已驗證), funding='未取得', 交易所淨_不含funding=exn, 本機淨=ln, 未拆分殘差=ln - exn,
+                      realizedPnl核對差=float(x._rpnl - act), 缺失成本='；'.join(miss)))
     B = pd.DataFrame(B)
     pub = [c for c in R.columns if not c.startswith('_')]
     return R[pub], B, summarize(R, B, q, m, res, cand, legs, flags, bar_time)
@@ -218,7 +221,7 @@ def summarize(R, B, q, m, res, cand, legs, flags, bar_time):
     mk = ok[ok.訂單類型 == 'MARKET']; sn = ok[ok.訂單類型 == 'STOP_MARKET']
     S = dict(清洗=q, 腿數=len(R), 已配對腿=len(ok), 未配對腿=int((R.狀態 != '已配對').sum()), 未配對比例=round(float((R.狀態 != '已配對').mean()), 4) if len(R) else None,
              未配對腿原因=R[R.狀態 != '已配對'].原因.value_counts().to_dict(), 未配對訂單=unmatched_orders(m, res, cand),
-             市價腿={k: {'建單−T_ms': d(g.建單_T_ms), '末筆−T_ms': d(g.末筆_T_ms), '建單到末筆_ms（毫秒解析度）': d(g.建單到末筆_ms), '方向性bp': d(g.方向性bp), '價差美元': d(g.價差美元)}
+             市價腿={k: {'建單−T_ms': d(g.建單_T_ms), '末筆−T_ms': d(g.末筆_T_ms), '建單到末筆_ms（毫秒解析度）': d(g.建單到末筆_ms), '方向性bp': d(g.方向性bp), '價差成本美元': d(g.價差成本美元)}
                    for k, g in mk.groupby(['腿', '方向'])} if len(mk) else {},
              SafeNet腿=dict(n=len(sn), 掛單存續_ms=d(sn.掛單存續_ms), 對停損價bp=d(sn.方向性bp), 說明='掛單存續不是撮合延遲，不併入市價腿'),
              橋接=dict(交易筆=len(B), 排除=flags,
@@ -230,7 +233,7 @@ def summarize(R, B, q, m, res, cand, legs, flags, bar_time):
                      最差價差事件=B.nsmallest(3, '價差美元')[['序號', '月份', '方向', '出場類型', '價差美元']].to_dict('records') if len(B) else [],
                      手續費未驗證筆=int((~B.手續費已驗證).sum()) if len(B) else 0),
              未取得=['funding（/fapi/v1/income 不在允許清單，未查詢）', '漏訊號與拒單（需 signal.log／alerts.log，本工具不讀）'],
-             說明=dict(bar_time=bar_time, 價差正負='方向性 bp 正值＝對策略不利；價差美元正值＝成本；橋接的價差美元＝實際−反事實，負值＝成本',
+             說明=dict(bar_time=bar_time, 價差正負='方向性 bp 正值＝對策略不利；逐腿價差成本美元正值＝成本；橋接的價差美元＝實際−反事實＝−(進場＋出場價差成本美元)', 重算='逐腿 方向性bp＝(實際名目/參考名目−1)×1e4（買）或其負值（賣）；價差成本美元＝參考名目×bp/1e4', 價格容差='1bp 是看過使用者回報（0.0bp）後訂的工程容差，不是事前依據',
                      毫秒='0 ms 只表示交易所時間戳在同一毫秒內', 樣本='已曝光 2026 樣本，不外推到 2021～2026'))
     return S
 
@@ -347,6 +350,11 @@ def selftest():
     b1 = B.set_index('序號').loc[1]; assert abs(b1.實際毛損益 - 19.5) < 1e-9 and abs(b1.收盤價反事實毛損益 - 21.0) < 1e-9 and abs(b1.價差美元 + 1.5) < 1e-9, '橋接算術'
     assert abs(b1.realizedPnl核對差) < 1e-9 and abs(b1.交易所淨_不含funding - (19.5 - b1.手續費)) < 1e-9
     b2 = B.set_index('序號').loc[2]; assert abs(b2.價差美元 - (-1.0)) < 1e-9, 'SafeNet 以停損價為參考'
+    # 去識別輸出可獨立重算：bp 由兩個名目重算、價差成本由參考名目×bp、橋接價差＝−(進場＋出場成本)、淨＝毛−費
+    okr = R[R.狀態 == '已配對']; sgn = np.where(((okr.腿 == '進場') & (okr.方向 == 'LONG')) | ((okr.腿 == '出場') & (okr.方向 == 'SHORT')), 1.0, -1.0)
+    assert np.allclose(sgn * (okr.實際名目美元 / okr.參考名目美元 - 1) * 1e4, okr.方向性bp) and np.allclose(okr.參考名目美元 * okr.方向性bp / 1e4, okr.價差成本美元), '逐腿重算'
+    assert np.allclose(B.價差美元, -(B.進場價差成本美元 + B.出場價差成本美元)) and np.allclose(B.交易所淨_不含funding, B.實際毛損益 - B.進場手續費 - B.出場手續費), '橋接重算'
+    assert (B.funding == '未取得').all() and B.缺失成本.str.contains('funding 未取得').all(), '缺失成本標示'
     assert set(B.序號) == {1, 2}
     # 手續費非 USDT → 標未驗證
     f2 = fills.copy(); f2.loc[f2.orderId == 102, 'commissionAsset'] = 'BNB'; _, B2, S2 = analyze(f2, orders, local, kl, 'open'); assert S2['橋接']['手續費未驗證筆'] == 1
@@ -371,13 +379,15 @@ def selftest():
     out = os.path.join(tmp, 'ok'); prep_out(out)
     write_private(os.path.join(out, 'legs.csv'), R.to_csv(index=False)); write_private(os.path.join(out, 'bridge.csv'), B.to_csv(index=False))
     txt = open(os.path.join(out, 'legs.csv'), encoding='utf-8').read() + open(os.path.join(out, 'bridge.csv'), encoding='utf-8').read()
-    for bad in ('orderId', '101', '2001.0', '2020.0', 'tradeId'): assert bad not in txt, bad
+    hdr = set(R.columns) | set(B.columns)
+    for bad in ('orderId', 'tradeId', 'id', 'price', 'qty', 'vwap', 'stopPrice', 'avgPrice'): assert bad not in hdr, bad   # 不輸出識別碼、價格、數量欄
+    assert '2001.0' not in txt, '個別成交價不得出現'   # 名目美元＝數量×價格會輸出（供重算）；合成資料數量為 1 時名目等於均價，屬測試資料巧合
     if POSIX: assert (os.stat(os.path.join(out, 'legs.csv')).st_mode & 0o077) == 0 and (os.stat(out).st_mode & 0o077) == 0
     try: write_private(os.path.join(out, 'legs.csv'), 'x'); raise AssertionError('應拒絕覆寫')
     except FileExistsError: pass
     assert not any(m in sys.modules for m in ('requests', 'urllib.request', 'binance', 'executor', 'strategy'))
     print('selftest ok（%s）：部分成交合併、SafeNet 掛單存續分開、重試模糊、同窗口價格不符不配對、缺 origType、缺訂單不以首筆代建單、'
-          '全局一對一、數量不一致不入橋接、多持倉方向衝突、重複成交剔除、橋接算術與 realizedPnl 核對、SafeNet 以停損價為參考、非 USDT 手續費標未驗證、'
+          '全局一對一、數量不一致不入橋接、多持倉方向衝突、重複成交剔除、橋接算術與 realizedPnl 核對、去識別輸出可重算 bp 與美元、缺失成本標示、SafeNet 以停損價為參考、非 USDT 手續費標未驗證、'
           'K 線不整點／重複／缺必要 T／缺欄位即停止、bar-time 必填、datetime 與 open_time 一致、輸出無識別碼價格數量、600、拒 git／既有／符號連結、不覆寫、未載入網路模組'
           % ('POSIX' if POSIX else '非 POSIX：權限與符號連結項 SKIP'))
     print(json.dumps(dict(未配對腿原因=S['未配對腿原因'], 未配對訂單=S['未配對訂單'], 橋接排除=S['橋接']['排除']), ensure_ascii=False))

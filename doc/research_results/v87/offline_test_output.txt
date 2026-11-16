@@ -1,19 +1,22 @@
-V87 離線測試輸出（2026-11-16）
-平台：posix 3.13.18
+V87 離線測試輸出（審查交付版，2026-11-16）
+平台：posix Python 3.13.18 pandas 3.0.5 numpy 2.5.3
 
 $ python3 -I backtest/research/v87_fill_bridge/fill_bridge.py --selftest
-selftest ok（POSIX）：部分成交合併、SafeNet 掛單存續分開、重試模糊、同窗口價格不符不配對、缺 origType、缺訂單不以首筆代建單、全局一對一、數量不一致不入橋接、多持倉方向衝突、重複成交剔除、橋接算術與 realizedPnl 核對、SafeNet 以停損價為參考、非 USDT 手續費標未驗證、K 線不整點／重複／缺必要 T／缺欄位即停止、bar-time 必填、datetime 與 open_time 一致、輸出無識別碼價格數量、600、拒 git／既有／符號連結、不覆寫、未載入網路模組
+selftest ok（POSIX）：部分成交合併、SafeNet 掛單存續分開、重試模糊、同窗口價格不符不配對、缺 origType、缺訂單不以首筆代建單、全局一對一、數量不一致不入橋接、多持倉方向衝突、重複成交剔除、橋接算術與 realizedPnl 核對、去識別輸出可重算 bp 與美元、缺失成本標示、SafeNet 以停損價為參考、非 USDT 手續費標未驗證、K 線不整點／重複／缺必要 T／缺欄位即停止、bar-time 必填、datetime 與 open_time 一致、輸出無識別碼價格數量、600、拒 git／既有／符號連結、不覆寫、未載入網路模組
 {"未配對腿原因": {"缺候選訂單": 3, "模糊：該訂單同時是多條腿的候選": 2, "模糊：2 張候選": 1, "窗口內有同向單但價格與紀錄不一致": 1}, "未配對訂單": {"模糊（未配對）": 3, "窗口內但價格不一致": 1, "類型不明（origType 空白）": 1, "缺訂單": 1, "同訂單多方向或多持倉方向": 1}, "橋接排除": {"未平倉或無出場紀錄": 7, "數量不一致": 1}}
+結束碼 0
 
 $ python3 -I backtest/research/v85_readonly_fills/fill_latency_analysis.py --selftest
 selftest ok：重複與零數量剔除、限價單歸其他類型不入統計、訊號時間取自本機紀錄、晚 75 分的重試不配對、SafeNet 對停損價、bar-time 必填、datetime 格式 K 線與 open_time 一致、拒絕 git 目錄與既有目錄、不覆寫、逐腿檔不含 orderId 與價格、檔案 600
 {"配對狀態": {"已配對": 4, "缺資料": 1}, "未配對訂單依類型": {"其他類型": 1, "市價單": 1}, "清洗": {"重複成交剔除": 1, "非ETHUSDT剔除": "提取時已過濾（無 symbol 欄）", "零或缺價量時間剔除": 1, "有效成交": 7, "同訂單多方向或多持倉方向": 0}}
+結束碼 0
 
-$ python3 backtest/research/v87_scale_recheck.py  （輸出見 scale_recheck_output.txt）
+$ python3 backtest/research/v87_scale_recheck.py → 與 scale_recheck_output.txt 逐位元組比對
+相同
 
-檔案雜湊（v87_results.md 的雜湊是寫入本檔前的版本）
-513eb7b37d4553eb10f713878ce1a106df01c557afa76d2183122170e455eaa5  backtest/research/v87_fill_bridge/fill_bridge.py
-7a0b13c56de159d08f9542ef54d679910d90a23b91e5dd170b482ed6ca061650  backtest/research/v87_fill_bridge/README.md
+檔案雜湊（v87_results.md 為寫入本檔前的版本）
+da96dd4addf036aa78981f7d8070f4a348c4bbf87c019e06ee265803a284c583  backtest/research/v87_fill_bridge/fill_bridge.py
+6d962f7a956f55312228507c996f9e209f1fe81b09e8457c1f3615882ea887fe  backtest/research/v87_fill_bridge/README.md
 9a4f8219607a80a497258fd8b42fef034de5ab500502cb4ec94169e3b89190ca  backtest/research/v87_scale_recheck.py
 0470d869c75988117b5ff53610f96204e3caf3165d8eb5ec1fe2389dc701b518  backtest/research/v85_readonly_fills/extract_fills_readonly.py
 fc045135c74e3dbbfb4eabdb28ace3e826ffc9ba9c5be7658747ddb5d253faff  backtest/research/v85_readonly_fills/fill_latency_analysis.py
@@ -21,5 +24,5 @@ fc045135c74e3dbbfb4eabdb28ace3e826ffc9ba9c5be7658747ddb5d253faff  backtest/resea
 c445662aa6a04a67732ac6c4bbdd5c750f87c496c858fcdcbcd5ca0eed821f15  doc/research_results/v87/scale_recheck.json
 b7098f1c4994d112e293f0f1ec7a607202cd9b51c5ccfe7bc80467e672616688  doc/research_results/v87/scale_recheck_output.txt
 9901be98e389071a40f794d16551a997d62414c114f30322f9969dc6d42dc795  doc/research_results/v87/v87_plan.md
-5e61bd5defdd7e6be745749450cb46337a04780164b2ab78fc73df146b765b4a  doc/research_results/v87/v87_results.md
-3277f117c51195ffa5db085d4bdd5f42b89b8a560a06f60961cf8d9dfa538583  doc/research_results/trial_ledger.csv
+d5b0cdeaf6bde060d2d484a1b960381f113ceadd54269dca27c58fa930efebd7  doc/research_results/v87/v87_results.md
+f5758770ef914bd8aff2cfeead17541ea342c848b98b464d7fdbb2814d7435c2  doc/research_results/trial_ledger.csv
